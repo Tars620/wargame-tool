@@ -63,3 +63,57 @@ class ServeurHeberge(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SousAdresse(unittest.TestCase):
+    """Servi sous /wargame/ derrière un proxy : les pages renvoient des adresses préfixées et le serveur retire le préfixe."""
+
+    def setUp(self):
+        self.avant = server.PREFIXE
+        server.PREFIXE = "/wargame"
+        server._STATIQUE.clear()
+        self.db = tempfile.mktemp(suffix=".db")
+        self.srv = server.make_server("127.0.0.1", 0, self.db)
+        self.base = f"http://127.0.0.1:{self.srv.server_address[1]}"
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+
+    def tearDown(self):
+        server.PREFIXE = self.avant
+        server._STATIQUE.clear()
+        self.srv.shutdown(); self.srv.server_close(); os.unlink(self.db)
+
+    def lire(self, chemin, en_tetes=None):
+        req = urllib.request.Request(self.base + chemin, headers=en_tetes or {})
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status, r.read().decode("utf-8", "replace")
+        except urllib.error.HTTPError as e:
+            return e.code, ""
+
+    def test_avec_prefixe_ne_touche_que_les_adresses_absolues_de_l_application(self):
+        self.assertEqual(server.avec_prefixe("fetch('/api/x'); import('./a.js'); `${o}/carte?p=1`; url(/static/f.woff2); <a href=\"/\">"),
+                         "fetch('/wargame/api/x'); import('./a.js'); `${o}/wargame/carte?p=1`; url(/wargame/static/f.woff2); <a href=\"/wargame/\">")
+        self.assertEqual(server.avec_prefixe("a /apis b mot/static"), "a /apis b mot/static")
+
+    def test_la_page_et_ses_scripts_sont_servis_sous_le_prefixe(self):
+        statut, html = self.lire("/wargame/carte")
+        self.assertEqual(statut, 200)
+        self.assertIn('src="/wargame/static/', html)
+        self.assertNotIn('src="/static/', html)
+        statut, js = self.lire("/wargame/static/partie.js")
+        self.assertEqual(statut, 200)
+        self.assertIn("/wargame/api/", js)
+
+    def test_hors_du_prefixe_c_est_introuvable_et_sans_barre_finale_on_redirige(self):
+        self.assertEqual(self.lire("/carte")[0], 404)
+        self.assertEqual(self.lire("/wargame/api/version")[0], 200)
+        req = urllib.request.Request(self.base + "/wargame")
+        opener = urllib.request.build_opener(type("N", (urllib.request.HTTPRedirectHandler,), {"redirect_request": lambda *a, **k: None}))
+        with self.assertRaises(urllib.error.HTTPError) as c:
+            opener.open(req)
+        self.assertEqual(c.exception.code, 301)
+
+    def test_les_liens_a_donner_portent_le_prefixe(self):
+        statut, corps = self.lire("/wargame/api/acces", {"X-Forwarded-For": "1.2.3.4", "Host": "exemple.fr", "X-Forwarded-Proto": "https"})
+        self.assertEqual(statut, 200)
+        self.assertEqual(json.loads(corps)["reseau"], "https://exemple.fr/wargame")

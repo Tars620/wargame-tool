@@ -511,6 +511,17 @@ def _cache_ecrire(cle, valeur, disque=True):
 IA_MODELE = os.environ.get("WG_IA_MODELE", "sonnet")
 # Serveur public : créer une partie exige cette clé (sauf depuis cet ordinateur). Vide = création libre, comme en local.
 CLE_CREATION = os.environ.get("WG_CLE_CREATION", "")
+# Servi sous une sous-adresse (ex. https://exemple.fr/wargame/) : le proxy transmet le chemin complet, le serveur retire ce préfixe
+# et ajoute le même préfixe aux adresses absolues des pages qu'il envoie.
+PREFIXE = os.environ.get("WG_PREFIXE", "").rstrip("/")
+_ADRESSES_ABSOLUES = re.compile(r"""(["'`(}])/(api|static|enligne|maps|carte)\b""")
+
+
+def avec_prefixe(texte):
+    """Ajoute le préfixe aux adresses absolues (/api, /static, /enligne, /maps, /carte, et le lien « / ») d'une page, d'un script ou d'une feuille de style."""
+    if not PREFIXE:
+        return texte
+    return _ADRESSES_ABSOLUES.sub(lambda m: f"{m.group(1)}{PREFIXE}/{m.group(2)}", texte).replace('href="/"', f'href="{PREFIXE}/"')
 IA_DELAI_S = 90
 IA_PROMPT_MAX = 2000
 IA_CONTEXTE_MAX = 40 * 1024
@@ -673,6 +684,12 @@ class Handler(BaseHTTPRequestHandler):
         query = parse_qs(url.query)
         token = self.headers.get("X-Token") or (query.get("token") or [""])[0]
         path = url.path
+        if PREFIXE:
+            if path == PREFIXE:
+                return self._send(301, b"", "text/plain", {"Location": PREFIXE + "/"})
+            if not path.startswith(PREFIXE + "/"):
+                raise ApiError(404, "Introuvable")
+            path = path[len(PREFIXE):]
         if method == "GET" and path in ("/", "/carte"):
             return self._static("index.html" if path == "/" else "carte.html")
         if method == "GET" and path.startswith("/static/"):
@@ -683,7 +700,7 @@ class Handler(BaseHTTPRequestHandler):
             # visiteur distant (serveur hébergé) : les liens à donner sont ceux de l'adresse par laquelle il est arrivé, jamais le réseau interne de la machine
             proto = (self.headers.get("X-Forwarded-Proto") or "https").split(",")[0].strip()
             hote = re.sub(r"[^A-Za-z0-9.:\-]", "", self.headers.get("Host") or "")
-            return self._json(200, {"reseau": f"{proto}://{hote}", "adresses": [], "tunnel": {"etat": "arret"}, "public": True})
+            return self._json(200, {"reseau": f"{proto}://{hote}{PREFIXE}", "adresses": [], "tunnel": {"etat": "arret"}, "public": True})
         if method == "GET" and path == "/api/acces":
             port = self.server.server_address[1]  # adresses à donner aux joueurs : réseau local, et lien Internet s'il est actif
             return self._json(200, {"reseau": f"http://{lan_address()}:{port}", "adresses": [{**a, "url": f"http://{a['ip']}:{port}"} for a in adresses_reseau()],
@@ -780,6 +797,8 @@ class Handler(BaseHTTPRequestHandler):
         if not entree or entree[0] != etat.st_mtime_ns:
             with open(full, "rb") as f:
                 brut = f.read()
+            if PREFIXE and not stable and ext in ("js", "mjs", "css", "html"):
+                brut = avec_prefixe(brut.decode("utf-8")).encode("utf-8")
             compresse = gzip.compress(brut, 6) if ext in ("js", "mjs", "css", "html", "txt", "json") and len(brut) > 1024 else None
             entree = (etat.st_mtime_ns, brut, compresse, f'"{etat.st_mtime_ns:x}-{len(brut):x}"')
             _STATIQUE[full] = entree
