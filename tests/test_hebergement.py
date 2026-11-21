@@ -94,6 +94,9 @@ class SousAdresse(unittest.TestCase):
         self.assertEqual(server.avec_prefixe("fetch('/api/x'); import('./a.js'); `${o}/carte?p=1`; url(/static/f.woff2); <a href=\"/\">"),
                          "fetch('/wargame/api/x'); import('./a.js'); `${o}/wargame/carte?p=1`; url(/wargame/static/f.woff2); <a href=\"/wargame/\">")
         self.assertEqual(server.avec_prefixe("a /apis b mot/static"), "a /apis b mot/static")
+        # un sous-chemin d'API après ${...} ne reçoit PAS le préfixe une seconde fois (/api/games/X est déjà préfixé)
+        self.assertEqual(server.avec_prefixe("`/api/games/${c}`; `${base()}/carte/commandes`; `${origine}/carte?partie=X`; `pmtiles://${o}/enligne/${k}`"),
+                         "`/wargame/api/games/${c}`; `${base()}/carte/commandes`; `${origine}/wargame/carte?partie=X`; `pmtiles://${o}/wargame/enligne/${k}`")
 
     def test_la_page_et_ses_scripts_sont_servis_sous_le_prefixe(self):
         statut, html = self.lire("/wargame/carte")
@@ -116,4 +119,4 @@ class SousAdresse(unittest.TestCase):
     def test_les_liens_a_donner_portent_le_prefixe(self):
         statut, corps = self.lire("/wargame/api/acces", {"X-Forwarded-For": "1.2.3.4", "Host": "exemple.fr", "X-Forwarded-Proto": "https"})
         self.assertEqual(statut, 200)
-        self.assertEqual(json.loads(corps)["reseau"], "https://exemple.fr/wargame")
+        self.assertEqual(json.loads(corps)["reseau"], "https://exemple.fr")  # l'adresse du site ; le préfixe est ajouté aux liens par les pages elles-mêmes

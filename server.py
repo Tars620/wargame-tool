@@ -514,14 +514,15 @@ CLE_CREATION = os.environ.get("WG_CLE_CREATION", "")
 # Servi sous une sous-adresse (ex. https://exemple.fr/wargame/) : le proxy transmet le chemin complet, le serveur retire ce préfixe
 # et ajoute le même préfixe aux adresses absolues des pages qu'il envoie.
 PREFIXE = os.environ.get("WG_PREFIXE", "").rstrip("/")
-_ADRESSES_ABSOLUES = re.compile(r"""(["'`(}])/(api|static|enligne|maps|carte)\b""")
+# Après un guillemet ou une parenthèse : toute adresse de l'application. Après « } » (fin d'un ${...}) : seulement les liens de page et de carte, jamais un sous-chemin d'API (${base()}/carte/...).
+_ADRESSES_ABSOLUES = re.compile(r"""(["'`(])/(api|static|enligne|maps|carte)\b|(\})/(carte\?|enligne/|maps/)""")
 
 
 def avec_prefixe(texte):
     """Ajoute le préfixe aux adresses absolues (/api, /static, /enligne, /maps, /carte, et le lien « / ») d'une page, d'un script ou d'une feuille de style."""
     if not PREFIXE:
         return texte
-    return _ADRESSES_ABSOLUES.sub(lambda m: f"{m.group(1)}{PREFIXE}/{m.group(2)}", texte).replace('href="/"', f'href="{PREFIXE}/"')
+    return _ADRESSES_ABSOLUES.sub(lambda m: f"{m.group(1) or m.group(3)}{PREFIXE}/{m.group(2) or m.group(4)}", texte).replace('href="/"', f'href="{PREFIXE}/"')
 IA_DELAI_S = 90
 IA_PROMPT_MAX = 2000
 IA_CONTEXTE_MAX = 40 * 1024
@@ -700,7 +701,7 @@ class Handler(BaseHTTPRequestHandler):
             # visiteur distant (serveur hébergé) : les liens à donner sont ceux de l'adresse par laquelle il est arrivé, jamais le réseau interne de la machine
             proto = (self.headers.get("X-Forwarded-Proto") or "https").split(",")[0].strip()
             hote = re.sub(r"[^A-Za-z0-9.:\-]", "", self.headers.get("Host") or "")
-            return self._json(200, {"reseau": f"{proto}://{hote}{PREFIXE}", "adresses": [], "tunnel": {"etat": "arret"}, "public": True})
+            return self._json(200, {"reseau": f"{proto}://{hote}", "adresses": [], "tunnel": {"etat": "arret"}, "public": True})
         if method == "GET" and path == "/api/acces":
             port = self.server.server_address[1]  # adresses à donner aux joueurs : réseau local, et lien Internet s'il est actif
             return self._json(200, {"reseau": f"http://{lan_address()}:{port}", "adresses": [{**a, "url": f"http://{a['ip']}:{port}"} for a in adresses_reseau()],
