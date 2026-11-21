@@ -1,159 +1,260 @@
 {
-  "note": "Valeurs de départ : paramètres de jeu modifiables sur chaque pièce, pas des données officielles. mouvement = vitesse en km/h (min et max) ; feu = portée en km et puissance destructrice de 0 à 10 ; vision = rayon en km. meteo_max = limites d'emploi (vent en km/h) : dépassées, la consigne est signalée. sidc = symbole APP-6D / MIL-STD-2525D (ensemble de symboles + entité), dessiné par milsymbol ; l'identité (ami ou hostile) vient du camp. commande = poste de commandement : portée de liaison en km (les drones rattachés doivent rester à moins de cette distance). liaison = la pièce doit être rattachée à un poste de commandement de son camp.",
+  "note": "Valeurs documentées par l'utilisateur, sauf mention « estimé » dans l'avertissement de la pièce (à documenter). mouvement = vitesse en km/h (min, max) ; vision = surface au sol observée (surface_km2, drones) ou distance d'observation (rayon_km) ; feu.mode = direct (tir sur une cible), explosion (la pièce se détruit sur sa cible, zone_m2) ou zone (rayon_m, dispersion_m) ; feu.cibles = catégories que la pièce peut détruire ; endurance_min = autonomie de vol ; portee_op_km = distance maximale à son équipe de pilotes ; retour = le drone rentre se poser ; liaison = doit être rattaché à une équipe de pilotes ; commande = équipe de pilotes ; brouillage = zone où les drones ennemis sont perdus ; immunise_brouillage = insensible au brouillage (fibre optique). sidc = symbole APP-6D (ensemble + entité), dessiné par milsymbol.",
   "pieces": [
     {
-      "id": "poste-commandement",
-      "nom": "Poste de commandement",
-      "icone": "poste",
+      "id": "equipe-pilotes",
+      "nom": "Équipe de pilotes",
+      "icone": "pilotes",
+      "categorie": "pilotes",
       "mouvement": {
-        "min": 20,
-        "max": 50
+        "min": 4,
+        "max": 4
       },
       "feu": {
-        "portee_km": 0,
-        "puissance": 0
+        "mode": "aucun",
+        "portee_km": 0
       },
       "vision": {
-        "rayon_km": 3
+        "rayon_km": 0.5
       },
-      "commande": {
-        "portee_km": 30
-      },
+      "commande": {},
       "sidc": {
         "jeu": "10",
         "entite": "110000",
         "etat_major": true
       },
-      "avertissement": "Les drones rattachés à ce poste doivent rester à moins de 30 km de lui. Un poste peut commander plusieurs drones."
+      "avertissement": "Estimé : vitesse (4 km/h) et observation (0,5 km). Les drones rattachés restent à moins de leur portée opérationnelle de cette équipe ; une équipe peut en commander plusieurs."
     },
     {
-      "id": "uav-reco",
-      "nom": "UAV de reconnaissance",
-      "icone": "uav",
+      "id": "voiture",
+      "nom": "Voiture",
+      "icone": "voiture",
+      "categorie": "vehicule",
       "mouvement": {
-        "min": 60,
-        "max": 120
+        "min": 40,
+        "max": 90
       },
       "feu": {
-        "portee_km": 0,
-        "puissance": 0
-      },
-      "vision": {
-        "rayon_km": 15
-      },
-      "meteo_max": {
-        "vent_kmh": 45
-      },
-      "sidc": {
-        "jeu": "01",
-        "entite": "110300"
-      },
-      "liaison": true
-    },
-    {
-      "id": "uav-arme",
-      "nom": "UAV armé",
-      "icone": "uav",
-      "mouvement": {
-        "min": 60,
-        "max": 150
-      },
-      "feu": {
-        "portee_km": 10,
-        "puissance": 4
-      },
-      "vision": {
-        "rayon_km": 8
-      },
-      "meteo_max": {
-        "vent_kmh": 45
-      },
-      "sidc": {
-        "jeu": "01",
-        "entite": "110300"
-      },
-      "liaison": true
-    },
-    {
-      "id": "fantassin",
-      "nom": "Fantassin",
-      "icone": "infanterie",
-      "mouvement": {
-        "min": 4,
-        "max": 6
-      },
-      "feu": {
-        "portee_km": 0.5,
-        "puissance": 2
-      },
-      "vision": {
-        "rayon_km": 1.5
-      },
-      "sidc": {
-        "jeu": "10",
-        "entite": "121100"
-      }
-    },
-    {
-      "id": "blinde",
-      "nom": "Véhicule blindé",
-      "icone": "blinde",
-      "mouvement": {
-        "min": 50,
-        "max": 70
-      },
-      "feu": {
-        "portee_km": 3,
-        "puissance": 6
-      },
-      "vision": {
-        "rayon_km": 3
-      },
-      "sidc": {
-        "jeu": "10",
-        "entite": "120500"
-      }
-    },
-    {
-      "id": "artillerie",
-      "nom": "Artillerie",
-      "icone": "artillerie",
-      "mouvement": {
-        "min": 30,
-        "max": 60
-      },
-      "feu": {
-        "portee_km": 30,
-        "puissance": 8
+        "mode": "aucun",
+        "portee_km": 0
       },
       "vision": {
         "rayon_km": 1
       },
       "sidc": {
         "jeu": "10",
-        "entite": "130300"
-      }
+        "entite": "121104"
+      },
+      "avertissement": "Estimé : vitesses (40 à 90 km/h) et observation (1 km). Roule sur route et en plaine, jamais sur l'eau."
     },
     {
-      "id": "guerre-electronique",
-      "nom": "Brouilleur",
-      "icone": "guerre-electronique",
+      "id": "moto",
+      "nom": "Moto",
+      "icone": "moto",
+      "categorie": "vehicule",
       "mouvement": {
-        "min": 30,
-        "max": 60
+        "min": 50,
+        "max": 100
       },
       "feu": {
-        "portee_km": 0,
-        "puissance": 0
+        "mode": "aucun",
+        "portee_km": 0
       },
       "vision": {
-        "rayon_km": 10
+        "rayon_km": 1
       },
-      "avertissement": "L'effet de brouillage n'est pas encore modélisé : la pièce n'a ni feu ni effet sur les autres pour l'instant.",
+      "sidc": {
+        "jeu": "10",
+        "entite": "121300"
+      },
+      "avertissement": "Estimé : vitesses (50 à 100 km/h) et observation (1 km). Roule sur route et en plaine, jamais sur l'eau."
+    },
+    {
+      "id": "drone-isr",
+      "nom": "Drone d'observation (ISR)",
+      "icone": "uav",
+      "categorie": "drone",
+      "mouvement": {
+        "min": 35,
+        "max": 70
+      },
+      "endurance_min": 45,
+      "portee_op_km": 20,
+      "vision": {
+        "surface_km2": 1
+      },
+      "feu": {
+        "mode": "aucun",
+        "portee_km": 0
+      },
+      "liaison": true,
+      "retour": true,
+      "meteo_max": {
+        "vent_kmh": 45
+      },
+      "sidc": {
+        "jeu": "01",
+        "entite": "110300"
+      },
+      "avertissement": "Estimé : vitesse minimale (35 km/h) et limite de vent (45 km/h). Rentre se poser auprès de son équipe avant la fin de son endurance."
+    },
+    {
+      "id": "drone-owa",
+      "nom": "Drone d'attaque (OWA)",
+      "icone": "uav",
+      "categorie": "drone",
+      "mouvement": {
+        "min": 60,
+        "max": 120
+      },
+      "endurance_min": 60,
+      "portee_op_km": 50,
+      "vision": {
+        "surface_km2": 2
+      },
+      "feu": {
+        "mode": "explosion",
+        "portee_km": 0,
+        "zone_m2": 25,
+        "cibles": [
+          "fantassin",
+          "vehicule",
+          "artillerie",
+          "brouilleur",
+          "pilotes"
+        ]
+      },
+      "liaison": true,
+      "retour": false,
+      "meteo_max": {
+        "vent_kmh": 45
+      },
+      "sidc": {
+        "jeu": "01",
+        "entite": "110300"
+      },
+      "avertissement": "Estimé : vitesse minimale (60 km/h) et limite de vent (45 km/h). À sens unique : il se détruit sur sa cible, et il est perdu si son endurance s'épuise avant."
+    },
+    {
+      "id": "drone-filoguide",
+      "nom": "Drone filoguidé",
+      "icone": "uav",
+      "categorie": "drone",
+      "mouvement": {
+        "min": 60,
+        "max": 120
+      },
+      "endurance_min": 30,
+      "portee_op_km": 25,
+      "vision": {
+        "surface_km2": 2
+      },
+      "feu": {
+        "mode": "explosion",
+        "portee_km": 0,
+        "zone_m2": 25,
+        "cibles": [
+          "fantassin",
+          "vehicule",
+          "artillerie",
+          "brouilleur",
+          "pilotes"
+        ]
+      },
+      "liaison": true,
+      "retour": false,
+      "immunise_brouillage": true,
+      "meteo_max": {
+        "vent_kmh": 45
+      },
+      "sidc": {
+        "jeu": "01",
+        "entite": "110300"
+      },
+      "avertissement": "Valeurs documentées : 120 km/h, 30 min, 25 km, 2 km², 25 m². Estimé : vitesse minimale (60 km/h) et limite de vent (45 km/h). Insensible au brouillage (fibre optique)."
+    },
+    {
+      "id": "brouilleur",
+      "nom": "Brouilleur",
+      "icone": "brouilleur",
+      "categorie": "brouilleur",
+      "mouvement": {
+        "min": 2,
+        "max": 2
+      },
+      "feu": {
+        "mode": "aucun",
+        "portee_km": 0
+      },
+      "vision": {
+        "rayon_km": 0.5
+      },
+      "brouillage": {
+        "rayon_km": 4
+      },
       "sidc": {
         "jeu": "10",
         "entite": "150500"
-      }
+      },
+      "avertissement": "Estimé : observation (0,5 km). Les drones ennemis qui entrent dans sa zone de 4 km sont perdus, sauf le drone filoguidé."
+    },
+    {
+      "id": "fantassin",
+      "nom": "Fantassin",
+      "icone": "infanterie",
+      "categorie": "fantassin",
+      "mouvement": {
+        "min": 4,
+        "max": 4
+      },
+      "vision": {
+        "rayon_km": 1
+      },
+      "feu": {
+        "mode": "direct",
+        "portee_km": 0.3,
+        "cibles": [
+          "fantassin",
+          "brouilleur"
+        ]
+      },
+      "sidc": {
+        "jeu": "10",
+        "entite": "121100"
+      },
+      "avertissement": "Ne détruit que les fantassins et les brouilleurs ennemis, à 300 m au plus."
+    },
+    {
+      "id": "artillerie",
+      "nom": "Artillerie",
+      "icone": "artillerie",
+      "categorie": "artillerie",
+      "mouvement": {
+        "min": 30,
+        "max": 50
+      },
+      "vision": {
+        "rayon_km": 1
+      },
+      "feu": {
+        "mode": "zone",
+        "portee_km": 20,
+        "rayon_m": 50,
+        "dispersion_m": 30,
+        "cibles": [
+          "fantassin",
+          "vehicule",
+          "artillerie",
+          "brouilleur",
+          "pilotes"
+        ]
+      },
+      "route_seule": true,
+      "sidc": {
+        "jeu": "10",
+        "entite": "130300"
+      },
+      "avertissement": "Estimé : portée (20 km), rayon de destruction (50 m), dispersion (30 m) et observation (1 km). Ne se déplace que sur route (règle de terrain à venir : pour l'instant en ligne droite)."
     }
   ]
 }

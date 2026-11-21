@@ -1,8 +1,9 @@
 import { distanceKm, formatKm, formatDuree } from './geo.js';
-import { ALLURES, avancer, contacts, etatLiaison, exigePoste, phraseLiaison, verifier, visiblesPour, vitesse } from './moteur.js';
+import { ALLURES, avancer, contacts, estPoste, position, etatLiaison, exigePoste, phraseLiaison, verifier, visiblesPour, vitesse } from './moteur.js';
 import { PARIS, date, heure } from './fuseaux.js';
 import { maintenant, surTick } from './temps.js';
-import { listerPieces, pieceChoisie, choisirPiece, positionner, appliquerVisibilite, detruire, restaurer, rafraichirPortees } from './pieces.js';
+import { listerPieces, pieceChoisie, choisirPiece, positionner, appliquerVisibilite, detruire, restaurer, rafraichirPortees, modifier } from './pieces.js';
+import { aFeu, brouilleSur, doitRentrer, effets, enVol, enduranceRestante, estDrone, retourPossible } from './regles.js';
 import { conditions } from './meteo.js';
 
 export const SOURCE_CONSIGNES = 'consignes';
@@ -12,10 +13,10 @@ const JOURNAL_MAX = 300;
 const JOURNAL_AFFICHE = 60;
 const COULEURS = { bleu: '#4c8dff', rouge: '#e5484d' };
 const STATUTS = { attente: 'En attente', lance: 'À démarrer', en_cours: 'En cours', terminee: 'Terminée' };
-const TYPES = { aller: 'Aller à', observer: 'Observer', engager: 'Engager (feu)' };
+const TYPES = { aller: 'Aller à', observer: 'Observer', engager: 'Engager (feu)', rentrer: 'Rentrer se poser' };
 
 const state = { map: null, ordres: {}, journal: [], depart: null, pointDeVue: 'arbitre', pointage: null,
-  forme: { type: 'aller', allure: 'normale', dureeMin: 10, cibleId: '' }, contactsVus: new Set(), liaisons: null, meteo: null, theme: 'sombre' };
+  forme: { type: 'aller', allure: 'normale', dureeMin: 10, cibleId: '' }, contactsVus: new Set(), liaisons: null, positionsEquipes: new Map(), meteo: null, theme: 'sombre' };
 const $ = (id) => document.getElementById(id);
 
 function h(tag, props = {}, ...kids) {
@@ -58,6 +59,7 @@ function majFile(id, fn) { state.ordres = { ...state.ordres, [id]: fn(fileDe(id)
 function libelle(c, pieces) {
   if (c.type === 'aller') return `Aller à ${c.points.length > 1 ? `${c.points.length} points` : 'un point'} (${km(c.distanceKm || 0)}, allure ${ALLURES[c.allure].toLowerCase()})`;
   if (c.type === 'observer') return `Observer ${c.dureeMin} min`;
+  if (c.type === 'rentrer') return c.auto ? 'Rentrer se poser (retour automatique)' : 'Rentrer se poser';
   return `Engager ${nomDe(pieces, c.cibleId)}`;
 }
 
@@ -66,6 +68,7 @@ function nouvelleConsigne(piece) {
   const base = { id: newId(), type: f.type, allure: f.allure, statut: 'lance' };
   if (f.type === 'aller') return { ...base, points: state.pointage ? state.pointage.points : (f.points || []) };
   if (f.type === 'observer') return { ...base, dureeMin: Number(f.dureeMin) };
+  if (f.type === 'rentrer') return base;
   return { ...base, cibleId: f.cibleId };
 }
 
@@ -161,45 +164,106 @@ function revenirAuDepart() {
   dessinerOperation(); dessinerConsignes(); rafraichirCarte(); majVisibilite();
 }
 
+const metres = (km) => `${Math.round(km * 1000)} m`;
+
+/** Journalise un événement du moteur et applique ses effets : destructions, atterrissage. */
 function evenement(t, e, pieces) {
   const nom = nomDe(pieces, e.pieceId);
   if (e.type === 'arrivee') noter(t, `${nom} est arrivé à destination.`, 'info');
   else if (e.type === 'fin_observation') noter(t, `${nom} termine son observation.`, 'info');
   else if (e.type === 'cible_perdue') noter(t, `${nom} : cible introuvable ou déjà détruite, engagement annulé.`, 'alerte');
-  else if (e.type === 'tir') {
+  else if (e.type === 'sans_equipe') noter(t, `${nom} : plus d'équipe de pilotes où se poser.`, 'alerte');
+  else if (e.type === 'atterri') {
+    const p = pieces.find((q) => q.id === e.pieceId);
+    modifier(e.pieceId, { etat: 'sol', endurance_restante_min: p ? p.endurance_min : undefined });
+    noter(t, `${nom} se pose auprès de ${nomDe(pieces, e.equipeId)} : endurance rechargée.`, 'info');
+  } else if (e.type === 'tir' || e.type === 'frappe' || e.type === 'tir_zone') {
     const cible = nomDe(pieces, e.cibleId);
-    if (e.detruit) { detruire(e.cibleId); noter(t, `TIR : ${nom} engage ${cible} (à ${km(e.distanceKm)}). ${cible} est détruit, comme demandé par l'arbitre.`, 'tir'); }
-    else noter(t, `TIR : ${nom} engage ${cible} (puissance ${e.puissance}, à ${km(e.distanceKm)}). Résultat à arbitrer.`, 'tir');
+    if (e.type === 'tir') noter(t, `TIR : ${nom} engage ${cible} à ${metres(e.distanceKm)}.`, 'tir');
+    else if (e.type === 'frappe') noter(t, `FRAPPE : ${nom} explose sur ${cible}.`, 'tir');
+    else noter(t, `TIR DE ZONE : ${nom} tire sur ${cible} (impact à ${metres(distanceKm(e.impact, position(pieces.find((q) => q.id === e.cibleId) || { lng: e.impact[0], lat: e.impact[1] })))} de la cible, rayon ${Math.round(e.rayonM)} m).`, 'tir');
+    const touches = effets(e, pieces);
+    for (const { id, cause } of touches) { detruire(id, cause); noter(t, `${nomDe(pieces, id)} est détruit.`, 'tir'); }
+    if (!touches.length) noter(t, 'Aucune pièce touchée.', 'info');
+  }
+}
+
+/** Les drones au sol suivent leur équipe de pilotes quand elle bouge (déplacement par consigne ou à la main). */
+function suivreEquipes(pieces) {
+  const nouvelles = new Map(pieces.filter((q) => estPoste(q)).map((q) => [q.id, [q.lng, q.lat]]));
+  for (const [id, pos] of nouvelles) {
+    const ancien = state.positionsEquipes.get(id);
+    if (!ancien || (ancien[0] === pos[0] && ancien[1] === pos[1])) continue;
+    for (const d of pieces) if (d.poste === id && estDrone(d) && !enVol(d) && !d.detruit) positionner(d.id, [d.lng + pos[0] - ancien[0], d.lat + pos[1] - ancien[1]]);
+  }
+  state.positionsEquipes = nouvelles;
+}
+
+/** Endurance des drones en vol : décompte, retour automatique quand il ne reste que le temps de rentrer, perte si elle s'épuise. */
+function suivreVol(t, dtMin) {
+  const pieces = listerPieces();
+  let change = false;
+  for (const d of pieces) {
+    if (!enVol(d) || d.detruit) continue;
+    const reste = enduranceRestante(d) - dtMin;
+    if (reste <= 0) { modifier(d.id, { endurance_restante_min: 0 }); detruire(d.id, 'endurance'); noter(t, `${d.nom} : endurance épuisée, drone perdu.`, 'alerte'); continue; }
+    modifier(d.id, { endurance_restante_min: reste });
+    const equipe = pieces.find((q) => q.id === d.poste && estPoste(q));
+    const file = fileDe(d.id);
+    const actif = file.find((c) => c.statut === 'lance' || c.statut === 'en_cours');
+    if (retourPossible(d) && equipe && !equipe.detruit && !(actif && actif.type === 'rentrer') && doitRentrer({ ...d, endurance_restante_min: reste }, equipe, vitesse(d, 'normale'))) {
+      state.ordres = { ...state.ordres, [d.id]: [{ id: newId(), type: 'rentrer', allure: 'normale', statut: 'lance', auto: true }, ...file.map((c) => (c.statut === 'en_cours' ? { ...c, statut: 'lance' } : c))] };
+      noter(t, `${d.nom} : il ne reste que le temps de rentrer (${Math.round(reste)} min), retour automatique.`, 'alerte');
+      change = true;
+    }
+  }
+  return change;
+}
+
+/** Un drone en vol qui entre dans la zone d'un brouilleur ennemi est perdu (sauf le drone filoguidé). */
+function suivreBrouillage(t) {
+  const pieces = listerPieces();
+  for (const d of pieces) {
+    const brouilleur = brouilleSur(d, pieces);
+    if (brouilleur) { detruire(d.id, 'brouillage'); noter(t, `BROUILLAGE : ${d.nom} entre dans la zone de ${brouilleur.nom}, liaison perdue : drone détruit.`, 'alerte'); }
   }
 }
 
 function pas(t, dtMs) {
   const dtMin = dtMs / 60000;
   const pieces = listerPieces();
+  suivreEquipes(pieces);
   let change = false;
   for (const piece of pieces) {
     if (piece.detruit) continue;
     const file = fileDe(piece.id);
     const i = file.findIndex((c) => c.statut === 'lance' || c.statut === 'en_cours');
     if (i < 0) continue;
-    if (exigePoste(piece) && !etatLiaison(piece, pieces).ok) continue; // liaison coupée : rien ne s'exécute tant qu'elle ne revient pas
+    if (exigePoste(piece) && file[i].type !== 'rentrer' && !etatLiaison(piece, pieces).ok) continue; // liaison coupée : rien ne s'exécute tant qu'elle ne revient pas
     let c = file[i];
-    if (c.statut === 'lance') { c = { ...c, statut: 'en_cours', debutMs: t, depart: [piece.lng, piece.lat] }; noter(t, `${piece.nom} : début « ${libelle(c, pieces)} ».`, 'info'); }
-    const r = avancer(piece, c, dtMin, pieces);
-    if (exigePoste(piece) && r.position) { // le poste a pu bouger : jamais plus loin que sa portée
+    let pc = piece;
+    if (c.statut === 'lance') {
+      c = { ...c, statut: 'en_cours', debutMs: t, depart: [piece.lng, piece.lat] };
+      noter(t, `${piece.nom} : début « ${libelle(c, pieces)} ».`, 'info');
+      if (estDrone(piece) && !enVol(piece)) { modifier(piece.id, { etat: 'vol' }); pc = { ...piece, etat: 'vol' }; noter(t, `${piece.nom} décolle.`, 'info'); }
+    }
+    const r = avancer(pc, c, dtMin, pieces, String(Math.floor(t / 1000)));
+    if (exigePoste(piece) && r.position && c.type !== 'rentrer') { // l'équipe a pu bouger : jamais plus loin que la portée du drone
       const l = etatLiaison({ ...piece, lng: r.position[0], lat: r.position[1] }, pieces);
       if (!l.ok && l.raison === 'hors_portee') {
-        noter(t, `LIAISON : ${piece.nom} s'arrête, la suite de « ${libelle(c, pieces)} » sortirait de la portée de son poste (${l.poste.nom}).`, 'alerte');
+        noter(t, `LIAISON : ${piece.nom} s'arrête, la suite de « ${libelle(c, pieces)} » sortirait de la portée de son équipe (${l.poste.nom}).`, 'alerte');
         state.ordres = { ...state.ordres, [piece.id]: file.map((x, j) => (j === i ? { ...c, statut: 'terminee', finMs: t } : x)) };
         change = true; continue;
       }
     }
-    positionner(piece.id, r.position, r.termine && c.type !== 'observer' ? c.depart : null);
+    positionner(piece.id, r.position, r.termine && c.type !== 'observer' && c.type !== 'rentrer' ? c.depart : null);
     for (const e of r.evenements) evenement(t, e, pieces);
     const suivi = r.termine ? { ...r.consigne, statut: 'terminee', finMs: t } : { ...r.consigne, statut: 'en_cours' };
-    state.ordres = { ...state.ordres, [piece.id]: file.map((x, j) => (j === i ? suivi : x)) };
+    state.ordres = { ...state.ordres, [piece.id]: fileDe(piece.id).map((x, j) => (j === i ? suivi : x)) };
     change = true;
   }
+  if (suivreVol(t, dtMin)) change = true;
+  suivreBrouillage(t);
   if (change) { sauver(); suivreContacts(t); dessinerListe(); rafraichirCarte(); }
   suivreLiaisons(t);
   if (change) rafraichirPortees();
@@ -298,8 +362,8 @@ function dessinerConsignes() {
     ...pieces.map((p) => h('option', { value: p.id, selected: piece && p.id === piece.id }, `${p.nom} (${p.camp})`)));
   if (!piece) { boite.replaceChildren(h('label', { class: 'champ large' }, h('span', {}, 'Pièce'), choixPiece), h('p', { class: 'note' }, 'Posez une pièce sur la carte, puis sélectionnez-la pour lui donner des consignes.')); return; }
 
-  const peutBouger = piece.mouvement.max > 0, peutTirer = piece.feu.portee_km > 0;
-  const types = Object.entries(TYPES).filter(([t]) => (t === 'aller' ? peutBouger : t === 'engager' ? peutTirer : true));
+  const peutBouger = piece.mouvement.max > 0, peutTirer = aFeu(piece);
+  const types = Object.entries(TYPES).filter(([t]) => (t === 'aller' ? peutBouger : t === 'engager' ? peutTirer : t === 'rentrer' ? retourPossible(piece) : true));
   if (!types.some(([t]) => t === state.forme.type)) state.forme = { ...state.forme, type: types[0][0] };
   const f = state.forme;
   const adverses = pieces.filter((p) => p.camp !== piece.camp);
@@ -317,6 +381,8 @@ function dessinerConsignes() {
       state.pointage
         ? h('div', { class: 'camps' }, h('button', { type: 'button', onclick: () => arreterPointage(true) }, `Terminer (${n} point${n > 1 ? 's' : ''})`), h('button', { type: 'button', onclick: () => arreterPointage(false) }, 'Annuler'))
         : h('button', { type: 'button', onclick: demarrerPointage }, n ? `Itinéraire : ${n} point${n > 1 ? 's' : ''} (refaire)` : 'Choisir la destination sur la carte'));
+  } else if (state.forme.type === 'rentrer') {
+    lignes.push(h('label', { class: 'champ large' }, h('span', {}, 'Allure'), allureSel));
   } else if (state.forme.type === 'observer') {
     lignes.push(h('label', { class: 'champ large' }, h('span', {}, 'Durée'),
       h('input', { type: 'text', inputmode: 'numeric', value: String(state.forme.dureeMin), oninput: (e) => { state.forme = { ...state.forme, dureeMin: Number(e.target.value.replace(',', '.')) || 0 }; dessinerBilan(); } })));

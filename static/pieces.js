@@ -1,14 +1,15 @@
 import * as maplibre from './vendor/maplibre-gl.mjs';
 import { distanceKm, cercle, formatDuree, dureesDeplacement, formatKm } from './geo.js';
 import { symbole } from './symboles.js';
-import { estPoste, exigePoste, etatLiaison, lierAuto, phraseLiaison, porteeDuPoste } from './moteur.js';
+import { estPoste, exigePoste, etatLiaison, lierAuto, phraseLiaison, porteeLiaison } from './moteur.js';
+import { pieceDepuisModele, migrerPieces } from './catalogue.js';
+import { enVol, enduranceRestante, estDrone, modeFeu, rayonBrouillage, rayonDeSurfaceKm, rayonVision } from './regles.js';
 
 export const SOURCE_ID = 'portees';
 const STORAGE_KEY = 'wg.pieces.v1';
 const COULEURS = { bleu: '#4c8dff', rouge: '#e5484d' };
 const NOM_CAMP = { bleu: 'Bleu', rouge: 'Rouge' };
-const PUISSANCE_MAX = 10;
-const state = { catalogue: [], pieces: [], camp: 'bleu', arme: null, selection: null, portees: 'selection', map: null,
+const state = { retirees: [], catalogue: [], pieces: [], camp: 'bleu', arme: null, selection: null, portees: 'selection', map: null,
   marqueurs: new Map(), racine: null, visibles: null };
 
 // ---------- utilitaires DOM ----------
@@ -34,11 +35,7 @@ const piece = (id) => state.pieces.find((p) => p.id === id) || null;
 // ---------- persistance (navigateur) ----------
 function sauver() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.pieces)); } catch { /* stockage indisponible */ } }
 function charger() {
-  try {
-    const brut = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-    // L'ancien nom du modèle « brouilleur » (id inchangé pour ne pas perdre les pièces déjà posées).
-    return Array.isArray(brut) ? brut.map((p) => (p.type === 'guerre-electronique' && /^Guerre .lectronique/.test(p.nom) ? { ...p, nom: p.nom.replace(/^Guerre .lectronique/, 'Brouilleur') } : p)) : [];
-  } catch { return []; }
+  try { const brut = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); return Array.isArray(brut) ? brut : []; } catch { return []; }
 }
 
 // ---------- état : jamais de modification en place ----------
@@ -69,9 +66,13 @@ export function collection() {
   for (const p of visibles) {
     const proprietes = { camp: p.camp, id: p.id };
     const centre = [p.lng, p.lat];
-    if (p.vision.rayon_km > 0) features.push({ type: 'Feature', properties: { ...proprietes, genre: 'vision' }, geometry: { type: 'Polygon', coordinates: [cercle(centre, p.vision.rayon_km)] } });
+    if (rayonVision(p.vision) > 0 && (!estDrone(p) || enVol(p))) features.push({ type: 'Feature', properties: { ...proprietes, genre: 'vision' }, geometry: { type: 'Polygon', coordinates: [cercle(centre, rayonVision(p.vision))] } });
     if (p.feu.portee_km > 0) features.push({ type: 'Feature', properties: { ...proprietes, genre: 'feu' }, geometry: { type: 'LineString', coordinates: cercle(centre, p.feu.portee_km) } });
-    if (estPoste(p)) features.push({ type: 'Feature', properties: { ...proprietes, genre: 'liaison' }, geometry: { type: 'LineString', coordinates: cercle(centre, porteeDuPoste(p)) } });
+    if (estPoste(p)) { // un anneau par portée opérationnelle distincte des drones rattachés
+      const portees = new Set(state.pieces.filter((q) => q.poste === p.id && exigePoste(q) && !q.detruit).map((q) => porteeLiaison(q, p)));
+      for (const r of portees) features.push({ type: 'Feature', properties: { ...proprietes, genre: 'liaison' }, geometry: { type: 'LineString', coordinates: cercle(centre, r) } });
+    }
+    if (rayonBrouillage(p) > 0) features.push({ type: 'Feature', properties: { ...proprietes, genre: 'liaison' }, geometry: { type: 'LineString', coordinates: cercle(centre, rayonBrouillage(p)) } });
     if (p.dernier_deplacement) features.push({ type: 'Feature', properties: { ...proprietes, genre: 'trace' }, geometry: { type: 'LineString', coordinates: p.dernier_deplacement.trace } });
   }
   for (const p of montrees) { // les liens se voient toujours : c'est la structure de commandement, pas une portée
@@ -114,9 +115,6 @@ function majMarqueurs() {
 }
 
 // ---------- actions ----------
-/** Ce qu'un modèle dit de la chaîne de commandement : poste (commande) ou pièce à rattacher (liaison). */
-const liaisonDe = (m) => ({ ...(m.liaison ? { liaison: true } : {}), ...(m.commande ? { commande: { ...m.commande } } : {}) });
-
 /** Rattache toute pièce qui exige un poste et n'en a pas au poste de son camp le plus proche, s'il la couvre. */
 function relier() {
   const liens = lierAuto(state.pieces);
@@ -127,8 +125,7 @@ function relier() {
 function creer(type, lngLat) {
   const modele = state.catalogue.find((m) => m.id === type);
   const numero = state.pieces.filter((p) => p.type === type).length + 1;
-  const p = { id: newId(), type, icone: modele.icone, nom: `${modele.nom} ${numero}`, camp: state.camp, lng: lngLat.lng, lat: lngLat.lat,
-    mouvement: { ...modele.mouvement }, feu: { ...modele.feu }, vision: { ...modele.vision }, meteo_max: modele.meteo_max ? { ...modele.meteo_max } : null, dernier_deplacement: null, ...liaisonDe(modele) };
+  const p = pieceDepuisModele(modele, { id: newId(), nom: `${modele.nom} ${numero}`, camp: state.camp, lng: lngLat.lng, lat: lngLat.lat });
   state.pieces = [...state.pieces, p];
   relier(); sauver(); ajouterMarqueur(p); choisir(p.id); signaler();
 }
@@ -168,9 +165,26 @@ function armer(type) {
 
 // ---------- panneau ----------
 const fr = (x) => String(x).replace('.', ',');
+const CIBLES_TEXTE = { fantassin: 'fantassins', vehicule: 'véhicules', artillerie: 'artilleries', brouilleur: 'brouilleurs', pilotes: 'équipes de pilotes', drone: 'drones' };
+const CAUSES = { tir: 'tir', explosion: 'explosion', artillerie: 'tir d\'artillerie', endurance: 'endurance épuisée', brouillage: 'brouillage', arbitre: 'décision de l\'arbitre' };
+const texteCibles = (m) => (m.feu && m.feu.cibles && !m.feu.cibles.includes('*') ? m.feu.cibles.map((c) => CIBLES_TEXTE[c] || c).join(', ') : 'toutes les pièces');
+
+/** Ce que fait le feu d'un modèle ou d'une pièce, en une phrase. */
+function phraseFeu(m) {
+  const mode = modeFeu(m);
+  if (mode === 'direct') return `tir direct à ${fr(Math.round(m.feu.portee_km * 1000))} m`;
+  if (mode === 'explosion') return `explose sur sa cible : ${fr(m.feu.zone_m2)} m² détruits (consommé)`;
+  if (mode === 'zone') return `zone de ${fr(m.feu.rayon_m)} m à ${fr(m.feu.portee_km)} km (dispersion ${fr(m.feu.dispersion_m)} m)`;
+  return 'aucun';
+}
+const phraseObservation = (m) => (m.vision.surface_km2 > 0 ? `${fr(m.vision.surface_km2)} km² au sol` : `${fr(m.vision.rayon_km)} km`);
+
 function resume(m) {
-  const feu = m.feu.portee_km > 0 ? `${fr(m.feu.portee_km)} km, puissance ${m.feu.puissance}` : 'aucun';
-  return [`Mouvement : ${fr(m.mouvement.min)} à ${fr(m.mouvement.max)} km/h`, `Feu : ${feu}`, `Vision : ${fr(m.vision.rayon_km)} km`];
+  const lignes = [`Mouvement : ${fr(m.mouvement.min)} à ${fr(m.mouvement.max)} km/h`, `Observation : ${phraseObservation(m)}`, `Feu : ${phraseFeu(m)}`];
+  if (modeFeu(m) !== 'aucun') lignes.push(`Détruit : ${texteCibles(m)}`);
+  if (m.endurance_min > 0) lignes.push(`Endurance : ${fr(m.endurance_min)} min · portée ${fr(m.portee_op_km)} km`);
+  if (m.brouillage) lignes.push(`Brouillage : zone de ${fr(m.brouillage.rayon_km)} km`);
+  return lignes;
 }
 
 function dessinerBanque() {
@@ -190,11 +204,6 @@ function champ(libelle, valeur, unite, onChange, props = {}) {
   return h('label', { class: 'champ' }, h('span', {}, libelle), input, unite ? h('em', {}, unite) : null);
 }
 
-function barrePuissance(valeur) {
-  return h('span', { class: 'barre', role: 'img', 'aria-label': `puissance ${valeur} sur ${PUISSANCE_MAX}` },
-    ...Array.from({ length: PUISSANCE_MAX }, (_, i) => h('i', { class: i < valeur ? 'plein' : '' })));
-}
-
 function phraseDeplacement(p) {
   if (!p.dernier_deplacement) return 'Aucun déplacement. Faites glisser la pièce sur la carte.';
   const { rapide, lent } = dureesDeplacement(p.dernier_deplacement.km, p.mouvement.min, p.mouvement.max);
@@ -207,25 +216,58 @@ const km = (x) => x.toFixed(1).replace('.', ',');
 function sectionCommandement(p) {
   if (exigePoste(p)) {
     const l = etatLiaison(p, state.pieces);
-    const postes = state.pieces.filter((q) => estPoste(q) && !q.detruit && q.camp === p.camp);
-    const options = [h('option', { value: '' }, '— aucun —'), ...postes.map((q) => {
+    const equipes = state.pieces.filter((q) => estPoste(q) && !q.detruit && q.camp === p.camp);
+    const options = [h('option', { value: '' }, '— aucune —'), ...equipes.map((q) => {
       const d = distanceKm([p.lng, p.lat], [q.lng, q.lat]);
-      const hors = d > porteeDuPoste(q) + 1e-9;
+      const hors = d > porteeLiaison(p, q) + 1e-9;
       return h('option', { value: q.id, selected: q.id === p.poste, disabled: hors && q.id !== p.poste }, `${q.nom} · ${km(d)} km${hors ? ' (hors de portée)' : ''}`);
     })];
     const choix = h('select', { onchange: (e) => { const r = attacherPoste(p.id, e.target.value || null); if (!r.ok) { alert(r.erreur); dessinerFiche(); } } }, ...options);
     const phrase = phraseLiaison(l);
-    return [h('h4', {}, 'Poste de commandement'), h('label', { class: 'champ large' }, h('span', {}, 'Poste'), choix),
+    return [h('h4', {}, 'Équipe de pilotes'), h('label', { class: 'champ large' }, h('span', {}, 'Équipe'), choix),
       h('p', { class: phrase ? 'avert' : 'note' }, phrase ? `Liaison coupée : ${phrase}.` : `Liaison établie : ${km(l.distanceKm)} km sur ${km(l.porteeKm)} km au plus.`)];
   }
   if (estPoste(p)) {
     const drones = state.pieces.filter((q) => q.poste === p.id && exigePoste(q));
-    return [h('h4', {}, 'Commandement'),
-      champ('Portée', p.commande.portee_km, 'km', (v) => { maj(p.id, { commande: { portee_km: nombre(v, 1, 5000, p.commande.portee_km) } }); rafraichirCarte(); }),
-      h('p', { class: 'note' }, drones.length ? `${drones.length} drone${drones.length > 1 ? 's' : ''} rattaché${drones.length > 1 ? 's' : ''} :` : 'Aucun drone rattaché. Un poste peut en commander plusieurs.'),
-      ...drones.map((q) => { const l = etatLiaison(q, state.pieces); return h('p', { class: l.ok ? 'note' : 'avert' }, `${q.nom} · ${l.distanceKm !== undefined ? `${km(l.distanceKm)} km` : '—'}${l.ok ? '' : ' (liaison coupée)'}`); })];
+    return [h('h4', {}, 'Drones rattachés'),
+      h('p', { class: 'note' }, drones.length ? `${drones.length} drone${drones.length > 1 ? 's' : ''} :` : 'Aucun. Une équipe peut en commander plusieurs.'),
+      ...drones.map((q) => { const l = etatLiaison(q, state.pieces); return h('p', { class: l.ok ? 'note' : 'avert' }, `${q.nom} · ${l.distanceKm !== undefined ? `${km(l.distanceKm)} km sur ${km(l.porteeKm)}` : '—'}${l.ok ? '' : ' (liaison coupée)'}`); })];
   }
   return [];
+}
+
+/** Fiche : le feu de la pièce, avec les champs propres à son mode. */
+function sectionFeu(p, miseAJour) {
+  const mode = modeFeu(p);
+  const feu = () => piece(p.id).feu;
+  if (mode === 'aucun') return [h('h4', {}, 'Feu'), h('p', { class: 'note' }, 'Aucun feu.')];
+  const champs = mode === 'direct' ? [champ('Portée', Math.round(p.feu.portee_km * 1000), 'm', (v) => miseAJour({ feu: { ...feu(), portee_km: nombre(v, 0, 5e6, p.feu.portee_km * 1000) / 1000 } }))]
+    : mode === 'explosion' ? [champ('Zone détruite', p.feu.zone_m2, 'm²', (v) => miseAJour({ feu: { ...feu(), zone_m2: nombre(v, 0, 1e9, p.feu.zone_m2) } }))]
+      : [h('div', { class: 'duo' }, champ('Portée', p.feu.portee_km, 'km', (v) => miseAJour({ feu: { ...feu(), portee_km: nombre(v, 0, 5000, p.feu.portee_km) } })),
+        champ('Rayon', p.feu.rayon_m, 'm', (v) => miseAJour({ feu: { ...feu(), rayon_m: nombre(v, 0, 1e6, p.feu.rayon_m) } }))),
+      champ('Dispersion', p.feu.dispersion_m, 'm', (v) => miseAJour({ feu: { ...feu(), dispersion_m: nombre(v, 0, 1e6, p.feu.dispersion_m) } }))];
+  return [h('h4', {}, 'Feu'), ...champs, h('p', { class: 'note' }, `Détruit : ${texteCibles(p)}.`)];
+}
+
+/** Fiche : ce qui est propre aux drones (endurance, portée opérationnelle, état de vol) et aux brouilleurs. */
+function sectionSpecifique(p, miseAJour) {
+  const sorties = [];
+  if (estDrone(p)) {
+    sorties.push(h('h4', {}, 'Vol'),
+      champ('Endurance', p.endurance_min, 'min', (v) => { const n = nombre(v, 1, 1e4, p.endurance_min); miseAJour({ endurance_min: n, endurance_restante_min: Math.min(enduranceRestante(piece(p.id)), n) }); }),
+      champ('Portée', p.portee_op_km, 'km', (v) => miseAJour({ portee_op_km: nombre(v, 1, 5000, p.portee_op_km) })),
+      h('p', { class: 'note' }, enVol(p) ? `En vol · endurance restante ${fr(Math.round(enduranceRestante(p) * 10) / 10)} min.` : 'Au sol auprès de son équipe de pilotes.'));
+    if (p.immunise_brouillage) sorties.push(h('p', { class: 'note' }, 'Insensible au brouillage (fibre optique).'));
+  }
+  if (p.brouillage) sorties.push(h('h4', {}, 'Brouillage'), champ('Zone', p.brouillage.rayon_km, 'km', (v) => miseAJour({ brouillage: { rayon_km: nombre(v, 0, 1000, p.brouillage.rayon_km) } })));
+  return sorties;
+}
+
+/** Décision de l'arbitre : forcer ou annuler la destruction d'une pièce. */
+function boutonsArbitre(p) {
+  if (p.detruit) return [h('p', { class: 'avert' }, `Détruit (${CAUSES[p.cause_destruction] || 'cause inconnue'}).`),
+    h('button', { type: 'button', onclick: () => restaurer(p.id) }, 'Rétablir la pièce')];
+  return [h('button', { type: 'button', onclick: () => detruire(p.id, 'arbitre') }, 'Détruire la pièce')];
 }
 
 function dessinerFiche() {
@@ -233,9 +275,8 @@ function dessinerFiche() {
   const p = piece(state.selection);
   if (!p) { boite.replaceChildren(h('p', { class: 'note' }, 'Aucune pièce sélectionnée.')); return; }
   const modele = state.catalogue.find((m) => m.id === p.type);
-  const barre = h('div', { class: 'ligne' }, barrePuissance(p.feu.puissance));
   const deplacement = h('p', { class: 'note' }, phraseDeplacement(p));
-  const miseAJour = (patch) => { maj(p.id, patch); const q = piece(p.id); deplacement.textContent = phraseDeplacement(q); barre.replaceChildren(barrePuissance(q.feu.puissance)); rafraichirCarte(); majMarqueurs(); };
+  const miseAJour = (patch) => { maj(p.id, patch); const q = piece(p.id); deplacement.textContent = phraseDeplacement(q); rafraichirCarte(); majMarqueurs(); };
   const camps = h('div', { class: 'camps' }, ...Object.keys(NOM_CAMP).map((camp) => h('button', { class: 'camp', type: 'button', 'aria-pressed': String(p.camp === camp), style: `--c:${COULEURS[camp]}`,
     onclick: () => { maj(p.id, { camp, poste: null }); relier(); sauver(); majMarqueurs(); rafraichirCarte(); dessinerFiche(); signaler(); } }, NOM_CAMP[camp])));
   boite.replaceChildren(...[
@@ -245,16 +286,16 @@ function dessinerFiche() {
       champ('Min', p.mouvement.min, 'km/h', (v) => miseAJour({ mouvement: { ...piece(p.id).mouvement, min: nombre(v, 0, 5000, p.mouvement.min) } })),
       champ('Max', p.mouvement.max, 'km/h', (v) => miseAJour({ mouvement: { ...piece(p.id).mouvement, max: nombre(v, 0, 5000, p.mouvement.max) } }))),
     deplacement,
-    h('h4', {}, 'Feu'),
-    h('div', { class: 'duo' },
-      champ('Portée', p.feu.portee_km, 'km', (v) => miseAJour({ feu: { ...piece(p.id).feu, portee_km: nombre(v, 0, 5000, p.feu.portee_km) } })),
-      champ('Puissance', p.feu.puissance, `/ ${PUISSANCE_MAX}`, (v) => miseAJour({ feu: { ...piece(p.id).feu, puissance: Math.round(nombre(v, 0, PUISSANCE_MAX, p.feu.puissance)) } }))),
-    barre,
-    h('h4', {}, 'Vision'),
-    champ('Rayon', p.vision.rayon_km, 'km', (v) => miseAJour({ vision: { rayon_km: nombre(v, 0, 5000, p.vision.rayon_km) } })),
+    ...sectionFeu(p, miseAJour),
+    h('h4', {}, 'Observation'),
+    p.vision.surface_km2 !== undefined
+      ? champ('Surface', p.vision.surface_km2, 'km²', (v) => { const n = nombre(v, 0, 1e6, p.vision.surface_km2); miseAJour({ vision: { surface_km2: n, rayon_km: rayonDeSurfaceKm(n) } }); })
+      : champ('Rayon', p.vision.rayon_km, 'km', (v) => miseAJour({ vision: { rayon_km: nombre(v, 0, 5000, p.vision.rayon_km) } })),
+    ...sectionSpecifique(p, miseAJour),
     ...sectionCommandement(p),
     modele && modele.avertissement ? h('p', { class: 'note' }, modele.avertissement) : null,
     h('p', { class: 'note' }, `Position : ${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}`),
+    ...boutonsArbitre(p),
     h('button', { class: 'danger', type: 'button', onclick: () => supprimer(p.id) }, 'Supprimer la pièce')].filter(Boolean));
 }
 
@@ -275,8 +316,7 @@ export function creerPieces(specs) {
   for (const sp of specs) {
     const modele = state.catalogue.find((m) => m.id === sp.type);
     if (!modele) continue;
-    const p = { id: newId(), type: sp.type, icone: modele.icone, nom: sp.nom, camp: sp.camp, lng: sp.lng, lat: sp.lat, mouvement: { ...modele.mouvement }, feu: { ...modele.feu },
-      vision: { ...modele.vision }, meteo_max: modele.meteo_max ? { ...modele.meteo_max } : null, dernier_deplacement: null, ...liaisonDe(modele) };
+    const p = pieceDepuisModele(modele, { id: newId(), nom: sp.nom, camp: sp.camp, lng: sp.lng, lat: sp.lat });
     state.pieces = [...state.pieces, p];
     ids[sp.vid] = p.id;
   }
@@ -286,17 +326,17 @@ export function creerPieces(specs) {
   return ids;
 }
 
-/** Rattache un drone à un poste (ou le détache avec null). Rend { ok, erreur } : le poste doit être du même camp, vivant, et couvrir le drone. */
+/** Rattache un drone à une équipe de pilotes (ou le détache avec null). Rend { ok, erreur } : l'équipe doit être du même camp, vivante, et couvrir le drone. */
 export function attacherPoste(id, posteId) {
   const p = piece(id);
-  if (!p || !exigePoste(p)) return { ok: false, erreur: 'Cette pièce n\'a pas besoin de poste de commandement.' };
+  if (!p || !exigePoste(p)) return { ok: false, erreur: 'Cette pièce n\'a pas besoin d\'équipe de pilotes.' };
   if (posteId) {
     const q = piece(posteId);
-    if (!q || !estPoste(q)) return { ok: false, erreur: 'Ce n\'est pas un poste de commandement.' };
-    if (q.camp !== p.camp) return { ok: false, erreur: 'Le poste est d\'un autre camp.' };
-    if (q.detruit) return { ok: false, erreur: 'Le poste est détruit.' };
+    if (!q || !estPoste(q)) return { ok: false, erreur: 'Ce n\'est pas une équipe de pilotes.' };
+    if (q.camp !== p.camp) return { ok: false, erreur: 'L\'équipe est d\'un autre camp.' };
+    if (q.detruit) return { ok: false, erreur: 'L\'équipe est détruite.' };
     const d = distanceKm([p.lng, p.lat], [q.lng, q.lat]);
-    if (d > porteeDuPoste(q) + 1e-9) return { ok: false, erreur: `Le poste est à ${d.toFixed(1).replace('.', ',')} km, sa portée est de ${porteeDuPoste(q)} km.` };
+    if (d > porteeLiaison(p, q) + 1e-9) return { ok: false, erreur: `L'équipe est à ${d.toFixed(1).replace('.', ',')} km, la portée de ce drone est de ${porteeLiaison(p, q)} km.` };
   }
   maj(id, { poste: posteId || null });
   rafraichirCarte(); dessinerFiche(); signaler();
@@ -304,15 +344,19 @@ export function attacherPoste(id, posteId) {
 }
 
 /** Une pièce détruite reste sur la carte (grisée) mais ne voit, ne tire et ne se déplace plus. */
-export function detruire(id) {
+export function detruire(id, cause = 'arbitre') {
   if (!piece(id)) return;
-  maj(id, { detruit: true });
+  maj(id, { detruit: true, cause_destruction: cause });
   majMarqueurs(); rafraichirCarte(); dessinerFiche(); signaler();
 }
 
+/** Modifie des champs d'une pièce par programme (état de vol, endurance...) sans toucher à la fiche. */
+export function modifier(id, patch) { if (piece(id)) maj(id, patch); }
+export const piecesRetirees = () => [...state.retirees];
+
 export function restaurer(id) {
   if (!piece(id) || !piece(id).detruit) return;
-  maj(id, { detruit: false });
+  maj(id, { detruit: false, cause_destruction: null });
   majMarqueurs(); rafraichirCarte(); dessinerFiche(); signaler();
 }
 
@@ -347,7 +391,9 @@ export async function monter(map) {
   state.map = map;
   const reponse = await fetch('/static/pieces.json');
   state.catalogue = (await reponse.json()).pieces;
-  state.pieces = charger();
+  const migration = migrerPieces(charger(), state.catalogue); // pièces de l'ancien catalogue : reconstruites ou retirées
+  state.pieces = migration.pieces; state.retirees = migration.retirees;
+  if (migration.retirees.length || migration.pieces.some((p, i) => p !== charger()[i])) sauver();
   for (const p of state.pieces) ajouterMarqueur(p);
   map.on('click', (e) => {
     if (document.body.dataset.pointage === 'oui') return; // une consigne est en cours de pointage sur la carte

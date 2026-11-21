@@ -58,7 +58,7 @@ La page se recharge seule quand le code du serveur change (`/api/version`), en g
   n'a pas été essayé dans orbat-mapper. *terra-draw* (dessin) fait double emploi avec nos outils de dessin.
 
 ## Pièces (`/carte`, panneau de droite)
-Banque de sept pièces (poste de commandement, UAV de reconnaissance, UAV armé, fantassin, véhicule blindé, artillerie, brouilleur),
+Banque de neuf pièces (voir « Catalogue et règles » plus bas ; ancienne liste : poste de commandement, UAV de reconnaissance, UAV armé, fantassin, véhicule blindé, artillerie, brouilleur),
 définies dans `static/pieces.json`. Choisir un camp et une pièce, puis cliquer sur la carte pour la poser.
 Chaque pièce a trois propriétés, modifiables après la pose : **mouvement** (vitesse min/max en km/h),
 **feu** (portée en km, puissance de 0 à 10), **vision** (rayon en km). Les portées sont tracées sur la carte
@@ -87,19 +87,34 @@ On décrit la situation en français ; l'assistant la traduit en actions que l'a
 
 - **Ce qu'il sait faire** : poser des pièces (en groupe : ligne, colonne, paquet, écart et cap), donner des consignes (aller, observer, engager), tracer des fronts, limites et zones, centrer la vue, régler l'horloge de jeu.
 - **Il propose, l'arbitre décide** : rien n'est appliqué sans clic sur « Appliquer » ; chaque action se coche ou se décoche. Tout est revérifié côté navigateur (coordonnées, modèles du catalogue, capacités de chaque pièce) ; une pièce sans arme ne peut pas engager, la proposition est refusée avec la raison.
-- **Destruction** : « détruit » n'est posé sur un engagement que si l'arbitre le demande. La cible est alors détruite au tir (grisée, plus de vision, de tir ni de déplacement) ; « Revenir au départ » la rétablit. Sinon le résultat du tir reste à l'arbitre.
+- **Destruction** : elle découle des règles du catalogue (voir plus bas), l'assistant ne « détruit » rien lui-même.
 - **Fonctionnement** : le serveur appelle le programme `claude` (déjà connecté sur la machine) sans outils ni réglages, un appel à la fois, 90 s maximum. Modèle : `WG_IA_MODELE` (défaut `sonnet`, `haiku` pour réduire le coût). La route `/api/ia` n'est servie qu'à cette machine, jamais au réseau local.
 - **Limites** : les lieux nommés sont donnés de mémoire par le modèle (le dire dans la réponse) ; les coordonnées saisies sont reprises telles quelles. Les actions appliquées sont notées dans le journal des opérations de la carte, pas encore dans le journal chaîné de la partie.
 - **Temps de jeu** : plus de bouton « Lancer l'opération ». Les consignes s'exécutent dès qu'elles sont données, au rythme de l'horloge ; le bouton en haut (×1, Pause) l'arrête ou la reprend.
 - **Voix** : bouton « Micro » à droite de la saisie. On parle, le texte apparaît dans le terminal, puis la demande part à la fin de la phrase (case décochable, pour relire avant d'envoyer). Case « Lire les réponses à voix haute » pour entendre la réponse ; la lecture s'arrête dès qu'on envoie ou dicte autre chose. ⚠ Le son est traité par le fournisseur du navigateur (Apple pour Safari, Google pour Chrome), il quitte l'ordinateur et la dictée exige Internet. Sans cette API (Firefox), le bouton n'apparaît pas. L'application n'enregistre aucun son.
 - **Relief en 3D** : l'inclinaison de la vue est dans l'adresse ; rouvrir un lien incliné coche donc « Relief en 3D ».
 
-## Postes de commandement
+## Catalogue et règles des pièces
 
-- **Règle** : tout drone (UAV) doit être rattaché à un poste de commandement de son camp et rester à moins de 30 km de lui (portée de liaison, propriété du poste, modifiable dans sa fiche). Un poste peut commander autant de drones que l'on veut ; un drone n'a qu'un poste.
-- **Rattachement** : automatique à la pose, au poste vivant le plus proche qui couvre le drone ; modifiable dans la fiche du drone (seuls les postes à portée sont proposés) ou par l'assistant. Un poste détruit n'est pas remplacé d'office : c'est une décision de l'arbitre.
-- **Ce que le moteur refuse** : toute consigne d'un drone sans poste, au poste détruit ou hors de portée ; une destination à plus de 30 km du poste ; un engagement dont le point de tir serait à plus de 30 km. Déplacer un poste avertit des drones qui sortiraient de sa portée.
-- **Pendant l'exécution** : si la liaison se coupe (poste déplacé, détruit, drone déplacé à la main), l'événement est daté dans le journal, le lien passe en ambre sur la carte et le drone n'exécute plus rien tant qu'elle n'est pas rétablie. Un drone qui, en cours de route, sortirait de la portée s'arrête et sa consigne est interrompue.
-- **Sur la carte** : trait plein du poste vers chacun de ses drones ; anneau pointillé de 30 km autour du poste (selon l'option « Portées affichées »).
-- **Assistant** : il pose d'abord un poste du même camp quand on lui demande des drones, refuse de proposer un ordre qui romprait la liaison, et explique pourquoi.
-- **Limites** : la liaison est une distance, sans relief ni ligne de vue ; un poste n'a pas de capacité maximale de drones ; les liaisons sont suivies par drone et par poste, pas encore par chaîne (un poste relayé par un autre).
+Valeurs documentées par l'utilisateur ; les valeurs **estimées** sont signalées dans l'avertissement de chaque pièce (« à documenter »).
+
+| Pièce | Mouvement | Observation | Feu | Spécifique |
+|---|---|---|---|---|
+| Équipe de pilotes | 4 km/h (estimé) | 0,5 km (estimé) | aucun | commande plusieurs drones |
+| Voiture, moto | 40-90, 50-100 km/h (estimé) | 1 km (estimé) | aucun | roule sur route et en plaine, jamais sur l'eau (règle de terrain à venir) |
+| Drone d'observation (ISR) | 70 km/h max | 1 km² au sol | aucun | endurance 45 min, portée opérationnelle 20 km, rentre se poser |
+| Drone d'attaque (OWA) | 120 km/h max | 2 km² au sol | explose : 25 m² détruits | endurance 60 min, portée 50 km, sens unique |
+| Drone filoguidé | 120 km/h max | 2 km² | explose : 25 m² | endurance 30 min, portée 25 km, insensible au brouillage |
+| Brouilleur | 2 km/h | 0,5 km (estimé) | aucun | zone de 4 km : les drones ennemis qui y entrent sont perdus |
+| Fantassin | 4 km/h | 1 km | tir direct à 300 m, ne détruit que fantassins et brouilleurs | |
+| Artillerie | 30-50 km/h | 1 km (estimé) | zone de 50 m, dispersion 30 m, portée 20 km (estimés) | route seule (à venir) |
+
+- **Destruction par les règles** : le drone d'attaque se détruit sur sa cible et détruit ce qui est dans 25 m² autour (tir ami compris) ; l'artillerie tire une fois par ordre sur une zone, avec une dispersion déterministe (même partie, mêmes impacts) ; le fantassin détruit sa cible permise. L'arbitre garde la main : boutons « Détruire » et « Rétablir » dans la fiche de chaque pièce, et « Revenir au départ ».
+- **Drones** : au sol auprès de leur équipe, ils décollent au premier ordre ; l'endurance se décompte en vol. Un drone d'observation rentre seul quand il ne lui reste que le temps du retour (marge 10 %) et se pose, endurance rechargée ; un drone d'attaque non employé à temps est perdu. Un drone au sol n'observe rien et suit son équipe quand elle bouge.
+- **Équipe de pilotes** : tout drone est rattaché à une équipe de son camp et reste dans **sa propre** portée opérationnelle autour d'elle. Rattachement automatique à la pose (équipe la plus proche qui le couvre) ou choisi dans la fiche ; une équipe commande autant de drones qu'on veut ; une équipe détruite n'est pas remplacée d'office.
+- **Ce que le moteur refuse** : consigne d'un drone sans équipe, hors de portée ou équipe détruite ; destination ou point de frappe au-delà de la portée ; mission plus longue que l'endurance restante (vol + retour détaillés) ; engagement d'une catégorie que la pièce ne peut pas détruire ; rentrer pour un drone à sens unique. Un trajet qui traverse la zone d'un brouilleur ennemi est signalé.
+- **En cours d'exécution** : liaison coupée (équipe déplacée, détruite, drone déplacé à la main) = événement au journal, lien en ambre, le drone n'exécute plus rien tant qu'elle ne revient pas.
+- **Sur la carte** : trait plein équipe-drone, anneau pointillé de portée autour de l'équipe, zone du brouilleur.
+- **Anciennes données** : à l'ouverture, les pièces de l'ancien catalogue sont reconstruites sur le nouveau (UAV armé devient drone d'attaque, poste de commandement devient équipe de pilotes, guerre électronique devient brouilleur) ; le véhicule blindé n'a pas d'équivalent et est retiré, avec une ligne au journal.
+- **À venir (phases suivantes)** : rôles arbitre / rouge / bleu avec vues filtrées côté serveur ; terrain (forêt, eau, routes) pour la visibilité et les déplacements ; itinéraire routier de l'artillerie.
+- **Filet de sécurité** : si la carte n'a pas pu démarrer (fichiers de versions mélangées pendant une mise à jour), la page se recharge seule, jusqu'à trois fois, puis affiche la cause au lieu de rester vide.

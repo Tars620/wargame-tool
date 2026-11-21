@@ -79,14 +79,14 @@ test('observer : se termine après la durée demandée', () => {
   assert.ok(avancer(drone, a.consigne, 6).termine);
 });
 
-test('engager : approche jusqu\'à la portée puis tire une seule fois, résultat à arbitrer', () => {
+test('engager (tir direct) : approche jusqu\'à la portée puis tire une seule fois', () => {
   const tireur = piece('t', 'bleu', 17, 47, { mouvement: { min: 120, max: 120 }, feu: { portee_km: 10, puissance: 4 } });
   let etat = tireur, consigne = { type: 'engager', cibleId: 'a1', allure: 'normale' }, evts = [];
   for (let i = 0; i < 200 && !evts.length; i += 1) {
     const r = avancer(etat, consigne, 1, [etat, artillerie]);
     etat = { ...etat, lng: r.position[0], lat: r.position[1] }; consigne = r.consigne; evts = r.evenements;
   }
-  assert.equal(evts[0].type, 'tir'); assert.ok(evts[0].distanceKm <= 10); assert.equal(evts[0].puissance, 4);
+  assert.equal(evts[0].type, 'tir'); assert.ok(evts[0].distanceKm <= 10);
 });
 
 test('engager une cible disparue : consigne close avec un événement', () => {

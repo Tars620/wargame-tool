@@ -1,7 +1,9 @@
 // Assistant : transforme la réponse du modèle en plan d'actions vérifié. Fonctions pures (testables avec node).
 // Le modèle propose ; rien n'est appliqué ici. Tout est revalidé : coordonnées, modèles, pièces et capacités.
 import { destination } from './geo.js';
-import { ALLURES, estPoste, etatLiaison, exigePoste, lierAuto, phraseLiaison, porteeDuPoste, verifier } from './moteur.js';
+import { ALLURES, estPoste, etatLiaison, exigePoste, lierAuto, porteeLiaison, verifier } from './moteur.js';
+import { pieceDepuisModele } from './catalogue.js';
+import { enduranceRestante, modeFeu, rayonVision } from './regles.js';
 import { distanceKm } from './geo.js';
 
 export const ACTIONS_MAX = 20;
@@ -14,7 +16,6 @@ const DISPOSITIONS = ['ligne', 'colonne', 'groupe'];
 const VITESSES = [1, 10, 60, 300, 1800];
 const ECART_TERRE_KM = 0.3;
 const ECART_AIR_KM = 1;
-const SEUIL_AIR_KMH = 100;
 
 const r4 = (x) => Math.round(x * 1e4) / 1e4;
 const num = (x) => {
@@ -51,11 +52,16 @@ export function disposer(centre, n, disposition, ecartKm, capDeg = 0) {
 
 /** Ce que l'assistant sait de la situation : compact, arrondi, borné. */
 export function contexte({ catalogue = [], pieces = [], ordres = {}, dessins = [], vue = null, horloge = null, libelleConsigne = () => '' }) {
+  const fiche = (m) => ({ id: m.id, nom: m.nom, categorie: m.categorie, vitesse_kmh: [m.mouvement.min, m.mouvement.max], observation_rayon_km: Math.round(rayonVision(m.vision) * 1000) / 1000,
+    feu: modeFeu(m), ...(m.feu.cibles ? { peut_detruire: m.feu.cibles } : {}), ...(m.feu.zone_m2 ? { zone_detruite_m2: m.feu.zone_m2 } : {}), ...(m.feu.portee_km > 0 ? { feu_portee_km: m.feu.portee_km } : {}),
+    ...(m.endurance_min ? { endurance_min: m.endurance_min, portee_operationnelle_km: m.portee_op_km } : {}), ...(m.liaison ? { exige_equipe_de_pilotes: true } : {}),
+    ...(m.retour ? { rentre_se_poser: true } : {}), ...(m.immunise_brouillage ? { insensible_au_brouillage: true } : {}), ...(m.commande ? { equipe_de_pilotes: true } : {}),
+    ...(m.brouillage ? { brouillage_rayon_km: m.brouillage.rayon_km } : {}), ...(m.route_seule ? { route_seule: true } : {}) });
   return {
-    catalogue: catalogue.map((m) => ({ id: m.id, nom: m.nom, vitesse_kmh: [m.mouvement.min, m.mouvement.max], feu_portee_km: m.feu.portee_km, puissance: m.feu.puissance, vision_km: m.vision.rayon_km,
-      ...(m.liaison ? { exige_poste_de_commandement: true } : {}), ...(m.commande ? { poste_de_commandement_portee_km: m.commande.portee_km } : {}) })),
+    catalogue: catalogue.map(fiche),
     pieces: pieces.slice(0, PIECES_MAX).map((p) => ({ id: p.id, nom: p.nom, modele: p.type, camp: p.camp, lng: r4(p.lng), lat: r4(p.lat), detruit: !!p.detruit,
-      ...(exigePoste(p) ? { poste: p.poste || null, liaison_ok: etatLiaison(p, pieces).ok } : {}),
+      ...(p.endurance_min ? { etat: p.etat || 'sol', endurance_restante_min: Math.round(enduranceRestante(p) * 10) / 10 } : {}),
+      ...(exigePoste(p) ? { equipe: p.poste || null, liaison_ok: etatLiaison(p, pieces).ok } : {}),
       consignes: (ordres[p.id] || []).filter((c) => c.statut !== 'terminee').map((c) => libelleConsigne(c)) })),
     dessins: dessins.slice(0, 20).map((d) => ({ genre: d.genre, camp: d.camp, nom: d.nom, points: d.points.slice(0, 12).map(([x, y]) => [r4(x), r4(y)]) })),
     vue, horloge,
@@ -108,26 +114,25 @@ export function planifier(actions, { pieces = [], catalogue = [] } = {}) {
     if (toutes().length + n > PIECES_MAX) problemes.push(`trop de pièces sur la carte (${PIECES_MAX} au plus)`);
     if (problemes.length) return { libelle: 'Poser des pièces', problemes, op: null };
     const disposition = DISPOSITIONS.includes(a.disposition) ? a.disposition : 'ligne';
-    const ecart = Math.min(Math.max(num(a.ecartKm) ?? (m.mouvement.max >= SEUIL_AIR_KMH ? ECART_AIR_KM : ECART_TERRE_KM), 0.01), 50);
+    const ecart = Math.min(Math.max(num(a.ecartKm) ?? (m.categorie === 'drone' ? ECART_AIR_KM : ECART_TERRE_KM), 0.01), 50);
     const cap = num(a.capDeg) ?? 0;
     const existantes = toutes().filter((p) => p.type === m.id).length;
     const specs = disposer(centre, n, disposition, ecart, cap).map(([lng, lat], i) => ({
-      vid: `virt-${virtuelles.length + i}`, type: m.id, camp: a.camp, lng, lat, nom: n === 1 && texte(a.nom) ? texte(a.nom) : `${m.nom} ${existantes + i + 1}` }));
-    for (const s of specs) virtuelles.push({ ...s, id: s.vid, mouvement: m.mouvement, feu: m.feu, vision: m.vision, meteo_max: m.meteo_max || null, liaison: m.liaison === true, commande: m.commande || undefined });
+      vid: `virt-${virtuelles.length + i}`, type: m.id, camp: a.camp, lng, lat, nom: `${m.nom} ${existantes + i + 1}` })); // numérotés par le catalogue : un nom inventé par le modèle (« PC bleu ») n'est jamais repris
+    for (const s of specs) virtuelles.push({ ...pieceDepuisModele(m, { id: s.vid, nom: s.nom, camp: s.camp, lng: s.lng, lat: s.lat }), vid: s.vid });
     relier();
     const sansPoste = m.liaison ? specs.filter((sp) => !lies.has(sp.vid)).length : 0;
-    const avertissements = sansPoste ? [`${sansPoste} drone${sansPoste > 1 ? 's' : ''} sans poste de commandement à portée (30 km) : aucune consigne possible. Posez d'abord un poste de commandement du même camp à moins de 30 km.`] : [];
+    const avertissements = sansPoste ? [`${sansPoste} drone${sansPoste > 1 ? 's' : ''} sans équipe de pilotes à portée (${m.portee_op_km} km) : aucune consigne possible. Posez d'abord une équipe de pilotes du même camp à portée.`] : [];
     const lieu = `${r4(centre[1]).toString().replace('.', ',')} N, ${r4(centre[0]).toString().replace('.', ',')} E`;
     return { libelle: `Poser ${n > 1 ? `${n} × ` : ''}${m.nom}, ${a.camp}${n > 1 ? `, en ${disposition}, écart ${fr(ecart)} km` : ''}, près de ${lieu}`, problemes: [], avertissements, op: { kind: 'poser', specs } };
   };
 
   const consigne = (a) => {
     const type = a.type;
-    if (!['aller', 'observer', 'engager'].includes(type)) return { libelle: 'Consigne', problemes: [`type « ${texte(a.type)} » inconnu`], op: null };
+    if (!['aller', 'observer', 'engager', 'rentrer'].includes(type)) return { libelle: 'Consigne', problemes: [`type « ${texte(a.type)} » inconnu`], op: null };
     const { liste: acteurs, problemes } = selection(a, 'piece', 'pieces', 'groupe');
     if (!acteurs.length) return { libelle: 'Consigne', problemes: problemes.length ? problemes : ['aucune pièce désignée'], op: null };
     const allure = Object.hasOwn(ALLURES, a.allure) ? a.allure : 'normale';
-    const detruit = a.detruit === true;
     let adverses = [];
     if (type === 'engager') {
       const sel = a.cible !== undefined ? selection({ piece: a.cible }, 'piece') : selection(a, 'cible_', 'cibles', 'cibleGroupe');
@@ -143,13 +148,13 @@ export function planifier(actions, { pieces = [], catalogue = [] } = {}) {
       if (p.detruit) { problemes.push(`${p.nom} est détruit`); return; }
       const c = type === 'aller' ? { type, allure, points: pts }
         : type === 'observer' ? { type, allure, dureeMin }
-          : { type, allure, cibleId: adverses[i % adverses.length].id, detruit };
+          : type === 'rentrer' ? { type, allure } : { type, allure, cibleId: adverses[i % adverses.length].id };
       const r = verifier(p, c, { pieces: vivantes() });
       if (r.ok) cibles.push({ ref: p.id, consigne: type === 'aller' ? { ...c, distanceKm: r.distanceKm } : c, avertissements: r.avertissements });
       else problemes.push(`${p.nom} : ${r.erreurs.join(' ')}`);
     });
     const verbe = type === 'aller' ? `aller à ${pts.length > 1 ? `${pts.length} points` : 'un point'}` : type === 'observer' ? `observer ${fr(dureeMin || 0)} min`
-      : `engager ${adverses.length > 1 ? `${adverses.length} cibles` : adverses[0].nom}${detruit ? ' (cible détruite au tir)' : ''}`;
+      : type === 'rentrer' ? 'rentrer se poser' : `engager ${adverses.length > 1 ? `${adverses.length} cibles` : adverses[0].nom}`;
     const nom = acteurs.length > 1 ? `${acteurs.length} pièces` : acteurs[0].nom;
     return { libelle: `${nom} : ${verbe}`, problemes, avertissements: regrouper(cibles.flatMap((c) => c.avertissements)), op: cibles.length ? { kind: 'consigne', cibles } : null };
   };
@@ -157,15 +162,15 @@ export function planifier(actions, { pieces = [], catalogue = [] } = {}) {
   const rattacher = (a) => {
     const { liste: drones, problemes } = selection(a, 'piece', 'pieces', 'groupe');
     const r = a.poste !== undefined ? parNom(a.poste) : { erreur: 'poste non précisé' };
-    if (!r.piece) return { libelle: 'Rattacher à un poste', problemes: [...problemes, r.erreur], op: null };
+    if (!r.piece) return { libelle: 'Rattacher à une équipe', problemes: [...problemes, r.erreur], op: null };
     const poste = r.piece;
-    if (!estPoste(poste)) return { libelle: 'Rattacher à un poste', problemes: [`${poste.nom} n'est pas un poste de commandement`], op: null };
+    if (!estPoste(poste)) return { libelle: 'Rattacher à une équipe', problemes: [`${poste.nom} n'est pas une équipe de pilotes`], op: null };
     const liens = [];
     for (const d of drones) {
-      if (!exigePoste(d)) problemes.push(`${d.nom} n'a pas besoin de poste de commandement`);
+      if (!exigePoste(d)) problemes.push(`${d.nom} n'a pas besoin d'équipe de pilotes`);
       else if (d.camp !== poste.camp) problemes.push(`${d.nom} : ${poste.nom} est d'un autre camp`);
-      else if (poste.detruit) problemes.push(`${poste.nom} est détruit`);
-      else if (distanceKm([d.lng, d.lat], [poste.lng, poste.lat]) > porteeDuPoste(poste)) problemes.push(`${d.nom} est à plus de ${porteeDuPoste(poste)} km de ${poste.nom}`);
+      else if (poste.detruit) problemes.push(`${poste.nom} est détruite`);
+      else if (distanceKm([d.lng, d.lat], [poste.lng, poste.lat]) > porteeLiaison(d, poste)) problemes.push(`${d.nom} est à plus de ${porteeLiaison(d, poste)} km de ${poste.nom}`);
       else liens.push({ ref: d.id, poste: poste.id });
     }
     liens.forEach((l) => lies.set(l.ref, l.poste));

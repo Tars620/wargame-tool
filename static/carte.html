@@ -232,6 +232,33 @@ details > select { width: calc(100% - 15px); }
 <script src="/static/vendor/tz.js"></script>
 <script src="/static/vendor/turf.min.js"></script>
 <script src="/static/vendor/milsymbol.js"></script>
+<script>
+// Filet de sécurité : si la carte n'a pas démarré (fichiers de versions mélangées pendant une mise à jour, réseau coupé), la page se recharge d'elle-même,
+// puis dit clairement ce qui ne va pas au lieu de rester vide. Ce script ne dépend d'aucun autre fichier.
+(function () {
+  var ESSAIS_MAX = 3, DELAI_MS = 12000, cle = 'wg.relances';
+  function essais() { try { return Number(sessionStorage.getItem(cle) || 0); } catch (e) { return 0; } }
+  function marquer(n) { try { sessionStorage.setItem(cle, String(n)); } catch (e) { /* stockage indisponible */ } }
+  var version = null;
+  function verifier() {
+    fetch('/api/version', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (v) {
+      if (version === null) version = v.version;
+      else if (version !== v.version && !window.__carteOk) location.reload();
+    }).catch(function () {});
+  }
+  setInterval(verifier, 4000); verifier();
+  window.addEventListener('error', function (e) { window.__carteErreur = e.message || 'erreur de chargement'; });
+  setTimeout(function () {
+    if (window.__carteOk) { marquer(0); return; }
+    var n = essais();
+    if (n < ESSAIS_MAX) { marquer(n + 1); location.reload(); return; }
+    var d = document.createElement('div');
+    d.style.cssText = 'position:fixed;inset:80px 20px auto 20px;z-index:99;background:#17181b;color:#e8e8ea;border:1px solid #4a4d54;padding:14px 16px;font:13px/1.5 Inter,system-ui,sans-serif';
+    d.textContent = 'La carte n\'a pas pu démarrer' + (window.__carteErreur ? ' (' + window.__carteErreur + ')' : '') + '. Rechargez la page en forçant le cache (Cmd+Maj+R). Si cela persiste, relancez le serveur.';
+    document.body.append(d);
+  }, DELAI_MS);
+})();
+</script>
 <script type="module" src="/static/carte.js"></script>
 </body>
 </html>

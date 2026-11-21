@@ -9,7 +9,7 @@ const MAX = { pieces: 2000, dessins: 1000, points: 5000, consignes: 5000, journa
 const CAMPS = ['bleu', 'rouge'];
 const CAMPS_DESSIN = ['bleu', 'rouge', 'neutre'];
 const POINTS_MIN = { front: 2, limite: 2, zone: 3 };
-const TYPES_CONSIGNE = ['aller', 'observer', 'engager'];
+const TYPES_CONSIGNE = ['aller', 'observer', 'engager', 'rentrer'];
 const ALLURES = ['prudente', 'normale', 'maximale'];
 const STATUTS = ['attente', 'lance', 'en_cours', 'terminee'];
 const GENRES_JOURNAL = ['info', 'op', 'alerte', 'tir', 'contact'];
@@ -23,6 +23,9 @@ const brut = (o) => o !== null && typeof o === 'object' && !Array.isArray(o);
 class Refus extends Error {}
 function exiger(condition, message) { if (!condition) throw new Refus(message); }
 
+const MODES_FEU = ['aucun', 'direct', 'explosion', 'zone'];
+const CHAMPS_FEU = ['zone_m2', 'rayon_m', 'dispersion_m'];
+
 function piece(p, i) {
   const ou = `pièce ${i + 1}`;
   exiger(brut(p), `${ou} : objet attendu`);
@@ -30,19 +33,37 @@ function piece(p, i) {
   exiger(CAMPS.includes(p.camp), `${ou} : camp inconnu`);
   exiger(nombre(p.lng, -360, 360) && nombre(p.lat, -90, 90), `${ou} : position invalide`);
   exiger(brut(p.mouvement) && nombre(p.mouvement.min, 0, 5000) && nombre(p.mouvement.max, 0, 5000), `${ou} : vitesses invalides`);
-  exiger(brut(p.feu) && nombre(p.feu.portee_km, 0, 5000) && nombre(p.feu.puissance, 0, 10), `${ou} : feu invalide`);
-  exiger(brut(p.vision) && nombre(p.vision.rayon_km, 0, 5000), `${ou} : vision invalide`);
+  exiger(brut(p.feu) && nombre(p.feu.portee_km, 0, 5000) && (p.feu.puissance === undefined || nombre(p.feu.puissance, 0, 10)), `${ou} : feu invalide`);
+  exiger(p.feu.mode === undefined || MODES_FEU.includes(p.feu.mode), `${ou} : mode de feu inconnu`);
+  for (const cle of CHAMPS_FEU) exiger(p.feu[cle] === undefined || nombre(p.feu[cle], 0, 1e9), `${ou} : feu.${cle} invalide`);
+  exiger(p.feu.cibles === undefined || (Array.isArray(p.feu.cibles) && p.feu.cibles.length <= 20 && p.feu.cibles.every((c) => texte(c, 20))), `${ou} : cibles du feu invalides`);
+  exiger(brut(p.vision) && nombre(p.vision.rayon_km, 0, 5000) && (p.vision.surface_km2 === undefined || nombre(p.vision.surface_km2, 0, 1e7)), `${ou} : vision invalide`);
   const meteo = brut(p.meteo_max) && nombre(p.meteo_max.vent_kmh, 0, 1000) ? { vent_kmh: p.meteo_max.vent_kmh } : null;
   const dep = brut(p.dernier_deplacement) && nombre(p.dernier_deplacement.km, 0, 1e6) && points(p.dernier_deplacement.trace, 2)
     ? { km: p.dernier_deplacement.km, trace: p.dernier_deplacement.trace.map((q) => [q[0], q[1]]) } : null;
-  exiger(p.poste === undefined || p.poste === null || texte(p.poste, 40), `${ou} : poste de commandement invalide`);
-  exiger(p.commande === undefined || (brut(p.commande) && nombre(p.commande.portee_km, 0, 5000)), `${ou} : portée de liaison invalide`);
+  exiger(p.poste === undefined || p.poste === null || texte(p.poste, 40), `${ou} : équipe de pilotes invalide`);
+  exiger(p.commande === undefined || brut(p.commande), `${ou} : commande invalide`);
+  exiger(p.brouillage === undefined || (brut(p.brouillage) && nombre(p.brouillage.rayon_km, 0, 5000)), `${ou} : brouillage invalide`);
+  for (const cle of ['endurance_min', 'endurance_restante_min', 'portee_op_km']) exiger(p[cle] === undefined || nombre(p[cle], 0, 1e6), `${ou} : ${cle} invalide`);
+  exiger(p.etat === undefined || ['sol', 'vol'].includes(p.etat), `${ou} : état de vol inconnu`);
+  exiger(p.categorie === undefined || texte(p.categorie, 20), `${ou} : catégorie invalide`);
+  const feu = { portee_km: p.feu.portee_km };
+  if (p.feu.puissance !== undefined) feu.puissance = p.feu.puissance;
+  if (p.feu.mode !== undefined) feu.mode = p.feu.mode;
+  for (const cle of CHAMPS_FEU) if (p.feu[cle] !== undefined) feu[cle] = p.feu[cle];
+  if (p.feu.cibles !== undefined) feu.cibles = [...p.feu.cibles];
+  const vision = { rayon_km: p.vision.rayon_km };
+  if (p.vision.surface_km2 !== undefined) vision.surface_km2 = p.vision.surface_km2;
   const sortie = { id: p.id, type: p.type, nom: p.nom, camp: p.camp, lng: p.lng, lat: p.lat,
-    mouvement: { min: p.mouvement.min, max: p.mouvement.max }, feu: { portee_km: p.feu.portee_km, puissance: p.feu.puissance },
-    vision: { rayon_km: p.vision.rayon_km }, meteo_max: meteo, dernier_deplacement: dep };
-  if (p.detruit === true) sortie.detruit = true;
-  if (p.liaison === true) sortie.liaison = true;
-  if (p.commande !== undefined) sortie.commande = { portee_km: p.commande.portee_km };
+    mouvement: { min: p.mouvement.min, max: p.mouvement.max }, feu, vision, meteo_max: meteo, dernier_deplacement: dep };
+  for (const cle of ['detruit', 'liaison', 'retour', 'immunise_brouillage', 'route_seule']) if (typeof p[cle] === 'boolean') sortie[cle] = p[cle];
+  for (const cle of ['endurance_min', 'endurance_restante_min', 'portee_op_km']) if (p[cle] !== undefined) sortie[cle] = p[cle];
+  if (p.etat !== undefined) sortie.etat = p.etat;
+  if (p.categorie !== undefined) sortie.categorie = p.categorie;
+  if (typeof p.icone === 'string') sortie.icone = p.icone.slice(0, 30);
+  if (typeof p.cause_destruction === 'string') sortie.cause_destruction = p.cause_destruction.slice(0, 30);
+  if (p.commande !== undefined) sortie.commande = nombre(p.commande.portee_km, 0, 5000) ? { portee_km: p.commande.portee_km } : {};
+  if (p.brouillage !== undefined) sortie.brouillage = { rayon_km: p.brouillage.rayon_km };
   if (p.poste) sortie.poste = p.poste;
   return sortie;
 }
@@ -69,6 +90,7 @@ function consigne(c, idPiece) {
   if (c.type === 'aller') { exiger(points(c.points, 1), `${ou} : destination invalide`); s.points = c.points.map((q) => [q[0], q[1]]); }
   if (c.type === 'observer') { exiger(nombre(c.dureeMin, 0, 1e6), `${ou} : durée invalide`); s.dureeMin = c.dureeMin; }
   if (c.type === 'engager') { exiger(texte(c.cibleId, 40), `${ou} : cible invalide`); s.cibleId = c.cibleId; if (c.detruit === true) s.detruit = true; }
+  if (c.auto === true) s.auto = true;
   for (const cle of ['etape', 'ecouleMin', 'distanceKm', 'debutMs', 'finMs']) {
     if (c[cle] !== undefined) { exiger(nombre(c[cle], 0, 1e15), `${ou} : ${cle} invalide`); s[cle] = c[cle]; }
   }
@@ -122,7 +144,7 @@ export function versGeoJSON(scenario, catalogue = []) {
     const modele = catalogue.find((m) => m.id === p.type);
     features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lng, p.lat] }, properties: {
       kind: 'unit', id: p.id, name: p.nom, side: IDENTITE[p.camp], camp: p.camp, type: p.type, sidc: modele && modele.sidc ? sidc(modele, p.camp) : null,
-      speed_min_kmh: p.mouvement.min, speed_max_kmh: p.mouvement.max, fire_range_km: p.feu.portee_km, fire_power: p.feu.puissance, vision_km: p.vision.rayon_km, destroyed: p.detruit === true, command_post: Boolean(p.commande), linked_to: p.poste || null } });
+      speed_min_kmh: p.mouvement.min, speed_max_kmh: p.mouvement.max, fire_range_km: p.feu.portee_km, fire_mode: p.feu.mode || null, blast_m2: p.feu.zone_m2 ?? null, vision_km: p.vision.rayon_km, observation_km2: p.vision.surface_km2 ?? null, endurance_min: p.endurance_min ?? null, operational_range_km: p.portee_op_km ?? null, jamming_km: p.brouillage ? p.brouillage.rayon_km : null, destroyed: p.detruit === true, command_post: Boolean(p.commande), linked_to: p.poste || null } });
   }
   for (const d of scenario.dessins) {
     const geometry = d.genre === 'zone' ? { type: 'Polygon', coordinates: [[...d.points, d.points[0]]] } : { type: 'LineString', coordinates: d.points };

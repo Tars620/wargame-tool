@@ -33,6 +33,6 @@ test('le camp bleu est un symbole ami, le rouge un symbole hostile', () => {
 test('les UAV sont dans l\'ensemble « air » et les autres au sol', () => {
   for (const m of catalogue) {
     const dim = new M.Symbol(sidc(m, 'bleu')).getMetadata().dimension;
-    assert.equal(dim, m.id.startsWith('uav') ? 'Air' : 'Ground', m.id);
+    assert.equal(dim, m.categorie === 'drone' ? 'Air' : 'Ground', m.id);
   }
 });

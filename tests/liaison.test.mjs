@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { destination, distanceKm } from '../static/geo.js';
 import { etatLiaison, lierAuto, verifier, phraseLiaison } from '../static/moteur.js';
+import { readFileSync } from 'node:fs';
 import { planifier } from '../static/ia-actions.js';
+import { pieceDepuisModele } from '../static/catalogue.js';
 import { valider, assembler } from '../static/scenario.js';
 
 const O = [37.5, 48.5];
@@ -44,7 +46,7 @@ test('consigne aller : refusée si la destination est à plus de 30 km du poste,
   const p = poste('p1'), d = drone('d1', 'bleu', a(5), { poste: 'p1' });
   assert.equal(verifier(d, { type: 'aller', points: [a(25)], allure: 'normale' }, { pieces: [p, d] }).ok, true);
   const r = verifier(d, { type: 'aller', points: [a(25), a(35)], allure: 'normale' }, { pieces: [p, d] });
-  assert.equal(r.ok, false); assert.match(r.erreurs[0], /35,0 km de son poste de commandement \(30,0 km au plus\)/);
+  assert.equal(r.ok, false); assert.match(r.erreurs[0], /35,0 km de son équipe de pilotes \(30,0 km au plus\)/);
 });
 
 test('consigne engager : le point d\'arrêt (portée de feu de la cible) doit rester dans la portée du poste', () => {
@@ -57,60 +59,57 @@ test('consigne engager : le point d\'arrêt (portée de feu de la cible) doit re
 test('un drone sans poste, ou dont la liaison est coupée, ne reçoit aucune consigne, même observer', () => {
   const p = poste('p1');
   const sans = verifier(drone('d1'), { type: 'observer', dureeMin: 5 }, { pieces: [p, drone('d1')] });
-  assert.equal(sans.ok, false); assert.match(sans.erreurs[0], /aucun poste de commandement/);
+  assert.equal(sans.ok, false); assert.match(sans.erreurs[0], /aucune équipe de pilotes/);
   const coupe = drone('d2', 'bleu', a(40), { poste: 'p1' });
   assert.match(verifier(coupe, { type: 'observer', dureeMin: 5 }, { pieces: [p, coupe] }).erreurs[0], /40,0 km/);
   const detruit = poste('p1', 'bleu', O, { detruit: true }), d = drone('d3', 'bleu', a(1), { poste: 'p1' });
-  assert.match(verifier(d, { type: 'observer', dureeMin: 5 }, { pieces: [detruit, d] }).erreurs[0], /détruit/);
+  assert.match(verifier(d, { type: 'observer', dureeMin: 5 }, { pieces: [detruit, d] }).erreurs[0], /détruite/);
 });
 
 test('déplacer le poste avertit des drones qui sortiraient de sa portée', () => {
   const p = poste('p1'), d1 = drone('d1', 'bleu', a(10), { poste: 'p1' }), d2 = drone('d2', 'bleu', a(12, 0), { poste: 'p1' });
   const r = verifier(p, { type: 'aller', points: [a(45, 270)], allure: 'normale' }, { pieces: [p, d1, d2] });
-  assert.equal(r.ok, true); assert.match(r.avertissements.join(' '), /2 drones rattachés à ce poste seront hors de portée/);
+  assert.equal(r.ok, true); assert.match(r.avertissements.join(' '), /2 drones rattachés à cette équipe seront hors de portée/);
   assert.deepEqual(verifier(p, { type: 'aller', points: [a(2, 270)], allure: 'normale' }, { pieces: [p, d1, d2] }).avertissements, []);
 });
 
-const catalogue = [
-  { id: 'poste-commandement', nom: 'Poste de commandement', mouvement: { min: 20, max: 50 }, feu: { portee_km: 0, puissance: 0 }, vision: { rayon_km: 3 }, commande: { portee_km: 30 } },
-  { id: 'uav-arme', nom: 'UAV armé', mouvement: { min: 60, max: 150 }, feu: { portee_km: 10, puissance: 4 }, vision: { rayon_km: 8 }, liaison: true },
-  { id: 'blinde', nom: 'Véhicule blindé', mouvement: { min: 50, max: 70 }, feu: { portee_km: 3, puissance: 6 }, vision: { rayon_km: 3 } },
-];
+const catalogue = JSON.parse(readFileSync(new URL('../static/pieces.json', import.meta.url))).pieces;
+const reel = (id, nom, camp, at, extra = {}) => ({ ...pieceDepuisModele(catalogue.find((m) => m.id === id), { id: nom, nom, camp, lng: at[0], lat: at[1] }), ...extra });
 
-test('assistant : poste puis 5 drones rattachés, consignes acceptées dans la portée', () => {
+test('assistant : équipe puis 5 drones rattachés, consignes acceptées dans la portée', () => {
   const plan = planifier([
-    { action: 'poser', modele: 'poste-commandement', camp: 'bleu', lng: O[0] - 0.1, lat: O[1] },
-    { action: 'poser', modele: 'uav-arme', camp: 'bleu', lng: O[0], lat: O[1], nombre: 5, disposition: 'ligne', capDeg: 90 },
-    { action: 'consigne', groupe: { modele: 'uav-arme', camp: 'bleu' }, type: 'aller', points: [[O[0] + 0.1, O[1]]] },
+    { action: 'poser', modele: 'equipe-pilotes', camp: 'bleu', lng: O[0] - 0.1, lat: O[1] },
+    { action: 'poser', modele: 'drone-owa', camp: 'bleu', lng: O[0], lat: O[1], nombre: 5, disposition: 'ligne', capDeg: 90 },
+    { action: 'consigne', groupe: { modele: 'drone-owa', camp: 'bleu' }, type: 'aller', points: [[O[0] + 0.1, O[1]]] },
   ], { pieces: [], catalogue });
   assert.deepEqual(plan.map((p) => p.problemes), [[], [], []]);
   assert.deepEqual(plan[1].avertissements, []);
   assert.equal(plan[2].op.cibles.length, 5);
 });
 
-test('assistant : des drones sans poste sont signalés et leurs consignes refusées', () => {
+test('assistant : des drones sans équipe sont signalés et leurs consignes refusées', () => {
   const plan = planifier([
-    { action: 'poser', modele: 'uav-arme', camp: 'bleu', lng: O[0], lat: O[1], nombre: 3 },
-    { action: 'consigne', groupe: { modele: 'uav-arme', camp: 'bleu' }, type: 'observer', dureeMin: 5 },
+    { action: 'poser', modele: 'drone-owa', camp: 'bleu', lng: O[0], lat: O[1], nombre: 3 },
+    { action: 'consigne', groupe: { modele: 'drone-owa', camp: 'bleu' }, type: 'observer', dureeMin: 5 },
   ], { pieces: [], catalogue });
-  assert.match(plan[0].avertissements[0], /3 drones sans poste de commandement/);
-  assert.equal(plan[1].op, null); assert.match(plan[1].problemes.join(' '), /aucun poste de commandement/);
+  assert.match(plan[0].avertissements[0], /3 drones sans équipe de pilotes/);
+  assert.equal(plan[1].op, null); assert.match(plan[1].problemes.join(' '), /aucune équipe de pilotes/);
 });
 
-test('assistant : une destination qui éloigne les drones de plus de 30 km du poste est refusée', () => {
+test('assistant : une destination qui éloigne les drones au-delà de leur portée opérationnelle est refusée', () => {
   const plan = planifier([
-    { action: 'poser', modele: 'poste-commandement', camp: 'bleu', lng: O[0], lat: O[1] },
-    { action: 'poser', modele: 'uav-arme', camp: 'bleu', lng: O[0] + 0.05, lat: O[1], nombre: 2 },
-    { action: 'consigne', groupe: { modele: 'uav-arme' }, type: 'aller', points: [a(50)] },
+    { action: 'poser', modele: 'equipe-pilotes', camp: 'bleu', lng: O[0], lat: O[1] },
+    { action: 'poser', modele: 'drone-owa', camp: 'bleu', lng: O[0] + 0.05, lat: O[1], nombre: 2 },
+    { action: 'consigne', groupe: { modele: 'drone-owa' }, type: 'aller', points: [a(70)] },
   ], { pieces: [], catalogue });
-  assert.equal(plan[2].op, null); assert.match(plan[2].problemes.join(' '), /de son poste de commandement/);
+  assert.equal(plan[2].op, null); assert.match(plan[2].problemes.join(' '), /de son équipe de pilotes \(50,0 km au plus\)/);
 });
 
-test('assistant : rattacher refuse un poste trop loin ou d\'un autre camp, accepte sinon', () => {
-  const pieces = [poste('p1'), poste('p2', 'bleu', a(100)), poste('p3', 'rouge'), drone('d1', 'bleu', a(10), { poste: 'p1' })];
+test('assistant : rattacher refuse une équipe trop loin ou d\'un autre camp, accepte sinon', () => {
+  const pieces = [reel('equipe-pilotes', 'p1', 'bleu', O), reel('equipe-pilotes', 'p2', 'bleu', a(100)), reel('equipe-pilotes', 'p3', 'rouge', O), reel('drone-owa', 'd1', 'bleu', a(10), { poste: 'p1' })];
   const [loin, rouge, ok] = planifier([
     { action: 'rattacher', piece: 'd1', poste: 'p2' }, { action: 'rattacher', piece: 'd1', poste: 'p3' }, { action: 'rattacher', piece: 'd1', poste: 'p1' }], { pieces, catalogue });
-  assert.equal(loin.op, null); assert.match(loin.problemes.join(' '), /plus de 30 km/);
+  assert.equal(loin.op, null); assert.match(loin.problemes.join(' '), /plus de 50 km/);
   assert.equal(rouge.op, null); assert.match(rouge.problemes.join(' '), /autre camp/);
   assert.deepEqual(ok.op.liens, [{ ref: 'd1', poste: 'p1' }]);
 });

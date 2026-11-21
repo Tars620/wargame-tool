@@ -1,11 +1,11 @@
 import * as maplibre from './vendor/maplibre-gl.mjs';
 import { layers, namedFlavor } from './vendor/protomaps-basemaps.mjs';
-import { monter as monterPieces, collection as piecesGeojson, layerSpecs as piecesCouches, SOURCE_ID as PIECES_SOURCE } from './pieces.js';
+import { monter as monterPieces, collection as piecesGeojson, layerSpecs as piecesCouches, SOURCE_ID as PIECES_SOURCE, piecesRetirees } from './pieces.js';
 import { assembler, valider, versGeoJSON, TAILLE_MAX_OCTETS } from './scenario.js';
 import { monter as monterTemps } from './temps.js';
 import { monter as monterIa } from './ia.js';
 import { monter as monterMeteo, pourStyle as meteoPourStyle } from './meteo.js';
-import { monter as monterOrdres, collection as consignesGeojson, layerSpecs as consignesCouches, setTheme as themeOrdres, SOURCE_CONSIGNES } from './ordres.js';
+import { monter as monterOrdres, noterOperation, collection as consignesGeojson, layerSpecs as consignesCouches, setTheme as themeOrdres, SOURCE_CONSIGNES } from './ordres.js';
 import { monter as monterDessin, collection as dessinsGeojson, collectionBrouillon, layerSpecs as dessinsCouches,
   setTheme as themeDessin, majTheme as majThemeDessin, SOURCE_DESSINS, SOURCE_BROUILLON } from './dessin.js';
 
@@ -169,7 +169,11 @@ function createMap() {
     monterTemps(map);
     monterMeteo(map, { surChangement: () => render() });
     monterDessin(map);
-    monterPieces(map).then(() => { monterOrdres(map); monterIa(map); }).catch((e) => showError(`Pièces ou consignes indisponibles : ${e.message}`));
+    monterPieces(map).then(() => {
+      monterOrdres(map); monterIa(map);
+      const retirees = piecesRetirees();
+      if (retirees.length) noterOperation(`Nouveau catalogue : ${retirees.length} pièce${retirees.length > 1 ? 's' : ''} sans équivalent retirée${retirees.length > 1 ? 's' : ''} (${retirees.join(', ')}).`);
+    }).catch((e) => showError(`Pièces ou consignes indisponibles : ${e.message}`));
   });
   return map;
 }
@@ -384,6 +388,7 @@ async function start() {
   if (inclinaison > 0) { state.relief3d = true; $('relief3d').checked = true; }
   $('relief3d').addEventListener('change', (e) => { state.relief3d = e.target.checked; render().then(setPitch); });
   await render();
+  window.__carteOk = true; // lu par le filet de sécurité de carte.html
 }
 
 start().catch((e) => showError(e.message));
