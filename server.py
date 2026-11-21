@@ -403,6 +403,14 @@ def render_markdown(data):
     return "\n".join(out)
 
 
+def code_version():
+    """Date de la dernière modification du code et de la configuration de la carte : sert à recharger une page restée ouverte."""
+    dates = [os.path.getmtime(ZONES_FILE)] if os.path.exists(ZONES_FILE) else []
+    for dossier, _, fichiers in os.walk(STATIC):
+        dates += [os.path.getmtime(os.path.join(dossier, f)) for f in fichiers]
+    return f"{max(dates):.3f}" if dates else "0"
+
+
 def list_zones():
     """Zones de jeu déclarées dans zones.json ET présentes sur disque (une zone = un fichier .pmtiles)."""
     try:
@@ -486,6 +494,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._static("index.html" if path == "/" else "carte.html")
         if method == "GET" and path.startswith("/static/"):
             return self._static(path[len("/static/"):])
+        if method == "GET" and path == "/api/version":
+            return self._json(200, {"version": code_version()})
         if method == "GET" and path == "/api/maps":
             return self._json(200, list_zones())
         if method == "GET" and re.fullmatch(r"/enligne/[a-z0-9-]+", path):

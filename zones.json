@@ -1,6 +1,6 @@
 {
   "monde-z7": {
-    "label": "Monde (zoom 7)",
+    "label": "Monde (hors ligne, zoom 9 maximum)",
     "bounds": null,
     "center": [
       10,
@@ -10,24 +10,8 @@
     "maxzoom": 7,
     "osm": "2026-11-20"
   },
-  "maroc-z12": {
-    "label": "Maroc (zoom 12)",
-    "bounds": [
-      -13.5,
-      27.5,
-      -0.9,
-      36.1
-    ],
-    "center": [
-      -6.5,
-      32
-    ],
-    "zoom": 5,
-    "maxzoom": 12,
-    "osm": "2026-11-20"
-  },
   "planete-en-ligne": {
-    "label": "Planète (en ligne, zoom 15)",
+    "label": "Planète (en ligne, zoom 20)",
     "bounds": null,
     "center": [
       10,

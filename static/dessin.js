@@ -1,9 +1,12 @@
 import * as maplibre from './vendor/maplibre-gl.mjs';
 import { distanceKm, longueurKm, aireKm2, formatKm, formatSurface } from './geo.js';
+import { couloir, COULOIR_DEFAUT_KM } from './couloir.js';
 
 export const SOURCE_DESSINS = 'dessins';
 export const SOURCE_BROUILLON = 'brouillon';
 const STORAGE_KEY = 'wg.dessins.v1';
+const STORAGE_COULOIRS = 'wg.couloirs';
+const CACHE_COULOIRS_MAX = 200;
 const COULEURS = { bleu: '#4c8dff', rouge: '#e5484d' };
 const NEUTRE = { sombre: '#c9ccd4', clair: '#3a3c42' };
 const NOM_CAMP = { bleu: 'Bleu', rouge: 'Rouge', neutre: 'Neutre' };
@@ -14,7 +17,7 @@ const SELECTABLES = ['zone-fond', 'zone-trait', 'limite-trait', 'front-trait'];
 const MARGE_CLIC_PX = 7;
 
 const state = { dessins: [], outil: 'selection', camp: 'bleu', brouillon: [], curseur: null, fige: false, selection: null,
-  theme: 'sombre', map: null, poignees: [] };
+  theme: 'sombre', map: null, poignees: [], couloirs: lireCouloirs(), cacheCouloirs: new Map() };
 
 const $ = (id) => document.getElementById(id);
 function h(tag, props = {}, ...kids) {
@@ -28,6 +31,7 @@ function h(tag, props = {}, ...kids) {
   return n;
 }
 
+function lireCouloirs() { try { return localStorage.getItem(STORAGE_COULOIRS) === 'oui'; } catch { return false; } }
 const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 const dessin = (id) => state.dessins.find((d) => d.id === id) || null;
 const sauver = () => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.dessins)); } catch { /* stockage indisponible */ } };
@@ -45,6 +49,8 @@ const filtreGenre = (genre) => ['==', ['get', 'genre'], genre];
 export function layerSpecs() {
   const accent = state.theme === 'sombre' ? '#ffffff' : '#000000';
   return [
+    { id: 'couloir-fond', type: 'fill', source: SOURCE_DESSINS, filter: filtreGenre('couloir'), paint: { 'fill-color': couleurDe(), 'fill-opacity': 0.1 } },
+    { id: 'couloir-trait', type: 'line', source: SOURCE_DESSINS, filter: filtreGenre('couloir'), paint: { 'line-color': couleurDe(), 'line-width': 1.2, 'line-dasharray': [5, 3], 'line-opacity': 0.8 } },
     { id: 'dessin-choisi', type: 'line', source: SOURCE_DESSINS, filter: ['==', ['get', 'choisi'], true],
       paint: { 'line-color': accent, 'line-width': 9, 'line-opacity': 0.22 }, layout: { 'line-cap': 'round', 'line-join': 'round' } },
     { id: 'zone-fond', type: 'fill', source: SOURCE_DESSINS, filter: filtreGenre('zone'), paint: { 'fill-color': couleurDe(), 'fill-opacity': 0.13 } },
@@ -63,10 +69,26 @@ export function layerSpecs() {
   ];
 }
 
+const kmCouloir = (d) => (Number.isFinite(d.couloir_km) ? d.couloir_km : COULOIR_DEFAUT_KM);
+
+/** Couloir d'un dessin linéaire (mis en cache : le tampon géodésique coûte quelques millisecondes). */
+function couloirDe(d) {
+  if (typeof window.turf === 'undefined') return null;
+  const cle = `${JSON.stringify(d.points)}|${kmCouloir(d)}`;
+  if (!state.cacheCouloirs.has(cle)) {
+    if (state.cacheCouloirs.size > CACHE_COULOIRS_MAX) state.cacheCouloirs.clear();
+    state.cacheCouloirs.set(cle, couloir(window.turf, d.points, kmCouloir(d)));
+  }
+  return state.cacheCouloirs.get(cle);
+}
+
 export function collection() {
-  return { type: 'FeatureCollection', features: state.dessins.map((d) => ({ type: 'Feature',
+  const traces = state.dessins.map((d) => ({ type: 'Feature',
     properties: { id: d.id, genre: d.genre, camp: d.camp, choisi: d.id === state.selection },
-    geometry: d.genre === 'zone' ? { type: 'Polygon', coordinates: [[...d.points, d.points[0]]] } : { type: 'LineString', coordinates: d.points } })) };
+    geometry: d.genre === 'zone' ? { type: 'Polygon', coordinates: [[...d.points, d.points[0]]] } : { type: 'LineString', coordinates: d.points } }));
+  const couloirs = !state.couloirs ? [] : state.dessins.filter((d) => d.genre !== 'zone').map((d) => [d, couloirDe(d)]).filter(([, c]) => c)
+    .map(([d, c]) => ({ type: 'Feature', properties: { id: d.id, genre: 'couloir', camp: d.camp }, geometry: c.geometry }));
+  return { type: 'FeatureCollection', features: [...couloirs, ...traces] };
 }
 
 export function collectionBrouillon() {
@@ -101,7 +123,9 @@ function dessinerOutils() {
   const camps = Object.entries(NOM_CAMP).map(([camp, nom]) => h('button', { type: 'button', class: 'pastille', title: `Camp du prochain tracé : ${nom}`,
     'aria-pressed': String(state.camp === camp), style: `--c:${camp === 'neutre' ? NEUTRE[state.theme] : COULEURS[camp]}`,
     onclick: () => { state.camp = camp; dessinerOutils(); } }));
-  $('outils').replaceChildren(...boutons, h('span', { class: 'sep' }), ...camps);
+  const bascule = h('button', { type: 'button', 'aria-pressed': String(state.couloirs), onclick: basculerCouloirs,
+    title: 'Montre la zone de part et d\'autre des lignes de front et des limites (30 km par défaut, réglable par ligne)' }, 'Couloirs');
+  $('outils').replaceChildren(...boutons, h('span', { class: 'sep' }), ...camps, h('span', { class: 'sep' }), bascule);
   $('aide-dessin').textContent = aideTexte();
   $('aide-dessin').style.display = state.outil === 'selection' && !state.selection ? 'none' : '';
 }
@@ -114,6 +138,12 @@ export function setOutil(outil) {
     if (dessine) state.map.doubleClickZoom.disable(); else state.map.doubleClickZoom.enable();
   }
   if (dessine) { choisir(null); document.dispatchEvent(new CustomEvent('wg:outil', { detail: 'dessin' })); }
+  dessinerOutils(); rafraichir();
+}
+
+function basculerCouloirs() {
+  state.couloirs = !state.couloirs;
+  try { localStorage.setItem(STORAGE_COULOIRS, state.couloirs ? 'oui' : 'non'); } catch { /* stockage indisponible */ }
   dessinerOutils(); rafraichir();
 }
 
@@ -189,10 +219,20 @@ function dessinerFiche() {
   nom.addEventListener('input', () => { maj(d.id, { nom: nom.value.slice(0, 60) }); dessinerListe(); });
   const camps = h('div', { class: 'camps' }, ...Object.entries(NOM_CAMP).map(([camp, libelle]) => h('button', { type: 'button', class: 'camp', 'aria-pressed': String(d.camp === camp),
     style: `--c:${camp === 'neutre' ? NEUTRE[state.theme] : COULEURS[camp]}`, onclick: () => { maj(d.id, { camp }); dessinerFiche(); rafraichir(); } }, libelle)));
-  boite.replaceChildren(h('label', { class: 'champ large' }, h('span', {}, 'Nom'), nom), camps,
+  boite.replaceChildren(...[h('label', { class: 'champ large' }, h('span', {}, 'Nom'), nom), camps,
     h('p', { class: 'note' }, `${NOM_GENRE[d.genre]} · ${d.points.length} points`), h('p', { class: 'note' }, mesures(d)),
+    d.genre === 'zone' ? null : h('label', { class: 'champ' }, h('span', {}, 'Couloir'), reglageCouloir(d), h('em', {}, 'km de chaque côté')),
     h('p', { class: 'note' }, 'Glissez les carrés pour déplacer un point, clic droit pour en retirer un.'),
-    h('button', { class: 'danger', type: 'button', onclick: () => supprimer(d.id) }, 'Supprimer le dessin'));
+    h('button', { class: 'danger', type: 'button', onclick: () => supprimer(d.id) }, 'Supprimer le dessin')].filter(Boolean));
+}
+
+function reglageCouloir(d) {
+  const champ = h('input', { type: 'text', inputmode: 'decimal', value: String(kmCouloir(d)).replace('.', ',') });
+  champ.addEventListener('input', () => {
+    const km = Number(champ.value.replace(',', '.'));
+    if (Number.isFinite(km) && km >= 0 && km <= 1000) { maj(d.id, { couloir_km: km }); rafraichir(); }
+  });
+  return champ;
 }
 
 function dessinerListe() {

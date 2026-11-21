@@ -139,6 +139,17 @@ class RouteTests(HttpCase):
         self.assertTrue(zones["en-ligne"]["en_ligne"])
         self.assertNotIn("url", zones["en-ligne"])
 
+    def test_version_changes_when_a_static_file_changes(self):
+        avant = json.loads(self.get("/api/version")[2])["version"]
+        chemin = os.path.join(server.STATIC, "carte.html")
+        ancien = os.path.getmtime(chemin)
+        try:
+            os.utime(chemin, (ancien + 5, ancien + 5))
+            apres = json.loads(self.get("/api/version")[2])["version"]
+        finally:
+            os.utime(chemin, (ancien, ancien))
+        self.assertNotEqual(avant, apres)
+
     def test_pages_are_served(self):
         self.assertEqual(self.get("/")[0], 200)
         self.assertEqual(self.get("/carte")[0], 200)

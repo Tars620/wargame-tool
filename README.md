@@ -16,7 +16,10 @@ Ajouter une zone : `scripts/extraire_zone.sh baltique 9,53,30,61 12` (outil `too
 à télécharger : https://github.com/protomaps/go-pmtiles/releases, v1.31.2), puis l'ajouter à `zones.json`.
 
 ## Carte : affichage, zones et dessin
-- **Affichage** sombre ou clair (mémorisé). **Zones** : Monde (zoom 7) et Maroc (zoom 12) lisibles hors ligne ;
+Mise en page de logiciel : en-tête et barre d'outils collées en haut, panneaux collés aux bords gauche et droit
+sur toute la hauteur ; un onglet sur le bord de la carte replie un panneau en entier, et chaque section se plie.
+La page se recharge seule quand le code du serveur change (`/api/version`), en gardant pièces, dessins et consignes.
+- **Affichage** sombre ou clair (mémorisé). **Zones** : Monde (zoom 7 agrandi jusqu'à 9) lisible hors ligne ;
   **Planète (en ligne, zoom 15)** donne le détail partout en passant par le serveur, qui relaie la carte
   Protomaps du 2026-11-20 (tranches bornées à 8 Mo, adresse fixée dans `zones.json`). Une zone sans données
   plus fines est agrandie de 2 niveaux au plus, puis la page propose la zone la plus détaillée.

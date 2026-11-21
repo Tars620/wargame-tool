@@ -161,6 +161,7 @@ function createMap() {
   map.on('error', (e) => showError(`Chargement impossible : ${(e.error && e.error.message) || 'source indisponible'}`));
   map.on('styledata', () => showError(''));
   map.on('zoomend', majInfoZone);
+  new ResizeObserver(() => map.resize()).observe($('map'));
   // Les panneaux se montent dès que le style est prêt : inutile d'attendre les tuiles (lentes quand la carte est en ligne).
   map.once('style.load', () => {
     monterTemps(map);
@@ -261,8 +262,46 @@ function sectionsRepliables() {
   }
 }
 
+// Les barres latérales sont collées aux bords de l'écran et se replient en entier (un onglet reste visible).
+const PANNEAUX_KEY = 'wg.panneaux';
+function panneauxRepliables() {
+  let ouvert = { g: true, d: true };
+  try { ouvert = { ...ouvert, ...JSON.parse(localStorage.getItem(PANNEAUX_KEY) || '{}') }; } catch { /* valeurs par défaut */ }
+  const appliquer = () => {
+    document.body.classList.toggle('g-ferme', !ouvert.g);
+    document.body.classList.toggle('d-ferme', !ouvert.d);
+    $('onglet-g').textContent = ouvert.g ? '‹' : '›';
+    $('onglet-d').textContent = ouvert.d ? '›' : '‹';
+    if (state.map) state.map.resize();
+  };
+  for (const cote of ['g', 'd']) {
+    $(`onglet-${cote}`).addEventListener('click', () => {
+      ouvert = { ...ouvert, [cote]: !ouvert[cote] };
+      try { localStorage.setItem(PANNEAUX_KEY, JSON.stringify(ouvert)); } catch { /* stockage indisponible */ }
+      appliquer();
+    });
+  }
+  appliquer();
+}
+
+// Recharge la page quand le code a changé sur le serveur (un onglet resté ouvert garderait l'ancienne version).
+const VERSION_PAS_MS = 4000;
+function surveillerVersion() {
+  let courante = null;
+  const occupe = () => ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement && document.activeElement.tagName) || document.body.dataset.pointage === 'oui';
+  setInterval(async () => {
+    try {
+      const { version } = await (await fetch('/api/version')).json();
+      if (courante === null) courante = version;
+      else if (version !== courante && !occupe()) location.reload();
+    } catch { /* serveur momentanément injoignable : on réessaiera */ }
+  }, VERSION_PAS_MS);
+}
+
 async function start() {
   sectionsRepliables();
+  panneauxRepliables();
+  surveillerVersion();
   const res = await fetch('/api/maps');
   state.zones = await res.json();
   if (!state.zones.length) { showError('Aucune zone : placez un fichier .pmtiles dans data/maps et déclarez-le dans zones.json.'); return; }
