@@ -13,7 +13,7 @@
   --accent: #ffffff; --barre: #000000; --pion-fond: #000000; --invert-ctrl: invert(1);
   --bleu: #4c8dff; --rouge: #e5484d;   /* réservés aux camps et aux états */
   --t-xs: 11px; --t-sm: 12px; --t-base: 13px; --t-md: 14px; --barre-h: 38px; --outils-h: 38px;
-  --haut: calc(var(--barre-h) + var(--outils-h)); --g: 300px; --d: 320px; --gauche-w: var(--g); --droite-w: var(--d);
+  --haut: calc(var(--barre-h) + var(--outils-h)); --g: 300px; --d: 400px; --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace; --gauche-w: var(--g); --droite-w: var(--d);
 }
 /* Thème clair : mêmes règles (angles droits, Inter), couleurs inversées. Bleu et rouge restent réservés aux camps. */
 :root[data-theme=clair] {
@@ -38,7 +38,7 @@ body.g-ferme .gauche { transform: translateX(-100%); } body.d-ferme .droite { tr
 .panneau h3:first-child { margin-top: 0; }
 .panneau h4 { margin: 14px 0 6px; font-size: var(--t-sm); font-weight: 500; color: var(--texte); }
 .opt { display: flex; gap: 8px; align-items: flex-start; padding: 7px 9px; margin-top: -1px; border: 1px solid var(--trait); font-size: var(--t-base); cursor: pointer; }
-.opt:has(input:checked) { background: var(--panneau-2); border-color: var(--accent); position: relative; }
+.opt:has(input:checked) { background: var(--panneau-2); border-color: var(--trait-fort); position: relative; }
 .opt input { margin: 2px 0 0; accent-color: var(--accent); }
 .opt small, .modele small { display: block; color: var(--texte-2); font-size: var(--t-sm); }
 select, input[type=text] { width: 100%; padding: 7px 9px; border: 1px solid var(--trait); background: var(--fond); color: var(--texte); font: inherit; }
@@ -75,16 +75,18 @@ button:hover { border-color: var(--accent); }
 
 details { border-top: 1px solid var(--trait); padding: 4px 0 10px; }
 details:first-of-type { border-top: 0; }
-summary { cursor: pointer; list-style: none; margin: 10px 0 8px; font-size: var(--t-sm); font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--texte-2); }
+summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: var(--t-base); font-weight: 500; color: var(--texte); }
 summary::-webkit-details-marker { display: none; }
-summary::before { content: '+'; display: inline-block; width: 14px; }
-details[open] > summary::before { content: '−'; }
+summary::before { content: ''; width: 6px; height: 6px; margin: 0 2px 2px 1px; border-right: 1.5px solid var(--texte-2); border-bottom: 1.5px solid var(--texte-2); transform: rotate(-45deg); transition: transform .12s ease; }
+details[open] > summary::before { transform: rotate(45deg); margin-bottom: 4px; }
+details > :not(summary) { margin-left: 15px; }
+details > select { width: calc(100% - 15px); }
 
 /* horloges, consignes, météo */
 .horloges { margin-left: auto; display: flex; gap: 22px; font-size: var(--t-base); font-variant-numeric: tabular-nums; color: var(--texte); }
 .horloges b { font-weight: 500; margin-right: 4px; color: var(--texte-2); text-transform: uppercase; letter-spacing: .05em; font-size: var(--t-xs); }
 .horloges em { font-style: normal; color: var(--texte-2); font-size: var(--t-sm); }
-.horloges .discret { color: var(--texte-2); } .horloges .etat { border: 1px solid var(--trait-fort); padding: 0 8px; }
+.horloges .discret { color: var(--texte-2); } .horloges .etat { min-width: 52px; padding: 2px 8px; font-size: var(--t-sm); font-variant-numeric: tabular-nums; }
 .primaire { background: var(--accent); color: var(--fond); border-color: var(--accent); }
 .primaire:hover { opacity: .85; } .primaire:disabled { opacity: .35; cursor: default; }
 .avert { margin: 6px 0 0; font-size: var(--t-sm); color: #d9a441; }
@@ -100,16 +102,69 @@ details[open] > summary::before { content: '−'; }
 #temps-panneau input[type=datetime-local] { width: 100%; padding: 7px 9px; border: 1px solid var(--trait); background: var(--fond); color: var(--texte); font: inherit; color-scheme: dark; }
 :root[data-theme=clair] #temps-panneau input[type=datetime-local] { color-scheme: light; }
 
-/* barre d'outils de dessin */
-.barre-outils { position: fixed; top: var(--barre-h); left: 0; right: 0; height: var(--outils-h); z-index: 4; display: flex; align-items: center; gap: 16px; background: var(--panneau); border-bottom: 1px solid var(--trait); }
-.outils { display: flex; align-items: stretch; height: 100%; border: 0; }
-.outils button { white-space: nowrap; border: 0; border-right: 1px solid var(--trait); padding: 8px 12px; font-size: var(--t-base); }
-.outils button[aria-pressed=true]:not(.pastille) { background: var(--panneau-2); box-shadow: inset 0 -2px 0 var(--accent); color: var(--accent); }
-.outils .sep { width: 1px; align-self: stretch; background: var(--trait-fort); }
-.outils .pastille { width: 24px; height: 24px; padding: 0; margin: 0 5px; border: 1px solid var(--trait-fort); background: var(--c); }
-.outils .pastille[aria-pressed=true] { outline: 2px solid var(--accent); outline-offset: 1px; }
-.aide { flex: 1 1 auto; min-width: 0; padding: 0 14px; font-size: var(--t-sm); color: var(--texte-2); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* barre d'outils : toutes les cellules ont la même hauteur et le même repère d'état */
+.barre-outils { position: fixed; top: var(--barre-h); left: 0; right: 0; height: var(--outils-h); z-index: 4; display: flex; align-items: stretch; background: var(--panneau); border-bottom: 1px solid var(--trait); }
+.outils { display: flex; align-items: stretch; }
+.outils > button, .outils > .etiquette { display: flex; align-items: center; height: 100%; padding: 0 14px; border: 0; border-right: 1px solid var(--trait); font-size: var(--t-base); line-height: 1; white-space: nowrap; }
+.outils > button[aria-pressed=true] { background: var(--panneau-2); box-shadow: inset 0 -2px 0 var(--accent); color: var(--accent); }
+.outils > button:hover { background: var(--panneau-2); }
+.outils .sep { display: none; }
+.outils .etiquette { color: var(--texte-2); font-size: var(--t-sm); background: transparent; border-left: 1px solid var(--trait-fort); }
+.outils .cellule-camp { gap: 8px; padding: 0 12px; }
+.outils .cellule-camp::before { content: ''; width: 9px; height: 9px; background: var(--c); border: 1px solid color-mix(in srgb, var(--c) 55%, var(--texte)); }
+.outils .bord-droit { border-left: 1px solid var(--trait-fort); }
+.aide { flex: 1 1 auto; min-width: 0; align-self: center; padding: 0 14px; font-size: var(--t-sm); color: var(--texte-2); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .poignee { width: 12px; height: 12px; background: var(--accent); border: 2px solid var(--fond); cursor: grab; }
+
+/* info-bulle aux couleurs de l'application (remplace celle du navigateur) */
+[data-tip] { position: relative; }
+[data-tip]:hover::after { content: attr(data-tip); position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; width: max-content; max-width: 260px; padding: 6px 9px; background: var(--panneau-2); color: var(--texte); border: 1px solid var(--trait-fort); font-size: var(--t-sm); font-weight: 300; line-height: 1.4; text-align: left; white-space: normal; pointer-events: none; }
+.bord-droit[data-tip]:hover::after, .top [data-tip]:hover::after { left: auto; right: 0; }
+
+/* bascule de thème, dans la barre du haut */
+.seg { display: flex; margin-left: 18px; }
+.seg button { padding: 3px 10px; font-size: var(--t-sm); color: var(--texte-2); border-color: var(--trait); margin-left: -1px; }
+.seg button:first-child { margin-left: 0; }
+.seg button[aria-pressed=true] { color: var(--accent); background: var(--panneau-2); border-color: var(--trait-fort); }
+.top .horloges button.etat { color: var(--texte); border-color: var(--trait); }
+
+/* panneau de droite : onglets et assistant */
+.droite { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.onglets { flex: none; display: flex; border-bottom: 1px solid var(--trait); }
+.onglets button { flex: 1; padding: 10px 4px; border: 0; border-right: 1px solid var(--trait); font-size: var(--t-sm); color: var(--texte-2); }
+.onglets button:last-child { border-right: 0; }
+.onglets button:hover { background: var(--panneau-2); }
+.onglets button[aria-selected=true] { color: var(--accent); background: var(--panneau-2); box-shadow: inset 0 -2px 0 var(--accent); }
+.volet { flex: 1; min-height: 0; overflow: auto; padding: 12px 14px; }
+.volet[hidden] { display: none; }
+.volet-ia { padding: 0; display: flex; }
+.ia { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--fond); font-family: var(--mono); font-size: var(--t-sm); }
+.ia-fil { flex: 1; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.ia-ligne { margin: 0; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ia-ligne.moi { color: var(--texte); } .ia-ligne.moi::before { content: '› '; color: var(--texte-2); }
+.ia-ligne.assistant { color: var(--texte); padding-left: 14px; border-left: 1px solid var(--trait-fort); }
+.ia-ligne.systeme { color: var(--texte-2); } .ia-ligne.erreur { color: var(--rouge); }
+.ia-ligne.attente::after { content: ''; display: inline-block; width: 1.4em; text-align: left; animation: points 1.2s steps(4, end) infinite; }
+@keyframes points { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75%, 100% { content: '...'; } }
+.ia-exemple { align-self: stretch; text-align: left; padding: 8px 10px; border: 1px dashed var(--trait-fort); color: var(--texte-2); font: inherit; line-height: 1.5; }
+.ia-exemple:hover { color: var(--texte); border-color: var(--texte-2); }
+.ia-plan { border: 1px solid var(--trait-fort); background: var(--panneau); padding: 10px 12px; }
+.ia-plan ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ia-plan li label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; line-height: 1.5; }
+.ia-plan input { margin: 3px 0 0; accent-color: var(--accent); flex: none; }
+.ia-plan .sans-case { display: block; color: var(--texte-2); padding-left: 21px; line-height: 1.5; }
+.ia-plan small { display: block; padding-left: 21px; font-size: var(--t-xs); line-height: 1.45; }
+.ia-plan .probleme { color: var(--rouge); } .ia-plan .avertissement { color: #d9a441; }
+:root[data-theme=clair] .ia-plan .avertissement { color: #a06a00; }
+.ia-actions { display: flex; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--trait); }
+.ia-actions button { font-family: var(--mono); font-size: var(--t-sm); padding: 5px 12px; }
+.ia-saisie { flex: none; display: flex; gap: 8px; align-items: flex-start; padding: 10px 14px 4px; border-top: 1px solid var(--trait); }
+.ia-invite { color: var(--texte-2); line-height: 1.55; }
+.ia-saisie textarea { flex: 1; min-width: 0; resize: none; border: 0; outline: 0; padding: 0; background: transparent; color: var(--texte); font: inherit; line-height: 1.55; max-height: 140px; }
+.ia[data-occupe=oui] .ia-saisie { opacity: .55; }
+.ia-aide { flex: none; margin: 0; padding: 0 14px 10px; font-size: var(--t-xs); color: var(--texte-2); font-family: Inter, system-ui, sans-serif; }
+.pion.detruit { opacity: .35; filter: grayscale(1); }
+.pion.detruit::after { content: '×'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; line-height: 1; color: var(--texte); }
 
 /* commandes de la carte */
 .maplibregl-ctrl-group { background: var(--panneau) !important; border: 1px solid var(--trait); box-shadow: none !important; }
@@ -118,18 +173,17 @@ details[open] > summary::before { content: '−'; }
 .maplibregl-ctrl-scale { background: color-mix(in srgb, var(--panneau) 88%, transparent) !important; color: var(--texte) !important; border-color: var(--texte-2) !important; font-family: Inter, system-ui, sans-serif; }
 .maplibregl-ctrl-attrib { background: color-mix(in srgb, var(--panneau) 88%, transparent) !important; color: var(--texte-2) !important; font-family: Inter, system-ui, sans-serif; }
 .maplibregl-ctrl-attrib a { color: var(--texte-2) !important; }
-@media (max-width: 900px) { :root { --g: 250px; --d: 0px; } .droite, #onglet-d { display: none; } }
+@media (max-width: 900px) { :root { --g: 250px; --d: 0px; } .droite, #onglet-d { display: none; } .aide { display: none; } }
 </style>
 </head>
 <body>
-<div class="top"><b>Carte</b><a href="/">Journal de partie</a><div class="horloges" id="horloges"></div></div>
+<div class="top"><b>Carte</b><a href="/">Journal de partie</a><div class="horloges" id="horloges"></div><div class="seg" id="theme" role="group" aria-label="Thème"></div></div>
 <div id="map"></div>
 <button type="button" class="onglet" id="onglet-g" aria-label="Replier ou déplier le panneau de gauche" title="Replier / déplier">‹</button>
 <button type="button" class="onglet" id="onglet-d" aria-label="Replier ou déplier le panneau de droite" title="Replier / déplier">›</button>
 <div class="barre-outils"><div class="outils" id="outils"></div><div class="aide" id="aide-dessin"></div></div>
 
 <aside class="panneau gauche">
-  <details open data-cle="g-affichage"><summary>Affichage</summary><div id="theme" class="camps"></div></details>
   <details open data-cle="g-fond"><summary>Fond</summary><div id="fonds"></div></details>
   <details open data-cle="g-sup"><summary>Superpositions</summary>
     <label class="opt"><input type="checkbox" id="labels" checked><span>Frontières et noms<small>Sur tous les fonds</small></span></label>
@@ -143,14 +197,30 @@ details[open] > summary::before { content: '−'; }
 </aside>
 
 <aside class="panneau droite">
-  <details open data-cle="d-ops"><summary>Opération</summary><div id="operation"></div></details>
-  <details open data-cle="d-consignes"><summary>Consignes</summary><div id="consignes"></div></details>
-  <details open data-cle="d-journal"><summary>Journal des opérations</summary><div id="journal-ops"></div></details>
-  <details open data-cle="d-dessin"><summary>Dessin sélectionné</summary><div id="dessin-fiche"></div></details>
-  <details open data-cle="d-dessins"><summary>Dessins</summary><div id="dessins-liste"></div></details>
-  <details open data-cle="d-fiche"><summary>Pièce sélectionnée</summary><div id="fiche"></div></details>
-  <details open data-cle="d-banque"><summary>Banque de pièces</summary><div id="banque"></div></details>
-  <details data-cle="d-portees"><summary>Portées affichées</summary><div id="portees"></div></details>
+  <div class="onglets" id="onglets-d" role="tablist">
+    <button type="button" role="tab" data-onglet="ia">Assistant</button>
+    <button type="button" role="tab" data-onglet="pieces">Pièces</button>
+    <button type="button" role="tab" data-onglet="consignes">Consignes</button>
+    <button type="button" role="tab" data-onglet="dessins">Dessins</button>
+    <button type="button" role="tab" data-onglet="journal">Journal</button>
+  </div>
+  <section class="volet volet-ia" data-volet="ia"><div class="ia" id="ia"></div></section>
+  <section class="volet" data-volet="pieces" hidden>
+    <details open data-cle="d-fiche"><summary>Pièce sélectionnée</summary><div id="fiche"></div></details>
+    <details open data-cle="d-banque"><summary>Banque de pièces</summary><div id="banque"></div></details>
+    <details data-cle="d-portees"><summary>Portées affichées</summary><div id="portees"></div></details>
+  </section>
+  <section class="volet" data-volet="consignes" hidden>
+    <details open data-cle="d-ops"><summary>Situation</summary><div id="operation"></div></details>
+    <details open data-cle="d-consignes"><summary>Consignes</summary><div id="consignes"></div></details>
+  </section>
+  <section class="volet" data-volet="dessins" hidden>
+    <details open data-cle="d-dessin"><summary>Dessin sélectionné</summary><div id="dessin-fiche"></div></details>
+    <details open data-cle="d-dessins"><summary>Dessins</summary><div id="dessins-liste"></div></details>
+  </section>
+  <section class="volet" data-volet="journal" hidden>
+    <div id="journal-ops"></div>
+  </section>
 </aside>
 
 <div class="lecture" id="lecture">—</div>

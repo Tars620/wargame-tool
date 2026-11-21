@@ -1,8 +1,8 @@
 import { distanceKm, formatKm, formatDuree } from './geo.js';
 import { ALLURES, avancer, contacts, verifier, visiblesPour, vitesse } from './moteur.js';
 import { PARIS, date, heure } from './fuseaux.js';
-import { maintenant, surTick, demarrer, enMarche } from './temps.js';
-import { listerPieces, pieceChoisie, choisirPiece, positionner, appliquerVisibilite } from './pieces.js';
+import { maintenant, surTick } from './temps.js';
+import { listerPieces, pieceChoisie, choisirPiece, positionner, appliquerVisibilite, detruire, restaurer } from './pieces.js';
 import { conditions } from './meteo.js';
 
 export const SOURCE_CONSIGNES = 'consignes';
@@ -11,10 +11,10 @@ const STORAGE_JOURNAL = 'wg.journal.v1';
 const JOURNAL_MAX = 300;
 const JOURNAL_AFFICHE = 60;
 const COULEURS = { bleu: '#4c8dff', rouge: '#e5484d' };
-const STATUTS = { attente: 'En attente', lance: 'Lancée', en_cours: 'En cours', terminee: 'Terminée' };
+const STATUTS = { attente: 'En attente', lance: 'À démarrer', en_cours: 'En cours', terminee: 'Terminée' };
 const TYPES = { aller: 'Aller à', observer: 'Observer', engager: 'Engager (feu)' };
 
-const state = { map: null, ordres: {}, journal: [], lancee: false, depart: null, pointDeVue: 'arbitre', pointage: null,
+const state = { map: null, ordres: {}, journal: [], depart: null, pointDeVue: 'arbitre', pointage: null,
   forme: { type: 'aller', allure: 'normale', dureeMin: 10, cibleId: '' }, contactsVus: new Set(), meteo: null, theme: 'sombre' };
 const $ = (id) => document.getElementById(id);
 
@@ -63,7 +63,7 @@ function libelle(c, pieces) {
 
 function nouvelleConsigne(piece) {
   const f = state.forme;
-  const base = { id: newId(), type: f.type, allure: f.allure, statut: state.lancee ? 'lance' : 'attente' };
+  const base = { id: newId(), type: f.type, allure: f.allure, statut: 'lance' };
   if (f.type === 'aller') return { ...base, points: state.pointage ? state.pointage.points : (f.points || []) };
   if (f.type === 'observer') return { ...base, dureeMin: Number(f.dureeMin) };
   return { ...base, cibleId: f.cibleId };
@@ -102,6 +102,7 @@ async function ajouter() {
   const r = await bilan(piece, c, pieces);
   if (!r.ok) return;
   if (c.type === 'aller') c = { ...c, distanceKm: r.distanceKm };
+  assurerDepart();
   majFile(piece.id, (file) => [...file, c]);
   if (state.pointage) arreterPointage(false);
   state.forme = { ...state.forme, points: [] };
@@ -133,26 +134,30 @@ function pointer(lngLat) {
 }
 
 // ---------- opération ----------
-function lancer() {
-  const pieces = listerPieces();
-  if (!state.depart) state.depart = Object.fromEntries(pieces.map((p) => [p.id, [p.lng, p.lat]]));
-  let n = 0;
-  for (const [id, file] of Object.entries(state.ordres)) {
-    state.ordres = { ...state.ordres, [id]: file.map((c) => { if (c.statut === 'attente') { n += 1; return { ...c, statut: 'lance' }; } return c; }) };
-  }
-  state.lancee = true; sauver();
-  if (!enMarche()) demarrer();
-  noter(maintenant(), n ? `Opération lancée : ${n} consigne${n > 1 ? 's' : ''} en cours d'exécution.` : 'Opération lancée (aucune consigne en attente).', 'op');
-  dessinerOperation(); dessinerConsignes();
+/** Garde les positions d'avant la première consigne, pour pouvoir y revenir. */
+function assurerDepart() {
+  if (!state.depart) state.depart = Object.fromEntries(listerPieces().map((p) => [p.id, [p.lng, p.lat]]));
 }
+
+/** Consignes proposées par l'assistant, déjà vérifiées : { ref: id de pièce, consigne }. Elles démarrent avec l'horloge de jeu. */
+export function ajouterConsignes(cibles) {
+  assurerDepart();
+  for (const { ref, consigne } of cibles) majFile(ref, (file) => [...file, { ...consigne, id: newId(), statut: 'lance' }]);
+  dessinerConsignes(); rafraichirCarte();
+}
+
+export const libelleConsigne = (c) => libelle(c, listerPieces());
+export const etatOrdres = () => state.ordres;
+export function noterOperation(texte) { noter(maintenant(), texte, 'op'); }
 
 function revenirAuDepart() {
   if (state.depart) for (const [id, pos] of Object.entries(state.depart)) positionner(id, pos);
   for (const id of Object.keys(state.ordres)) {
-    state.ordres = { ...state.ordres, [id]: fileDe(id).map((c) => ({ ...c, statut: 'attente', etape: 0, ecouleMin: 0 })) };
+    state.ordres = { ...state.ordres, [id]: fileDe(id).map((c) => ({ ...c, statut: 'lance', etape: 0, ecouleMin: 0 })) };
   }
-  state.lancee = false; state.depart = null; state.contactsVus = new Set(); sauver();
-  noter(maintenant(), 'Retour aux positions de départ : consignes remises en attente.', 'op');
+  for (const p of listerPieces()) if (p.detruit) restaurer(p.id);
+  state.depart = null; state.contactsVus = new Set(); sauver();
+  noter(maintenant(), 'Retour aux positions de départ : consignes remises à zéro, pièces détruites rétablies.', 'op');
   dessinerOperation(); dessinerConsignes(); rafraichirCarte(); majVisibilite();
 }
 
@@ -160,16 +165,20 @@ function evenement(t, e, pieces) {
   const nom = nomDe(pieces, e.pieceId);
   if (e.type === 'arrivee') noter(t, `${nom} est arrivé à destination.`, 'info');
   else if (e.type === 'fin_observation') noter(t, `${nom} termine son observation.`, 'info');
-  else if (e.type === 'cible_perdue') noter(t, `${nom} : cible introuvable, engagement annulé.`, 'alerte');
-  else if (e.type === 'tir') noter(t, `TIR : ${nom} engage ${nomDe(pieces, e.cibleId)} (puissance ${e.puissance}, à ${km(e.distanceKm)}). Résultat à arbitrer.`, 'tir');
+  else if (e.type === 'cible_perdue') noter(t, `${nom} : cible introuvable ou déjà détruite, engagement annulé.`, 'alerte');
+  else if (e.type === 'tir') {
+    const cible = nomDe(pieces, e.cibleId);
+    if (e.detruit) { detruire(e.cibleId); noter(t, `TIR : ${nom} engage ${cible} (à ${km(e.distanceKm)}). ${cible} est détruit, comme demandé par l'arbitre.`, 'tir'); }
+    else noter(t, `TIR : ${nom} engage ${cible} (puissance ${e.puissance}, à ${km(e.distanceKm)}). Résultat à arbitrer.`, 'tir');
+  }
 }
 
 function pas(t, dtMs) {
-  if (!state.lancee) return;
   const dtMin = dtMs / 60000;
   const pieces = listerPieces();
   let change = false;
   for (const piece of pieces) {
+    if (piece.detruit) continue;
     const file = fileDe(piece.id);
     const i = file.findIndex((c) => c.statut === 'lance' || c.statut === 'en_cours');
     if (i < 0) continue;
@@ -245,16 +254,13 @@ export function setTheme(t) { state.theme = t; }
 
 // ---------- panneau ----------
 function dessinerOperation() {
-  const pieces = listerPieces();
   const choix = [['arbitre', 'Arbitre : tout voir'], ['bleu', 'Camp bleu'], ['rouge', 'Camp rouge']];
   const vue = h('select', { onchange: (e) => { state.pointDeVue = e.target.value; majVisibilite(); } },
     ...choix.map(([v, nom]) => h('option', { value: v, selected: v === state.pointDeVue }, nom)));
   $('operation').replaceChildren(
-    h('div', { class: 'camps' }, h('button', { type: 'button', onclick: lancer, class: state.lancee ? '' : 'primaire' }, state.lancee ? 'Relancer les consignes en attente' : 'Lancer l\'opération'),
-      h('button', { type: 'button', onclick: revenirAuDepart }, 'Revenir au départ')),
     h('label', { class: 'champ large' }, h('span', {}, 'Point de vue'), vue),
-    h('p', { class: 'note' }, state.lancee ? `Opération en cours : ${pieces.length} pièce${pieces.length > 1 ? 's' : ''}. Les consignes avancent avec l'horloge de jeu (pause et vitesse : section Temps).`
-      : 'Ajoutez des consignes, puis lancez : elles s\'exécutent à l\'heure de jeu, selon les capacités de chaque pièce.'));
+    h('button', { type: 'button', onclick: revenirAuDepart }, 'Revenir au départ'),
+    h('p', { class: 'note' }, 'Les consignes s\'exécutent avec l\'horloge de jeu (en haut : pause et vitesse). « Revenir au départ » replace les pièces comme avant la première consigne.'));
 }
 
 function dessinerConsignes() {
@@ -306,7 +312,8 @@ function dessinerConsignes() {
 // ---------- montage ----------
 export function monter(map) {
   state.map = map;
-  state.ordres = lire(STORAGE_ORDRES, {}); state.journal = lire(STORAGE_JOURNAL, []);
+  state.ordres = Object.fromEntries(Object.entries(lire(STORAGE_ORDRES, {})).map(([id, file]) => [id, file.map((c) => (c.statut === 'attente' ? { ...c, statut: 'lance' } : c))]));
+  state.journal = lire(STORAGE_JOURNAL, []);
   map.on('click', (e) => { if (state.pointage) pointer(e.lngLat); });
   document.addEventListener('wg:piece', () => dessinerConsignes());
   document.addEventListener('wg:pieces', () => {

@@ -42,6 +42,7 @@ export function verifier(piece, consigne, { pieces = [], meteo = null } = {}) {
     const cible = pieces.find((p) => p.id === consigne.cibleId);
     if (!(piece.feu.portee_km > 0)) erreurs.push("Cette pièce n'a aucun feu.");
     if (!cible) erreurs.push('Choisissez une cible.');
+    else if (cible.detruit) erreurs.push('La cible est déjà détruite.');
     else if (cible.camp === piece.camp) erreurs.push('La cible est du même camp.');
     else {
       distance = distanceKm(position(piece), position(cible));
@@ -90,10 +91,10 @@ export function avancer(piece, consigne, dtMin, pieces = []) {
 
   // engager : s'approcher jusqu'à la portée, puis tirer (le résultat du tir est laissé à l'arbitre)
   const cible = pieces.find((p) => p.id === consigne.cibleId);
-  if (!cible) { evenements.push({ type: 'cible_perdue', pieceId: piece.id, cibleId: consigne.cibleId }); return { position: pos, consigne, termine: true, evenements }; }
+  if (!cible || cible.detruit) { evenements.push({ type: 'cible_perdue', pieceId: piece.id, cibleId: consigne.cibleId }); return { position: pos, consigne, termine: true, evenements }; }
   const d = distanceKm(pos, position(cible));
   if (d <= piece.feu.portee_km) {
-    evenements.push({ type: 'tir', pieceId: piece.id, cibleId: cible.id, distanceKm: d, puissance: piece.feu.puissance });
+    evenements.push({ type: 'tir', pieceId: piece.id, cibleId: cible.id, distanceKm: d, puissance: piece.feu.puissance, detruit: consigne.detruit === true });
     return { position: pos, consigne, termine: true, evenements };
   }
   const avance = Math.min((v * dtMin) / 60, d - piece.feu.portee_km * MARGE_PORTEE);
@@ -104,9 +105,9 @@ export function avancer(piece, consigne, dtMin, pieces = []) {
 export function contacts(pieces) {
   const trouves = [];
   for (const obs of pieces) {
-    if (!(obs.vision.rayon_km > 0)) continue;
+    if (obs.detruit || !(obs.vision.rayon_km > 0)) continue;
     for (const cible of pieces) {
-      if (cible.camp === obs.camp) continue;
+      if (cible.detruit || cible.camp === obs.camp) continue;
       const d = distanceKm(position(obs), position(cible));
       if (d <= obs.vision.rayon_km) trouves.push({ observateurId: obs.id, cibleId: cible.id, distanceKm: d });
     }
@@ -116,7 +117,7 @@ export function contacts(pieces) {
 
 /** Ce que voit un camp : ses propres pièces, plus les pièces adverses dans la vision de l'une des siennes. */
 export function visiblesPour(camp, pieces) {
-  const visibles = new Set(pieces.filter((p) => p.camp === camp).map((p) => p.id));
+  const visibles = new Set(pieces.filter((p) => p.camp === camp && !p.detruit).map((p) => p.id));
   for (const c of contacts(pieces)) if (pieces.find((p) => p.id === c.observateurId).camp === camp) visibles.add(c.cibleId);
   return visibles;
 }

@@ -55,7 +55,7 @@ export function layerSpecs() {
 }
 
 export function collection() {
-  const montrees = state.pieces.filter(estVisible);
+  const montrees = state.pieces.filter((p) => estVisible(p) && !p.detruit);
   const visibles = state.portees === 'toutes' ? montrees : state.portees === 'selection' ? montrees.filter((p) => p.id === state.selection) : [];
   const features = [];
   for (const p of visibles) {
@@ -79,8 +79,9 @@ const modeleDe = (p) => state.catalogue.find((m) => m.id === p.type) || { nom: p
 function styleMarqueur(p, el) {
   el.style.setProperty('--c', COULEURS[p.camp]);
   if (el.dataset.camp !== p.camp) { el.replaceChildren(symbole(modeleDe(p), p.camp, 22)); el.dataset.camp = p.camp; } // l'identité du symbole suit le camp
-  el.title = `${p.nom} (${NOM_CAMP[p.camp]})`;
+  el.title = `${p.nom} (${NOM_CAMP[p.camp]})${p.detruit ? ', détruit' : ''}`;
   el.classList.toggle('choisi', p.id === state.selection);
+  el.classList.toggle('detruit', !!p.detruit);
 }
 
 function ajouterMarqueur(p) {
@@ -216,6 +217,36 @@ function dessinerOptions() {
 const estVisible = (p) => !state.visibles || state.visibles.has(p.id);
 function signaler() { document.dispatchEvent(new CustomEvent('wg:pieces')); }
 
+/** Crée plusieurs pièces d'un coup (assistant). `specs` : { vid, type, camp, lng, lat, nom }. Rend { vid: id réel }. */
+export function creerPieces(specs) {
+  const ids = {};
+  for (const sp of specs) {
+    const modele = state.catalogue.find((m) => m.id === sp.type);
+    if (!modele) continue;
+    const p = { id: newId(), type: sp.type, icone: modele.icone, nom: sp.nom, camp: sp.camp, lng: sp.lng, lat: sp.lat, mouvement: { ...modele.mouvement }, feu: { ...modele.feu },
+      vision: { ...modele.vision }, meteo_max: modele.meteo_max ? { ...modele.meteo_max } : null, dernier_deplacement: null };
+    state.pieces = [...state.pieces, p];
+    ajouterMarqueur(p);
+    ids[sp.vid] = p.id;
+  }
+  sauver(); rafraichirCarte(); signaler();
+  return ids;
+}
+
+/** Une pièce détruite reste sur la carte (grisée) mais ne voit, ne tire et ne se déplace plus. */
+export function detruire(id) {
+  if (!piece(id)) return;
+  maj(id, { detruit: true });
+  majMarqueurs(); rafraichirCarte(); dessinerFiche(); signaler();
+}
+
+export function restaurer(id) {
+  if (!piece(id) || !piece(id).detruit) return;
+  maj(id, { detruit: false });
+  majMarqueurs(); rafraichirCarte(); dessinerFiche(); signaler();
+}
+
+export const catalogue = () => state.catalogue.map((m) => ({ ...m }));
 export const listerPieces = () => state.pieces.map((p) => ({ ...p }));
 export const pieceChoisie = () => state.selection;
 export const choisirPiece = (id) => choisir(id);

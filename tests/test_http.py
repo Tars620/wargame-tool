@@ -144,8 +144,9 @@ class RouteTests(HttpCase):
         avant = json.loads(self.get("/api/version")[2])["version"]
         chemin = os.path.join(server.STATIC, "carte.html")
         ancien = os.path.getmtime(chemin)
+        recent = max(os.path.getmtime(os.path.join(d, f)) for d, _, fs in os.walk(server.STATIC) for f in fs)  # un autre fichier peut être plus récent
         try:
-            os.utime(chemin, (ancien + 5, ancien + 5))
+            os.utime(chemin, (recent + 5, recent + 5))
             apres = json.loads(self.get("/api/version")[2])["version"]
         finally:
             os.utime(chemin, (ancien, ancien))
@@ -158,3 +159,53 @@ class RouteTests(HttpCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AssistantTest(unittest.TestCase):
+    """Route /api/ia : le serveur ne lance jamais le vrai modèle dans ces tests (lanceur remplacé)."""
+
+    def appeler(self, corps, lanceur):
+        server.Handler.lanceur_ia = staticmethod(lanceur)
+        self.addCleanup(setattr, server.Handler, "lanceur_ia", None)
+        return server.demander_ia(corps, lanceur)
+
+    def test_reponse_json_entouree_de_balises(self):
+        sortie = self.appeler({"prompt": "pose un drone"}, lambda e: 'Voici :\n```json\n{"message":"ok","actions":[{"action":"vue","lng":1,"lat":2}]}\n```')
+        self.assertEqual(sortie["message"], "ok")
+        self.assertEqual(sortie["actions"][0]["action"], "vue")
+
+    def test_texte_libre_devient_un_message_sans_action(self):
+        sortie = self.appeler({"prompt": "?"}, lambda e: "Je ne sais pas.")
+        self.assertEqual(sortie, {"message": "Je ne sais pas.", "actions": []})
+
+    def test_demande_vide_trop_longue_ou_contexte_enorme_refuses(self):
+        for corps, code in (({"prompt": "  "}, 400), ({"prompt": "x" * (server.IA_PROMPT_MAX + 1)}, 400),
+                            ({"prompt": "a", "contexte": {"p": "x" * server.IA_CONTEXTE_MAX}}, 413)):
+            with self.assertRaises(server.ApiError) as cm:
+                server.demander_ia(corps, lambda e: "{}")
+            self.assertEqual(cm.exception.status, code)
+
+    def test_le_modele_recoit_la_situation_et_la_demande(self):
+        recu = []
+        self.appeler({"prompt": "avance", "contexte": {"pieces": [{"id": "d1"}]}}, lambda e: recu.append(e) or '{"message":"","actions":[]}')
+        self.assertIn('"id": "d1"', recu[0])
+        self.assertIn("avance", recu[0])
+
+    def test_un_seul_appel_a_la_fois(self):
+        server.IA_VERROU.acquire()
+        try:
+            with self.assertRaises(server.ApiError) as cm:
+                server.demander_ia({"prompt": "a"}, lambda e: "{}")
+            self.assertEqual(cm.exception.status, 429)
+        finally:
+            server.IA_VERROU.release()
+
+    def test_route_http_refusee_hors_de_cet_ordinateur_et_acceptee_en_local(self):
+        fd, db = tempfile.mkstemp(); os.close(fd)
+        httpd = server.make_server("127.0.0.1", 0, db)
+        server.Handler.lanceur_ia = staticmethod(lambda e: '{"message":"bonjour","actions":[]}')
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(lambda: (httpd.shutdown(), httpd.server_close(), setattr(server.Handler, "lanceur_ia", None), os.unlink(db)))
+        req = urllib.request.Request(f"http://127.0.0.1:{httpd.server_address[1]}/api/ia", data=json.dumps({"prompt": "salut"}).encode(), headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req) as r:
+            self.assertEqual(json.load(r)["message"], "bonjour")

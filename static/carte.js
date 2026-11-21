@@ -3,6 +3,7 @@ import { layers, namedFlavor } from './vendor/protomaps-basemaps.mjs';
 import { monter as monterPieces, collection as piecesGeojson, layerSpecs as piecesCouches, SOURCE_ID as PIECES_SOURCE } from './pieces.js';
 import { assembler, valider, versGeoJSON, TAILLE_MAX_OCTETS } from './scenario.js';
 import { monter as monterTemps } from './temps.js';
+import { monter as monterIa } from './ia.js';
 import { monter as monterMeteo, pourStyle as meteoPourStyle } from './meteo.js';
 import { monter as monterOrdres, collection as consignesGeojson, layerSpecs as consignesCouches, setTheme as themeOrdres, SOURCE_CONSIGNES } from './ordres.js';
 import { monter as monterDessin, collection as dessinsGeojson, collectionBrouillon, layerSpecs as dessinsCouches,
@@ -168,7 +169,7 @@ function createMap() {
     monterTemps(map);
     monterMeteo(map, { surChangement: () => render() });
     monterDessin(map);
-    monterPieces(map).then(() => monterOrdres(map)).catch((e) => showError(`Pièces ou consignes indisponibles : ${e.message}`));
+    monterPieces(map).then(() => { monterOrdres(map); monterIa(map); }).catch((e) => showError(`Pièces ou consignes indisponibles : ${e.message}`));
   });
   return map;
 }
@@ -204,8 +205,7 @@ function fillTheme() {
   const box = $('theme');
   box.replaceChildren(...Object.entries(THEMES).map(([cle, t]) => {
     const b = document.createElement('button');
-    Object.assign(b, { type: 'button', className: 'camp', textContent: t.nom });
-    b.style.setProperty('--c', 'var(--accent)');
+    Object.assign(b, { type: 'button', textContent: t.nom });
     b.setAttribute('aria-pressed', String(state.theme === cle));
     b.addEventListener('click', () => {
       state.theme = cle;
@@ -302,6 +302,26 @@ function fillScenario() {
 
 // Chaque section des panneaux se plie et se déplie ; l'état est mémorisé.
 const SECTIONS_KEY = 'wg.sections';
+// Volets du panneau de droite : l'assistant d'abord ; sélectionner une pièce ou un dessin ouvre son volet.
+const ONGLET_KEY = 'wg.onglet';
+const ONGLETS = ['ia', 'pieces', 'consignes', 'dessins', 'journal'];
+function voletsDroite() {
+  let courant = 'ia';
+  try { const v = localStorage.getItem(ONGLET_KEY); if (ONGLETS.includes(v)) courant = v; } catch { /* valeur par défaut */ }
+  const montrer = (nom) => {
+    courant = nom;
+    try { localStorage.setItem(ONGLET_KEY, nom); } catch { /* stockage indisponible */ }
+    for (const b of document.querySelectorAll('#onglets-d [data-onglet]')) b.setAttribute('aria-selected', String(b.dataset.onglet === nom));
+    for (const v of document.querySelectorAll('[data-volet]')) v.hidden = v.dataset.volet !== nom;
+  };
+  for (const b of document.querySelectorAll('#onglets-d [data-onglet]')) b.addEventListener('click', () => montrer(b.dataset.onglet));
+  document.addEventListener('wg:selection', (e) => {
+    const cible = e.detail === 'dessin' ? 'dessins' : 'pieces';
+    if (courant !== cible && !(cible === 'pieces' && courant === 'consignes')) montrer(cible);
+  });
+  montrer(courant);
+}
+
 function sectionsRepliables() {
   let etat = {};
   try { etat = JSON.parse(localStorage.getItem(SECTIONS_KEY) || '{}'); } catch { etat = {}; }
@@ -349,6 +369,7 @@ function surveillerVersion() {
 
 async function start() {
   sectionsRepliables();
+  voletsDroite();
   panneauxRepliables();
   surveillerVersion();
   const res = await fetch('/api/maps');

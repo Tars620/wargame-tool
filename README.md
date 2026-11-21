@@ -78,3 +78,16 @@ La guerre électronique n'a pas encore d'effet de brouillage.
 - La chaîne de hachage détecte une modification, pas une réécriture complète par le propriétaire du serveur :
   noter l'empreinte hors de l'outil en fin de tour.
 - Aucune authentification forte (jetons de session simples) ; réseau local de confiance uniquement.
+
+
+## Assistant (onglet « Assistant », à droite de la carte)
+
+On décrit la situation en français ; l'assistant la traduit en actions que l'arbitre coche puis applique. Exemple :
+« 5 drones armés bleus côte à côte autour de 48,50 N 37,50 E, face à l'est. En face, 5 blindés rouges autour de 48,50 N 37,80 E. Les drones attaquent les blindés et les détruisent. »
+
+- **Ce qu'il sait faire** : poser des pièces (en groupe : ligne, colonne, paquet, écart et cap), donner des consignes (aller, observer, engager), tracer des fronts, limites et zones, centrer la vue, régler l'horloge de jeu.
+- **Il propose, l'arbitre décide** : rien n'est appliqué sans clic sur « Appliquer » ; chaque action se coche ou se décoche. Tout est revérifié côté navigateur (coordonnées, modèles du catalogue, capacités de chaque pièce) ; une pièce sans arme ne peut pas engager, la proposition est refusée avec la raison.
+- **Destruction** : « détruit » n'est posé sur un engagement que si l'arbitre le demande. La cible est alors détruite au tir (grisée, plus de vision, de tir ni de déplacement) ; « Revenir au départ » la rétablit. Sinon le résultat du tir reste à l'arbitre.
+- **Fonctionnement** : le serveur appelle le programme `claude` (déjà connecté sur la machine) sans outils ni réglages, un appel à la fois, 90 s maximum. Modèle : `WG_IA_MODELE` (défaut `sonnet`, `haiku` pour réduire le coût). La route `/api/ia` n'est servie qu'à cette machine, jamais au réseau local.
+- **Limites** : les lieux nommés sont donnés de mémoire par le modèle (le dire dans la réponse) ; les coordonnées saisies sont reprises telles quelles. Les actions appliquées sont notées dans le journal des opérations de la carte, pas encore dans le journal chaîné de la partie.
+- **Temps de jeu** : plus de bouton « Lancer l'opération ». Les consignes s'exécutent dès qu'elles sont données, au rythme de l'horloge ; le bouton en haut (×1, Pause) l'arrête ou la reprend.

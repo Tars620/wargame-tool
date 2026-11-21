@@ -18,7 +18,7 @@ function figer() { state.ms = maintenant(); state.ancre = performance.now(); }
 export function regler(ms) { state.ms = ms; state.ancre = performance.now(); state.dernier = ms; afficher(); }
 export function demarrer() { figer(); state.enMarche = true; state.dernier = state.ms; panneau(); }
 export function arreter() { figer(); state.enMarche = false; panneau(); }
-export function reglerVitesse(v) { figer(); state.vitesse = v; }
+export function reglerVitesse(v) { figer(); state.vitesse = v; panneau(); afficher(); }
 export function heureReelle() { state.vitesse = 1; state.enMarche = true; regler(Date.now()); panneau(); }
 
 /** Fuseau du point au centre de la carte, ou null si la vue est trop large pour désigner un lieu. */
@@ -31,15 +31,19 @@ export function zoneLocale() {
 function afficher() {
   const t = maintenant();
   const zone = zoneLocale();
-  const paris = `<span><b>Paris</b> ${date(t, PARIS)} ${heure(t, PARIS)} <em>${etiquetteDecalage(t, PARIS)}</em></span>`;
+  const paris = `<b>Paris</b> ${date(t, PARIS)} ${heure(t, PARIS)} <em>${etiquetteDecalage(t, PARIS)}</em>`;
   let local = '<span class="discret"><b>Local</b> zoomez sur une zone</span>';
   if (zone) {
     const ecart = ecartAvecParis(t, zone);
     const diff = ecart === 0 ? 'même heure' : `${ecart > 0 ? '+' : '−'}${Math.abs(ecart).toString().replace('.', ',')} h`;
-    local = `<span><b>${nomZone(zone)}</b> ${date(t, zone)} ${heure(t, zone)} <em>${etiquetteDecalage(t, zone)} · ${diff}</em></span>`;
+    local = `<b>${nomZone(zone)}</b> ${date(t, zone)} ${heure(t, zone)} <em>${etiquetteDecalage(t, zone)} · ${diff}</em>`;
   }
-  const etat = `<span class="etat">${state.enMarche ? `×${state.vitesse}` : 'Pause'}</span>`;
-  $('horloges').innerHTML = `${paris}${local}${etat}`; // contenu entièrement produit ici (aucune donnée saisie)
+  const boite = $('horloges');
+  if (!boite.firstChild) boite.innerHTML = '<span id="h-paris"></span><span id="h-local"></span><button type="button" class="etat" id="h-etat"></button>'; // structure fixe : le bouton ne change pas sous la souris
+  $('h-paris').innerHTML = paris; $('h-local').innerHTML = local; // contenu entièrement produit ici (aucune donnée saisie)
+  const etat = $('h-etat');
+  etat.textContent = state.enMarche ? `×${state.vitesse}` : 'Pause';
+  etat.dataset.tip = state.enMarche ? 'Mettre le temps de jeu en pause' : 'Reprendre le temps de jeu';
 }
 
 function tick() {
@@ -69,6 +73,7 @@ function panneau() {
 export function monter(map) {
   const maj = () => { const c = map.getCenter(); state.centre = { lng: c.lng, lat: c.lat, zoom: map.getZoom() }; };
   map.on('move', maj); maj();
+  $('horloges').addEventListener('click', (e) => { if (e.target.closest('.etat')) { if (state.enMarche) arreter(); else demarrer(); afficher(); } });
   panneau(); afficher();
   setInterval(tick, PAS_MS);
 }

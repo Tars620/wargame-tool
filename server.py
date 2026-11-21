@@ -450,9 +450,112 @@ def _cache_ecrire(cle, valeur):
             _relais_taille -= len(ancien[0])
 
 
+# ---------- assistant : traduit une phrase en actions proposées (jamais exécutées ici) ----------
+IA_MODELE = os.environ.get("WG_IA_MODELE", "sonnet")
+IA_DELAI_S = 90
+IA_PROMPT_MAX = 2000
+IA_CONTEXTE_MAX = 40 * 1024
+IA_VERROU = threading.Lock()  # un seul appel à la fois : chaque appel consomme le forfait de l'utilisateur
+IA_CONSIGNES = """Tu assistes un arbitre de wargame. Il décrit en français ce qu'il veut voir sur la carte ; tu le traduis en actions précises.
+Tu ne décides jamais à sa place : tu proposes, il applique. Tu réponds uniquement par un objet JSON, sans texte autour ni balises :
+{"message": "une à deux phrases en français", "actions": [ ... ]}
+Actions possibles (un objet par action, champ "action") :
+- {"action":"poser","modele":"<id du catalogue>","camp":"bleu|rouge","lng":nombre,"lat":nombre,"nombre":entier,"disposition":"ligne|colonne|groupe","ecartKm":nombre,"capDeg":nombre,"nom":"facultatif"}
+  Pose "nombre" pièces (1 par défaut) autour du point (lng,lat), qui est le centre du groupe. ligne = côte à côte, perpendiculaires au cap
+  (capDeg : 0 = nord, 90 = est ; le cap est la direction vers laquelle le groupe fait face) ; colonne = les unes derrière les autres ; groupe = en paquet.
+  ecartKm = distance entre deux pièces voisines (défaut 0.3 pour du terrestre, 1 pour des UAV). Un seul objet "poser" par groupe, jamais cinq objets identiques.
+- {"action":"consigne","piece":"<id ou nom exact d'une pièce du contexte>" ou "pieces":["id",...] ou "groupe":{"modele":"id","camp":"bleu|rouge"},
+   "type":"aller|observer|engager","points":[[lng,lat],...],"allure":"prudente|normale|maximale","dureeMin":nombre,"cible":"<id ou nom d'une pièce>",
+   "detruit":true|false}
+  aller : points obligatoires ; observer : dureeMin ; engager : cible, ou "cibles":["id",...] à répartir une à une, ou "cibleGroupe":{"modele","camp"}.
+  "detruit":true seulement si l'arbitre demande explicitement que la cible soit éliminée : la cible est alors détruite quand la pièce tire.
+  Sinon le résultat du tir reste à sa décision. Une consigne "groupe" ou "pieces" s'applique à chaque pièce concernée.
+  Les pièces posées dans la même réponse n'ont pas d'id encore : désigne-les par "groupe".
+- {"action":"dessin","genre":"front|limite|zone","camp":"bleu|rouge|neutre","points":[[lng,lat],...],"nom":"facultatif"}
+- {"action":"vue","lng":nombre,"lat":nombre,"zoom":nombre}
+- {"action":"temps","vitesse":1|10|60|300|1800,"pause":true|false}
+Règles : coordonnées en degrés décimaux, longitude d'abord. Si l'arbitre donne des coordonnées, reprends-les telles quelles. S'il nomme un lieu,
+tu ne le connais que de mémoire : donne des coordonnées plausibles et dis dans "message" qu'elles sont approximatives. N'invente jamais de modèle
+ni de pièce : uniquement ceux du contexte. Une pièce incapable de l'action demandée (un UAV sans arme qui engage) : ne la propose pas, explique-le.
+Si la demande est ambiguë ou impossible, renvoie "actions": [] et pose la question dans "message". Pas d'emoji."""
+
+
+def _extraire_json(texte):
+    """Premier objet JSON équilibré d'un texte (le modèle peut ajouter des balises malgré la consigne)."""
+    debut = texte.find("{")
+    while debut != -1:
+        profondeur, chaine, echappe = 0, False, False
+        for i in range(debut, len(texte)):
+            c = texte[i]
+            if chaine:
+                echappe = (c == "\\" and not echappe)
+                if c == '"' and not echappe:
+                    chaine = False
+                continue
+            if c == '"':
+                chaine = True
+            elif c == "{":
+                profondeur += 1
+            elif c == "}":
+                profondeur -= 1
+                if profondeur == 0:
+                    try:
+                        return json.loads(texte[debut:i + 1])
+                    except ValueError:
+                        break
+        debut = texte.find("{", debut + 1)
+    return None
+
+
+def lancer_claude(entree):
+    """Appelle le CLI `claude` sans outils ni réglages utilisateur ; rend le texte de la réponse."""
+    import subprocess
+    import tempfile
+    cmd = ["claude", "-p", "--model", IA_MODELE, "--tools", "", "--no-session-persistence", "--setting-sources", "",
+           "--disable-slash-commands", "--strict-mcp-config", "--system-prompt", IA_CONSIGNES, "--output-format", "json"]
+    with tempfile.TemporaryDirectory() as cwd:
+        try:
+            r = subprocess.run(cmd, input=entree, capture_output=True, text=True, timeout=IA_DELAI_S, cwd=cwd)
+        except FileNotFoundError:
+            raise ApiError(503, "Le programme « claude » est introuvable sur cet ordinateur.")
+        except subprocess.TimeoutExpired:
+            raise ApiError(504, "L'assistant n'a pas répondu à temps.")
+    try:
+        sortie = json.loads(r.stdout)
+    except ValueError:
+        raise ApiError(502, "Réponse illisible de l'assistant.")
+    if r.returncode != 0 or sortie.get("is_error"):
+        raise ApiError(502, "L'assistant a refusé la demande (vérifiez que vous êtes connecté à Claude).")
+    return str(sortie.get("result") or "")
+
+
+def demander_ia(corps, lanceur=None):
+    prompt = str(corps.get("prompt") or "").strip()
+    if not prompt:
+        raise ApiError(400, "Écrivez une demande.")
+    if len(prompt) > IA_PROMPT_MAX:
+        raise ApiError(400, f"Demande trop longue ({IA_PROMPT_MAX} caractères au plus).")
+    contexte = json.dumps(corps.get("contexte") or {}, ensure_ascii=False)
+    if len(contexte) > IA_CONTEXTE_MAX:
+        raise ApiError(413, "Situation trop volumineuse pour l'assistant.")
+    entree = f"Situation actuelle (JSON) :\n{contexte}\n\nDemande de l'arbitre :\n{prompt}"
+    if not IA_VERROU.acquire(blocking=False):
+        raise ApiError(429, "Une demande est déjà en cours.")
+    try:
+        texte = (lanceur or lancer_claude)(entree)
+    finally:
+        IA_VERROU.release()
+    objet = _extraire_json(texte)
+    if not isinstance(objet, dict):
+        return {"message": texte.strip()[:1000] or "Pas de réponse exploitable.", "actions": []}
+    actions = objet.get("actions")
+    return {"message": str(objet.get("message") or "")[:1000], "actions": actions if isinstance(actions, list) else []}
+
+
 # ---------- HTTP ----------
 class Handler(BaseHTTPRequestHandler):
     store = None
+    lanceur_ia = None  # remplaçable en test
     server_version = "WargameLog/0.1"
 
     def log_message(self, fmt, *args):
@@ -502,6 +605,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._relay_online(path[len("/enligne/"):])
         if method == "GET" and re.fullmatch(r"/maps/[a-z0-9-]+\.pmtiles", path):
             return self._send_file(os.path.join(MAPS_DIR, path[len("/maps/"):]), "application/octet-stream", cache=True)
+        if method == "POST" and path == "/api/ia":
+            if self.client_address[0] not in ("127.0.0.1", "::1", "::ffff:127.0.0.1"):
+                raise ApiError(403, "L'assistant n'est disponible que depuis cet ordinateur.")
+            return self._json(200, demander_ia(self._body(), self.lanceur_ia))
         if method == "POST" and path == "/api/games":
             return self._json(200, self.store.create_game(self._body()))
         m = re.fullmatch(r"/api/games/([A-Za-z0-9]{5})/(info|join|events|state|verify|export)", path)
