@@ -3,13 +3,23 @@ import { avecIdsReels, contexte, planifier } from './ia-actions.js';
 import { listerPieces, catalogue, creerPieces } from './pieces.js';
 import { ajouterConsignes, etatOrdres, libelleConsigne, noterOperation } from './ordres.js';
 import { ajouterDessin, listerDessins } from './dessin.js';
+import { dicteeDisponible, lectureDisponible, ecouter, parler, taire } from './voix.js';
 import { maintenant, enMarche, vitesse, arreter, demarrer, reglerVitesse } from './temps.js';
 
 const DELAI_CLIENT_MS = 100000;
 const ECHANGES_MEMOIRE = 4;
+const PLACEHOLDER = 'Décrivez ce que vous voulez voir sur la carte';
 const EXEMPLE = "5 drones armés bleus côte à côte autour de 48,50 N 37,50 E, face à l'est. En face, 5 blindés rouges autour de 48,50 N 37,80 E. Les drones attaquent les blindés et les détruisent.";
 
-const state = { map: null, occupe: false, echanges: [], historique: [], rappel: -1 };
+const REGLAGES_KEY = 'wg.voix';
+const state = { map: null, occupe: false, echanges: [], historique: [], rappel: -1, arreterEcoute: null, reglages: lireReglages() };
+function lireReglages() {
+  try { return { envoi: true, lecture: false, ...JSON.parse(localStorage.getItem(REGLAGES_KEY) || '{}') }; } catch { return { envoi: true, lecture: false }; }
+}
+function reglage(cle, valeur) {
+  state.reglages = { ...state.reglages, [cle]: valeur };
+  try { localStorage.setItem(REGLAGES_KEY, JSON.stringify(state.reglages)); } catch { /* stockage indisponible */ }
+}
 const $ = (id) => document.getElementById(id);
 function h(tag, props = {}, ...kids) {
   const n = document.createElement(tag);
@@ -100,7 +110,7 @@ async function envoyer() {
   const prompt = champ.value.trim();
   if (!prompt || state.occupe) return;
   state.historique = [prompt, ...state.historique.filter((p) => p !== prompt)].slice(0, 30); state.rappel = -1;
-  champ.value = ''; dimensionner();
+  champ.value = ''; dimensionner(); taire();
   document.querySelector('.ia-exemple')?.remove();
   ligne('moi', prompt);
   state.occupe = true; $('ia').dataset.occupe = 'oui';
@@ -108,7 +118,7 @@ async function envoyer() {
   try {
     const rep = await demander(prompt);
     attente.remove();
-    if (rep.message) ligne('assistant', rep.message);
+    if (rep.message) { ligne('assistant', rep.message); if (state.reglages.lecture) parler(rep.message); }
     const plan = planifier(rep.actions, { pieces: listerPieces(), catalogue: catalogue() });
     if (plan.length) afficherPlan(plan);
     state.echanges = [...state.echanges, { arbitre: prompt, assistant: rep.message || '', actions: plan.filter((p) => p.op).map((p) => p.libelle) }].slice(-ECHANGES_MEMOIRE);
@@ -118,11 +128,31 @@ async function envoyer() {
   } finally { state.occupe = false; $('ia').dataset.occupe = 'non'; champ.focus(); }
 }
 
+// ---------- dictée ----------
+function basculerEcoute() {
+  const bouton = $('ia-micro'), champ = $('ia-champ');
+  if (state.arreterEcoute) { state.arreterEcoute(); return; }
+  if (state.occupe) return;
+  taire();
+  const base = champ.value;
+  bouton.setAttribute('aria-pressed', 'true'); $('ia').dataset.ecoute = 'oui';
+  champ.placeholder = 'Je vous écoute…';
+  state.arreterEcoute = ecouter({
+    surTexte: (texte) => { champ.value = texte ? `${base ? `${base} ` : ''}${texte}` : base; dimensionner(); },
+    surErreur: (message) => ligne('erreur', message),
+    surFin: (final) => {
+      state.arreterEcoute = null; bouton.setAttribute('aria-pressed', 'false'); $('ia').dataset.ecoute = 'non';
+      champ.placeholder = PLACEHOLDER;
+      if (final && state.reglages.envoi) envoyer(); else champ.focus();
+    },
+  });
+}
+
 function dimensionner() { const c = $('ia-champ'); c.style.height = 'auto'; c.style.height = `${Math.min(c.scrollHeight, 140)}px`; }
 
 export function monter(map) {
   state.map = map;
-  const champ = h('textarea', { id: 'ia-champ', rows: '1', placeholder: 'Décrivez ce que vous voulez voir sur la carte', 'aria-label': 'Demande à l\'assistant', spellcheck: 'false' });
+  const champ = h('textarea', { id: 'ia-champ', rows: '1', placeholder: PLACEHOLDER, 'aria-label': 'Demande à l\'assistant', spellcheck: 'false' });
   champ.addEventListener('input', dimensionner);
   champ.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); envoyer(); }
@@ -136,6 +166,10 @@ export function monter(map) {
     h('div', { id: 'ia-fil', class: 'ia-fil', 'aria-live': 'polite' },
       h('p', { class: 'ia-ligne systeme' }, 'Décrivez la situation en français : pièces, camps, positions, ordres. L\'assistant propose des actions, vous choisissez lesquelles appliquer.'),
       h('button', { type: 'button', class: 'ia-exemple', onclick: () => { champ.value = EXEMPLE; dimensionner(); champ.focus(); } }, EXEMPLE)),
-    h('div', { class: 'ia-saisie' }, h('span', { class: 'ia-invite', 'aria-hidden': 'true' }, '›'), champ),
-    h('p', { class: 'ia-aide' }, 'Entrée pour envoyer · Maj+Entrée pour une nouvelle ligne · flèche haut pour reprendre une demande'));
+    h('div', { class: 'ia-saisie' }, h('span', { class: 'ia-invite', 'aria-hidden': 'true' }, '›'), champ,
+      dicteeDisponible() ? h('button', { type: 'button', id: 'ia-micro', class: 'ia-micro', 'aria-pressed': 'false', 'aria-label': 'Dicter la demande', onclick: basculerEcoute,
+        'data-tip': 'Dicter la demande. Le son est traité par le fournisseur du navigateur (Apple ou Google), pas par cette application.' }, 'Micro') : null),
+    h('div', { class: 'ia-aide' }, h('p', {}, 'Entrée pour envoyer · Maj+Entrée pour une nouvelle ligne · flèche haut pour reprendre une demande'),
+      dicteeDisponible() ? h('label', {}, h('input', { type: 'checkbox', checked: state.reglages.envoi ? 'checked' : null, onchange: (e) => reglage('envoi', e.target.checked) }), 'Envoyer à la fin de la phrase') : null,
+      lectureDisponible() ? h('label', {}, h('input', { type: 'checkbox', checked: state.reglages.lecture ? 'checked' : null, onchange: (e) => { reglage('lecture', e.target.checked); if (!e.target.checked) taire(); } }), 'Lire les réponses à voix haute') : null));
 }

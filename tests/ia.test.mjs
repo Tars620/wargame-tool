@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { distanceKm } from '../static/geo.js';
 import { disposer, planifier, contexte, avecIdsReels, NOMBRE_MAX } from '../static/ia-actions.js';
+import { assembler, messageErreur } from '../static/voix.js';
 import { contacts, avancer, verifier } from '../static/moteur.js';
 
 const catalogue = [
@@ -133,4 +134,14 @@ test('les identifiants provisoires du plan deviennent ceux des pièces réelleme
     assert.match(r.ref, /^reel-/); assert.match(r.consigne.cibleId, /^reel-/); assert.equal(r.consigne.detruit, true);
   }
   assert.deepEqual(avecIdsReels({ ref: 'existante', consigne: { type: 'observer' } }, ids), { ref: 'existante', consigne: { type: 'observer' } });
+});
+
+test('voix : la dictée s\'ajoute au texte déjà écrit avec une seule espace', () => {
+  assert.equal(assembler('', ' bonjour '), 'bonjour'); assert.equal(assembler('pose un drone ', 'à Kiev'), 'pose un drone à Kiev');
+  assert.equal(assembler('abc', ''), 'abc'); assert.equal(assembler('', ''), '');
+});
+
+test('voix : les silences ne sont pas des erreurs, le micro refusé l\'est', () => {
+  assert.equal(messageErreur('no-speech'), null); assert.equal(messageErreur('aborted'), null);
+  assert.match(messageErreur('not-allowed'), /micro/);
 });

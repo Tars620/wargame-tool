@@ -379,6 +379,9 @@ async function start() {
   appliquerTheme();
   fillTheme(); fillFonds(); fillZones(); fillScenario(); majInfoZone();
   $('labels').addEventListener('change', (e) => { state.labels = e.target.checked; render(); });
+  // L'adresse garde l'inclinaison de la vue (#zoom/lat/lng/cap/inclinaison) : un lien ou un rechargement inclinés rouvrent donc avec le relief.
+  const inclinaison = Number(location.hash.replace('#', '').split('/')[4]);
+  if (inclinaison > 0) { state.relief3d = true; $('relief3d').checked = true; }
   $('relief3d').addEventListener('change', (e) => { state.relief3d = e.target.checked; render().then(setPitch); });
   await render();
 }
