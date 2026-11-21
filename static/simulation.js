@@ -110,8 +110,10 @@ function suivreBrouillage(t) {
 }
 
 /** Charge le terrain autour des pièces qui observent (leur vision, 1,2 km au moins) : ce que le moteur lit ne doit jamais attendre le réseau. */
+let derniereMiseEnPlace = 0;
 function preparerTerrain(pieces) {
-  if (!terrain.actif) return;
+  if (!terrain.actif || performance.now() - derniereMiseEnPlace < 1000) return; // les tuiles ne bougent pas à chaque pas d'horloge
+  derniereMiseEnPlace = performance.now();
   const points = pieces.filter((p) => !p.detruit).map((p) => [p.lng, p.lat]);
   const rayon = Math.max(1.2, ...pieces.map((p) => rayonVision(p.vision) + 0.2));
   terrain.assurerPoints(points, rayon).catch(() => {});

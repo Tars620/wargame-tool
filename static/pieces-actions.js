@@ -181,6 +181,9 @@ export function positionner(id, [lng, lat], trace = null) {
 
 /** Limite l'affichage aux pièces dont l'identifiant est dans `ids` (point de vue d'un camp). null = tout voir. */
 export function appliquerVisibilite(ids) {
+  const cle = `${ids ? [...ids].sort().join(',') : '*'}|${state.pieces.map((p) => p.id).join(',')}`;
+  if (cle === state.visiblesCle) return; // rien de changé : ni pions ni carte à retoucher
+  state.visiblesCle = cle;
   state.visibles = ids;
   for (const p of state.pieces) {
     const m = state.marqueurs.get(p.id);

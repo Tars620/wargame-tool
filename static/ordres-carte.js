@@ -1,5 +1,6 @@
 // Couches de la carte pour les consignes : trajets prévus et points d'itinéraire.
 import { listerPieces } from './pieces.js';
+import { sourceGeojson } from './ui.js';
 import { SOURCE_CONSIGNES, fileDe, pieceCourante, state } from './ordres-etat.js';
 
 const COULEURS = { bleu: '#4c8dff', rouge: '#e5484d' };
@@ -53,10 +54,7 @@ export function collection() {
   return { type: 'FeatureCollection', features };
 }
 
-export function rafraichirCarte() {
-  const s = state.map && state.map.getSource(SOURCE_CONSIGNES);
-  if (s) s.setData(collection());
-}
+export const rafraichirCarte = sourceGeojson(() => state.map, SOURCE_CONSIGNES, collection);
 export function setTheme(t) {
   state.theme = t;
 }

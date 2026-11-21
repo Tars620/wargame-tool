@@ -68,3 +68,28 @@ export function menuDeroulant(boite, principal, menu, surOuverture = () => {}) {
   });
   return ouvrir;
 }
+
+/**
+ * Mise à jour d'une source GeoJSON de la carte, sans gaspillage : plusieurs demandes dans la même image n'en font qu'une, et les mêmes données ne sont pas renvoyées
+ * (chaque `setData` coûte un recalcul des tuiles dans un autre fil). `getMap` rend la carte, `fabriquer` les données. Rend la fonction à appeler à chaque changement.
+ */
+export function sourceGeojson(getMap, id, fabriquer) {
+  let derniere = null;
+  let attente = false;
+  const appliquer = () => {
+    attente = false;
+    const map = getMap();
+    const source = map && map.getSource(id);
+    if (!source) return;
+    const donnees = fabriquer();
+    const cle = JSON.stringify(donnees);
+    if (cle === derniere) return;
+    derniere = cle;
+    source.setData(donnees);
+  };
+  return () => {
+    if (attente) return;
+    attente = true;
+    requestAnimationFrame(appliquer);
+  };
+}

@@ -5,7 +5,7 @@ import { symbole } from './symboles.js';
 import { estJoueur, role } from './role.js';
 import { estPoste, exigePoste, etatLiaison, porteeLiaison } from './moteur.js';
 import { enVol, estDrone, rayonBrouillage, rayonVision } from './regles.js';
-import { h } from './ui.js';
+import { h, sourceGeojson } from './ui.js';
 import { COULEURS, NOM_CAMP, SOURCE_ID, estVisible, state } from './pieces-etat.js';
 
 const couleurDe = ['match', ['get', 'camp'], 'rouge', COULEURS.rouge, COULEURS.bleu];
@@ -115,10 +115,7 @@ export function collection() {
   return { type: 'FeatureCollection', features };
 }
 
-export function rafraichirCarte() {
-  const source = state.map && state.map.getSource(SOURCE_ID);
-  if (source) source.setData(collection());
-}
+export const rafraichirCarte = sourceGeojson(() => state.map, SOURCE_ID, collection);
 
 // ---------- marqueurs ----------
 export const modeleDe = (p) => state.catalogue.find((m) => m.id === p.type) || { nom: p.nom };

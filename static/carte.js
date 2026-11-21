@@ -36,6 +36,7 @@ const NASA_LAYER = 'VIIRS_SNPP_CorrectedReflectance_TrueColor';
 const nasaTiles = (date) => `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${NASA_LAYER}/default/${date}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`;
 const NASA_PROBE = '6/25/31'; // une tuile quelconque, servie dès qu'une journée d'imagerie existe
 const NASA_MAX_DAYS = 45;
+const PIXEL_RATIO_MAX = 1.5; // un écran dense (x2) coûte quatre fois les pixels : on plafonne pour rester léger
 const PITCH_3D = 70;
 const PITCH_MAX = 85;
 const EXAGERATION = { min: 1, max: 6, pas: 0.5, defaut: 3 };
@@ -246,6 +247,8 @@ function createMap() {
     maxPitch: PITCH_MAX,
     maxBounds: boundsFor(zone),
     attributionControl: { compact: false },
+    pixelRatio: Math.min(window.devicePixelRatio || 1, PIXEL_RATIO_MAX),
+    fadeDuration: 0,
     hash: true
   });
   map.addControl(new maplibre.NavigationControl({ visualizePitch: true }), 'bottom-right');
