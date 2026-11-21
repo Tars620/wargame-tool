@@ -126,3 +126,11 @@ test('scénario : les liaisons, la portée du poste et la destruction survivent 
 });
 
 test('distances de vérité : le décalage de 30 km est bien de 30 km', () => { assert.ok(Math.abs(distanceKm(O, a(30)) - 30) < 0.01); });
+
+test('affilies : les drones vivants rattachés à une équipe, et eux seuls', async () => {
+  const { affilies } = await import('../static/moteur.js');
+  const e = { id: 'e', camp: 'bleu', commande: {}, lng: 0, lat: 0 };
+  const a = { id: 'a', camp: 'bleu', liaison: true, poste: 'e' }, b = { id: 'b', camp: 'bleu', liaison: true, poste: 'e', detruit: true };
+  const c = { id: 'c', camp: 'bleu', liaison: true, poste: 'autre' }, d = { id: 'd', camp: 'bleu', poste: 'e' };
+  assert.deepEqual(affilies(e, [e, a, b, c, d]).map((p) => p.id), ['a']);
+});

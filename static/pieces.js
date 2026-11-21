@@ -2,7 +2,7 @@ import * as maplibre from './vendor/maplibre-gl.mjs';
 import { distanceKm, cercle, formatDuree, dureesDeplacement, formatKm } from './geo.js';
 import { symbole } from './symboles.js';
 import { estJoueur, role } from './role.js';
-import { estPoste, exigePoste, etatLiaison, lierAuto, phraseLiaison, porteeLiaison } from './moteur.js';
+import { affilies, estPoste, exigePoste, etatLiaison, lierAuto, phraseLiaison, porteeLiaison } from './moteur.js';
 import { pieceDepuisModele, migrerPieces } from './catalogue.js';
 import { enVol, enduranceRestante, estDrone, modeFeu, rayonBrouillage, rayonDeSurfaceKm, rayonVision } from './regles.js';
 
@@ -167,7 +167,7 @@ function armer(type) {
 // ---------- panneau ----------
 const fr = (x) => String(x).replace('.', ',');
 const CIBLES_TEXTE = { fantassin: 'fantassins', vehicule: 'véhicules', artillerie: 'artilleries', brouilleur: 'brouilleurs', pilotes: 'équipes de pilotes', drone: 'drones' };
-const CAUSES = { tir: 'tir', explosion: 'explosion', artillerie: 'tir d\'artillerie', endurance: 'endurance épuisée', brouillage: 'brouillage', arbitre: 'décision de l\'arbitre' };
+const CAUSES = { tir: 'tir', explosion: 'explosion', artillerie: 'tir d\'artillerie', endurance: 'endurance épuisée', brouillage: 'brouillage', poste: 'équipe de pilotes détruite', arbitre: 'décision de l\'arbitre' };
 const texteCibles = (m) => (m.feu && m.feu.cibles && !m.feu.cibles.includes('*') ? m.feu.cibles.map((c) => CIBLES_TEXTE[c] || c).join(', ') : 'toutes les pièces');
 
 /** Ce que fait le feu d'un modèle ou d'une pièce, en une phrase. */
@@ -385,9 +385,13 @@ export function remplacerPieces(liste) {
 
 /** Une pièce détruite reste sur la carte (grisée) mais ne voit, ne tire et ne se déplace plus. */
 export function detruire(id, cause = 'arbitre') {
-  if (!piece(id)) return;
+  const p = piece(id);
+  if (!p) return;
+  const perdus = estPoste(p) && !p.detruit ? affilies(p, state.pieces).map((d) => d.id) : []; // sans équipe, plus aucun drone ne peut être piloté : ils sont perdus avec elle
   maj(id, { detruit: true, cause_destruction: cause });
+  for (const d of perdus) maj(d, { detruit: true, cause_destruction: 'poste' });
   majMarqueurs(); rafraichirCarte(); dessinerFiche(); signaler();
+  if (perdus.length) document.dispatchEvent(new CustomEvent('wg:cascade', { detail: { posteId: id, droneIds: perdus } }));
 }
 
 /** Modifie des champs d'une pièce par programme (état de vol, endurance...) sans toucher à la fiche. */

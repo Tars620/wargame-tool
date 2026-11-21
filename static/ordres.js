@@ -519,6 +519,13 @@ export function monter(map) {
   state.journal = estJoueur() ? [] : lire(STORAGE_JOURNAL, []);
   map.on('click', (e) => { if (state.pointage) pointer(e.lngLat); });
   document.addEventListener('wg:piece', () => dessinerConsignes());
+  document.addEventListener('wg:cascade', (e) => {
+    if (estJoueur()) return;
+    const pieces = listerPieces(), poste = pieces.find((p) => p.id === e.detail.posteId);
+    const noms = e.detail.droneIds.map((id) => nomDe(pieces, id)).join(', ');
+    noter(maintenant(), `LIAISON PERDUE : ${poste ? poste.nom : 'l\'équipe de pilotes'} est détruite, ${e.detail.droneIds.length > 1 ? 'ses drones sont détruits' : 'son drone est détruit'} : ${noms}.`, 'alerte', poste ? [poste.camp] : undefined);
+    suivreContacts(maintenant()); majVisibilite(); rafraichirCarte();
+  });
   document.addEventListener('wg:terrain', () => { if (estJoueur()) return; suivreContacts(maintenant()); majVisibilite(); dessinerBilan(); });
   document.addEventListener('wg:pieces', () => {
     const ids = new Set(listerPieces().map((p) => p.id));

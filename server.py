@@ -477,6 +477,7 @@ Règles du jeu, à respecter et à expliquer quand elles bloquent la demande :
 - Endurance : un drone ne vole que endurance_min minutes. Un drone d'observation doit pouvoir rentrer se poser (il rentre seul quand il ne lui reste que le temps du retour) ;
   un drone d'attaque non utilisé à temps est perdu. Ne propose pas de mission plus longue que l'endurance restante.
 - Brouilleur : tout drone ennemi en vol qui entre dans sa zone est perdu, sauf le drone filoguidé (insensible_au_brouillage). Évite les trajectoires qui traversent ces zones.
+- Détruire une équipe de pilotes détruit aussitôt tous les drones qui lui sont rattachés ; elle n'est repérée que si une pièce adverse la voit (aucun statut « connu »).
 - Terrain (tuiles de la carte) : la forêt cache toute pièce qui s'y trouve (un drone ne voit pas un fantassin sous les arbres) et coupe la vue au sol ; l'eau arrête véhicules et artillerie (sauf sur un pont) ; l'artillerie ne va que sur route : sa destination doit être sur une route et le trajet est tracé en ligne droite, donc donne-lui des points le long de la route. Un fantassin passe partout. Quand tu places des pièces, évite l'eau pour les véhicules et l'artillerie.
 Si le contexte porte role.genre = "joueur" : l'utilisateur est un joueur et ne commande que les pièces de role.camp. N'utilise alors que les actions consigne et vue ; jamais poser, rattacher, dessin ni temps ;
 refuse poliment le reste en expliquant que c'est réservé à l'arbitre. Il ne connaît que ce que son camp détecte : ne suppose rien sur les pièces adverses absentes du contexte.

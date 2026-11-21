@@ -21,6 +21,9 @@ export const porteeLiaison = (drone, poste) => (drone.portee_op_km > 0 ? drone.p
 const km1 = (x) => x.toFixed(1).replace('.', ',');
 const LIBELLE_CIBLE = { fantassin: 'un fantassin', vehicule: 'un véhicule', artillerie: 'une artillerie', brouilleur: 'un brouilleur', pilotes: 'une équipe de pilotes', drone: 'un drone' };
 
+/** Pièces vivantes rattachées à ce poste (drones qui l'ont pour équipe). Détruire le poste les détruit toutes. */
+export const affilies = (poste, pieces) => pieces.filter((q) => q.poste === poste.id && exigePoste(q) && !q.detruit);
+
 /** État de la liaison d'une pièce : { requise, ok, raison: null|'aucun'|'detruit'|'camp'|'hors_portee', poste, distanceKm, porteeKm }. */
 export function etatLiaison(piece, pieces) {
   if (!exigePoste(piece)) return { requise: false, ok: true, raison: null };
