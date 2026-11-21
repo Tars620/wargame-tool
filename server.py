@@ -14,7 +14,10 @@ import re
 import secrets
 import socket
 import sqlite3
+import ssl
 import threading
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -24,6 +27,8 @@ STATIC = os.path.join(HERE, "static")
 MAPS_DIR = os.path.join(HERE, "data", "maps")
 ZONES_FILE = os.path.join(HERE, "zones.json")
 CHUNK = 1024 * 1024
+MAX_RELAIS = 8 * 1024 * 1024  # taille maximale d'une tranche relayée depuis une carte en ligne
+CERTIFICATS = "/etc/ssl/cert.pem"
 GENESIS = "0" * 64
 MAX_TEXT = 4000
 MAX_BODY = 64 * 1024
@@ -402,6 +407,9 @@ def list_zones():
         return []
     zones = []
     for key, meta in declared.items():
+        if meta.get("url"):  # zone en ligne : relayée par le serveur, l'adresse source n'est pas exposée
+            zones.append({"key": key, **{k: v for k, v in meta.items() if k != "url"}, "en_ligne": True})
+            continue
         path = os.path.join(MAPS_DIR, f"{key}.pmtiles")
         if os.path.isfile(path):
             zones.append({"key": key, **meta, "bytes": os.path.getsize(path)})
@@ -454,6 +462,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._static(path[len("/static/"):])
         if method == "GET" and path == "/api/maps":
             return self._json(200, list_zones())
+        if method == "GET" and re.fullmatch(r"/enligne/[a-z0-9-]+", path):
+            return self._relay_online(path[len("/enligne/"):])
         if method == "GET" and re.fullmatch(r"/maps/[a-z0-9-]+\.pmtiles", path):
             return self._send_file(os.path.join(MAPS_DIR, path[len("/maps/"):]), "application/octet-stream", cache=True)
         if method == "POST" and path == "/api/games":
@@ -493,6 +503,37 @@ class Handler(BaseHTTPRequestHandler):
                  "woff2": "font/woff2", "txt": "text/plain; charset=utf-8"}.get(name.rsplit(".", 1)[-1],
                                                                                 "application/octet-stream")
         self._send_file(full, ctype)
+
+    def _relay_online(self, key):
+        """Relaie une tranche d'une carte en ligne (le navigateur ne peut pas la lire lui-même : pas de CORS).
+        L'adresse vient de zones.json, jamais du client ; la tranche doit être explicite et bornée."""
+        zone = next((z for z in self._declared_zones() if z[0] == key and z[1].get("url")), None)
+        m = re.fullmatch(r"bytes=(\d+)-(\d+)", (self.headers.get("Range") or "").strip())
+        if not zone or not m:
+            raise ApiError(404 if not zone else 416, "Introuvable" if not zone else "Plage explicite requise")
+        if int(m.group(2)) < int(m.group(1)) or int(m.group(2)) - int(m.group(1)) + 1 > MAX_RELAIS:
+            raise ApiError(416, "Plage trop grande")
+        ctx = ssl.create_default_context(cafile=CERTIFICATS) if os.path.exists(CERTIFICATS) else ssl.create_default_context()
+        req = urllib.request.Request(zone[1]["url"], headers={"Range": f"bytes={m.group(1)}-{m.group(2)}", "User-Agent": "WargameLog/0.1"})
+        try:
+            with urllib.request.urlopen(req, timeout=30, context=ctx) as r:
+                data, status, content_range = r.read(MAX_RELAIS + 1), r.status, r.headers.get("Content-Range")
+        except (urllib.error.URLError, TimeoutError, OSError):
+            raise ApiError(502, "Carte en ligne indisponible")
+        if len(data) > MAX_RELAIS:
+            raise ApiError(502, "Réponse inattendue de la source")
+        extra = {"Accept-Ranges": "bytes", "Cache-Control": "public, max-age=3600"}
+        if content_range:
+            extra["Content-Range"] = content_range
+        self._send(206 if status == 206 else 200, data, "application/octet-stream", extra)
+
+    @staticmethod
+    def _declared_zones():
+        try:
+            with open(ZONES_FILE, encoding="utf-8") as f:
+                return list(json.load(f).items())
+        except (OSError, ValueError):
+            return []
 
     def _byte_range(self, size):
         """Lecture partielle (en-tête Range) : indispensable pour lire un fichier PMTiles sans le charger en entier."""

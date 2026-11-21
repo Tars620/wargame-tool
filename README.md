@@ -15,6 +15,16 @@ Style : noir, angles droits, Inter. Noms de lieux en français seulement.
 Ajouter une zone : `scripts/extraire_zone.sh baltique 9,53,30,61 12` (outil `tools/pmtiles`,
 à télécharger : https://github.com/protomaps/go-pmtiles/releases, v1.31.2), puis l'ajouter à `zones.json`.
 
+## Carte : affichage, zones et dessin
+- **Affichage** sombre ou clair (mémorisé). **Zones** : Monde (zoom 7) et Maroc (zoom 12) lisibles hors ligne ;
+  **Planète (en ligne, zoom 15)** donne le détail partout en passant par le serveur, qui relaie la carte
+  Protomaps du 2026-11-20 (tranches bornées à 8 Mo, adresse fixée dans `zones.json`). Une zone sans données
+  plus fines est agrandie de 2 niveaux au plus, puis la page propose la zone la plus détaillée.
+- **Dessin** (barre en haut de la carte) : ligne de front (trait épais avec chevrons dans le sens du tracé),
+  limite (pointillés), zone (périmètre et surface), mesure (distance, non enregistrée). Camp bleu, rouge ou neutre.
+  Double-clic ou Entrée termine, Retour arrière retire le dernier point, Échap annule. Dessin sélectionné :
+  glisser les carrés pour déplacer un point, clic droit pour en retirer un. Enregistrés dans le navigateur.
+
 ## Pièces (`/carte`, panneau de droite)
 Banque de six pièces (UAV de reconnaissance, UAV armé, fantassin, véhicule blindé, artillerie, guerre électronique),
 définies dans `static/pieces.json`. Choisir un camp et une pièce, puis cliquer sur la carte pour la poser.

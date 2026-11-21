@@ -147,12 +147,15 @@ function supprimer(id) {
 
 function choisir(id) {
   state.selection = id;
+  if (id) document.dispatchEvent(new CustomEvent('wg:selection', { detail: 'piece' }));
   majMarqueurs(); rafraichirCarte(); dessinerFiche();
 }
 
 function armer(type) {
   state.arme = state.arme === type ? null : type;
   state.map.getCanvas().style.cursor = state.arme ? 'crosshair' : '';
+  document.body.dataset.pieceArmee = state.arme ? 'oui' : 'non';
+  if (state.arme) document.dispatchEvent(new CustomEvent('wg:outil', { detail: 'piece' }));
   dessinerBanque();
 }
 
@@ -239,6 +242,10 @@ export async function monter(map) {
     const saisie = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement && document.activeElement.tagName);
     if (e.key === 'Escape' && state.arme) armer(state.arme);
     else if ((e.key === 'Delete' || e.key === 'Backspace') && state.selection && !saisie) { e.preventDefault(); supprimer(state.selection); }
+  });
+  document.addEventListener('wg:outil', (e) => { if (e.detail === 'dessin' && state.arme) armer(state.arme); });
+  document.addEventListener('wg:selection', (e) => {
+    if (e.detail === 'dessin' && state.selection) { state.selection = null; majMarqueurs(); rafraichirCarte(); dessinerFiche(); }
   });
   dessinerBanque(); dessinerFiche(); dessinerOptions(); rafraichirCarte();
 }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { distanceKm, destination, cercle, formatDuree, dureesDeplacement, formatKm } from '../static/geo.js';
+import { distanceKm, destination, cercle, formatDuree, dureesDeplacement, formatKm, longueurKm, aireKm2, formatSurface } from '../static/geo.js';
 
 const proche = (a, b, tol) => assert.ok(Math.abs(a - b) <= tol, `${a} vs ${b} (tolérance ${tol})`);
 
@@ -65,4 +65,33 @@ test('distances affichées', () => {
   assert.equal(formatKm(0.45), '450 m');
   assert.equal(formatKm(3.456), '3,46 km');
   assert.equal(formatKm(87.04), '87,0 km');
+});
+
+test('longueur d\'une ligne brisée : somme des segments, nulle pour un seul point', () => {
+  assert.equal(longueurKm([[0, 0]]), 0);
+  proche(longueurKm([[0, 0], [1, 0], [1, 1]]), 111.195 + 111.195, 0.05);
+});
+
+test('aire d\'un carré de 1 degré à l\'équateur : environ 12 364 km²', () => {
+  proche(aireKm2([[0, 0], [1, 0], [1, 1], [0, 1]]), 12364, 40);
+});
+
+test('aire d\'un carré de 1 degré à 60° nord : environ moitié moins qu\'à l\'équateur', () => {
+  proche(aireKm2([[0, 60], [1, 60], [1, 61], [0, 61]]), 6089, 30);
+});
+
+test('l\'aire ne dépend ni du sens de parcours ni de la fermeture de l\'anneau', () => {
+  const carre = [[0, 0], [1, 0], [1, 1], [0, 1]];
+  proche(aireKm2(carre), aireKm2([...carre].reverse()), 1e-6);
+  proche(aireKm2(carre), aireKm2([...carre, carre[0]]), 1e-6);
+});
+
+test('moins de trois points : aire nulle', () => {
+  assert.equal(aireKm2([[0, 0], [1, 1]]), 0);
+});
+
+test('surfaces lisibles', () => {
+  assert.equal(formatSurface(0.25), '25 ha');
+  assert.equal(formatSurface(12.34), '12,3 km²');
+  assert.equal(formatSurface(1234.6), '1235 km²');
 });

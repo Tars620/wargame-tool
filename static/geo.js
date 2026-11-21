@@ -49,3 +49,28 @@ export function dureesDeplacement(km, vitesseMin, vitesseMax) {
 export function formatKm(km) {
   return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(km < 10 ? 2 : 1).replace('.', ',')} km`;
 }
+
+/** Longueur d'une ligne brisée [[lng, lat], ...], en km. */
+export function longueurKm(points) {
+  let total = 0;
+  for (let i = 1; i < points.length; i += 1) total += distanceKm(points[i - 1], points[i]);
+  return total;
+}
+
+/** Aire (km²) d'un polygone [[lng, lat], ...] (anneau ouvert ou fermé), sur la sphère. */
+export function aireKm2(points) {
+  const n = points.length;
+  if (n < 3) return 0;
+  let somme = 0;
+  for (let i = 0; i < n; i += 1) {
+    const [lng1, lat1] = points[i];
+    const [lng2, lat2] = points[(i + 1) % n];
+    somme += rad(lng2 - lng1) * (2 + Math.sin(rad(lat1)) + Math.sin(rad(lat2)));
+  }
+  return Math.abs((somme * RAYON_TERRE_KM * RAYON_TERRE_KM) / 2);
+}
+
+export function formatSurface(km2) {
+  if (km2 < 1) return `${Math.round(km2 * 100 * 10) / 10} ha`.replace('.', ',');
+  return `${km2 < 100 ? km2.toFixed(1) : Math.round(km2)} km²`.replace('.', ',');
+}

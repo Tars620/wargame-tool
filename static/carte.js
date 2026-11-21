@@ -1,6 +1,8 @@
 import * as maplibre from './vendor/maplibre-gl.mjs';
 import { layers, namedFlavor } from './vendor/protomaps-basemaps.mjs';
 import { monter as monterPieces, collection as piecesGeojson, layerSpecs as piecesCouches, SOURCE_ID as PIECES_SOURCE } from './pieces.js';
+import { monter as monterDessin, collection as dessinsGeojson, collectionBrouillon, layerSpecs as dessinsCouches,
+  setTheme as themeDessin, majTheme as majThemeDessin, SOURCE_DESSINS, SOURCE_BROUILLON } from './dessin.js';
 
 // Polices des noms de lieux : encore chargées depuis Internet (voir la note de la page).
 const GLYPHS = 'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf';
@@ -13,25 +15,37 @@ const NASA_PROBE = '6/25/31'; // une tuile quelconque, servie dès qu'une journ�
 const NASA_MAX_DAYS = 45;
 const PITCH_3D = 60;
 const TERRAIN_EXAGGERATION = 1.4;
+const SURZOOM = 2; // niveaux de zoom au-delà des données d'une zone (image agrandie)
+const THEME_KEY = 'wg.theme';
 
 const FONDS = {
-  plan: { label: 'Plan', note: 'OpenStreetMap, lisible hors ligne' },
+  plan: { label: 'Plan', note: 'OpenStreetMap' },
   relief: { label: 'Relief', note: 'Plan avec ombrage du terrain' },
-  s2: { label: `Satellite haute résolution`, note: `Sentinel-2, mosaïque ${S2_YEAR} (usage non commercial)` },
+  s2: { label: 'Satellite haute résolution', note: `Sentinel-2, mosaïque ${S2_YEAR} (usage non commercial)` },
   nasa: { label: 'Satellite quotidien', note: 'NASA VIIRS, 250 m, dernière journée disponible' },
+};
+
+// Thèmes : seul le plan et le relief changent de couleur ; les satellites restent des photos.
+const THEMES = {
+  sombre: { nom: 'Sombre', base: 'black', reglages: { background: '#050506', water: '#050506', earth: '#1a1b1f' }, frontPlan: '#a3a6b0',
+    relief: { shadow: '#000000', highlight: '#5a5d66', accent: '#1d1e22' } },
+  clair: { nom: 'Clair', base: 'light', reglages: { background: '#eceef2', water: '#c8d4e2', earth: '#f7f7f5' }, frontPlan: '#5f6168',
+    relief: { shadow: '#3a3c42', highlight: '#ffffff', accent: '#a0a3ab' } },
 };
 
 const { Protocol } = window.pmtiles; // chargé par carte.html (version autonome : elle embarque fflate)
 const $ = (id) => document.getElementById(id);
-const state = { zones: [], zone: null, fond: 'plan', labels: true, relief3d: false, nasaDate: null, map: null };
+const state = { zones: [], zone: null, fond: 'plan', labels: true, relief3d: false, nasaDate: null, map: null, theme: lireTheme() };
+
+function lireTheme() { try { const t = localStorage.getItem(THEME_KEY); return THEMES[t] ? t : 'sombre'; } catch { return 'sombre'; } }
+function appliquerTheme() { document.documentElement.dataset.theme = state.theme; themeDessin(state.theme); }
 
 // ---------- construction du style ----------
-// Thème noir : la terre un peu plus claire que la mer pour que les côtes se lisent.
-function flavorNoir() {
-  const flavor = { ...namedFlavor('black') };
-  const reglages = { background: '#050506', water: '#050506', earth: '#1a1b1f' };
-  for (const [cle, valeur] of Object.entries(reglages)) if (cle in flavor) flavor[cle] = valeur;
-  return flavor;
+function flavor() {
+  const t = THEMES[state.theme];
+  const f = { ...namedFlavor(t.base) };
+  for (const [cle, valeur] of Object.entries(t.reglages)) if (cle in f) f[cle] = valeur;
+  return f;
 }
 
 // Une seule langue : le nom français, sinon anglais, sinon le nom local (jamais plusieurs écritures empilées).
@@ -40,12 +54,11 @@ function nomsFrancais(couches) {
   return couches.map((l) => (l.layout && l.layout['text-field'] && JSON.stringify(l.layout['text-field']).includes('"name')
     ? { ...l, layout: { ...l.layout, 'text-field': NOM_FRANCAIS } } : l));
 }
-const vecteur = (flavor) => nomsFrancais(layers('protomaps', flavor, { lang: 'fr' }));
+const vecteur = (f) => nomsFrancais(layers('protomaps', f, { lang: 'fr' }));
 
 const isOverlay = (layer) => ['boundaries', 'places'].includes(layer['source-layer']) || layer.id.includes('label');
 
 // Frontières lisibles sur tout fond : couleur et épaisseur imposées (celles du thème étaient presque invisibles).
-const COULEUR_FRONTIERE = { plan: '#a3a6b0', satellite: '#ffffff' };
 function frontieres(couches, couleur) {
   return couches.map((l) => {
     if (l['source-layer'] !== 'boundaries' || l.type !== 'line') return l;
@@ -63,14 +76,14 @@ function textesLisibles(couches) {
 
 // Le plan avec (ou sans) ses frontières et ses noms : la case s'applique à tous les fonds.
 function plan(labels) {
-  const couches = frontieres(vecteur(flavorNoir()), COULEUR_FRONTIERE.plan);
+  const couches = frontieres(vecteur(flavor()), THEMES[state.theme].frontPlan);
   return labels ? couches : couches.filter((l) => !isOverlay(l));
 }
 
 function hillshade() {
+  const r = THEMES[state.theme].relief;
   return { id: 'hillshade', type: 'hillshade', source: 'dem', paint: {
-    'hillshade-exaggeration': 0.5, 'hillshade-shadow-color': '#000000',
-    'hillshade-highlight-color': '#5a5d66', 'hillshade-accent-color': '#1d1e22' } };
+    'hillshade-exaggeration': 0.5, 'hillshade-shadow-color': r.shadow, 'hillshade-highlight-color': r.highlight, 'hillshade-accent-color': r.accent } };
 }
 
 function layersFor(fond, labels) {
@@ -82,13 +95,15 @@ function layersFor(fond, labels) {
   }
   const imagery = { id: 'imagerie', type: 'raster', source: 'imagerie' };
   const dark = { id: 'fond', type: 'background', paint: { 'background-color': '#0a0a0c' } };
-  const overlay = labels ? textesLisibles(frontieres(vecteur(namedFlavor('black')).filter(isOverlay), COULEUR_FRONTIERE.satellite)) : [];
+  const overlay = labels ? textesLisibles(frontieres(vecteur(namedFlavor('black')).filter(isOverlay), '#ffffff')) : [];
   return [dark, imagery, ...overlay];
 }
 
+const urlZone = (zone) => (zone.en_ligne ? `pmtiles://${location.origin}/enligne/${zone.key}` : `pmtiles://${location.origin}/maps/${zone.key}.pmtiles`);
+
 function sourcesFor(fond, labels, zone) {
   const sources = {};
-  const vector = { type: 'vector', url: `pmtiles://${location.origin}/maps/${zone.key}.pmtiles`, attribution: '© OpenStreetMap' };
+  const vector = { type: 'vector', url: urlZone(zone), attribution: '© OpenStreetMap' };
   if (fond === 'plan' || fond === 'relief' || labels) sources.protomaps = vector;
   if (fond === 'relief' || state.relief3d) {
     sources.dem = { type: 'raster-dem', tiles: [DEM_TILES], encoding: 'terrarium', tileSize: 256, maxzoom: 15,
@@ -105,8 +120,10 @@ function buildStyle() {
   const { fond, labels, zone } = state;
   const style = { version: 8, glyphs: GLYPHS, sources: sourcesFor(fond, labels, zone), layers: layersFor(fond, labels) };
   if (fond === 'nasa' && !state.nasaDate) style.layers = [{ id: 'fond', type: 'background', paint: { 'background-color': '#0a0a0c' } }];
+  style.sources[SOURCE_DESSINS] = { type: 'geojson', data: dessinsGeojson() };
+  style.sources[SOURCE_BROUILLON] = { type: 'geojson', data: collectionBrouillon() };
   style.sources[PIECES_SOURCE] = { type: 'geojson', data: piecesGeojson() };
-  style.layers = [...style.layers, ...piecesCouches()];
+  style.layers = [...style.layers, ...dessinsCouches(), ...piecesCouches()];
   if (state.relief3d) style.terrain = { source: 'dem', exaggeration: TERRAIN_EXAGGERATION };
   return style;
 }
@@ -123,18 +140,23 @@ async function latestNasaDate() {
 
 // ---------- carte ----------
 function showError(message) { $('err').textContent = message || ''; }
+const zoomMax = (zone) => zone.maxzoom + SURZOOM;
 
 function createMap() {
   maplibre.addProtocol('pmtiles', new Protocol().tile);
   const zone = state.zone;
   const map = new maplibre.Map({ container: 'map', style: buildStyle(), center: zone.center, zoom: zone.zoom,
-    maxZoom: zone.maxzoom + 2, maxBounds: boundsFor(zone), attributionControl: { compact: false }, hash: true });
+    maxZoom: zoomMax(zone), maxBounds: boundsFor(zone), attributionControl: { compact: false }, hash: true });
   map.addControl(new maplibre.NavigationControl({ visualizePitch: true }), 'bottom-right');
   map.addControl(new maplibre.ScaleControl({ unit: 'metric' }), 'bottom-right');
   map.on('mousemove', (e) => { $('lecture').textContent = `${e.lngLat.lat.toFixed(4)}, ${e.lngLat.lng.toFixed(4)}  ·  zoom ${map.getZoom().toFixed(1)}`; });
   map.on('error', (e) => showError(`Chargement impossible : ${(e.error && e.error.message) || 'source indisponible'}`));
   map.on('styledata', () => showError(''));
-  map.once('load', () => monterPieces(map).catch((e) => showError(`Pièces indisponibles : ${e.message}`)));
+  map.on('zoomend', majInfoZone);
+  map.once('load', () => {
+    monterPieces(map).catch((e) => showError(`Pièces indisponibles : ${e.message}`));
+    monterDessin(map);
+  });
   return map;
 }
 
@@ -150,10 +172,11 @@ async function render() {
     state.nasaDate = await latestNasaDate();
     if (!state.nasaDate) showError("Aucune image NASA trouvée sur les 45 derniers jours.");
   }
+  appliquerTheme();
   const style = buildStyle();
   if (!state.map) { state.map = createMap(); return; }
   state.map.setStyle(style, { diff: true });
-  state.map.setMaxZoom(state.zone.maxzoom + 2);
+  state.map.setMaxZoom(zoomMax(state.zone));
   state.map.setMaxBounds(boundsFor(state.zone) || null);
 }
 
@@ -164,6 +187,22 @@ function flyToZone() {
 }
 
 // ---------- panneau ----------
+function fillTheme() {
+  const box = $('theme');
+  box.replaceChildren(...Object.entries(THEMES).map(([cle, t]) => {
+    const b = document.createElement('button');
+    Object.assign(b, { type: 'button', className: 'camp', textContent: t.nom });
+    b.style.setProperty('--c', 'var(--accent)');
+    b.setAttribute('aria-pressed', String(state.theme === cle));
+    b.addEventListener('click', () => {
+      state.theme = cle;
+      try { localStorage.setItem(THEME_KEY, cle); } catch { /* stockage indisponible */ }
+      fillTheme(); render().then(majThemeDessin);
+    });
+    return b;
+  }));
+}
+
 function fillFonds() {
   const box = $('fonds');
   for (const [key, f] of Object.entries(FONDS)) {
@@ -178,12 +217,24 @@ function fillFonds() {
 
 function fillZones() {
   const select = $('zone');
-  for (const z of state.zones) select.append(Object.assign(document.createElement('option'), { value: z.key, textContent: `${z.label} · ${(z.bytes / 1e6).toFixed(0)} Mo` }));
-  select.addEventListener('change', () => { state.zone = state.zones.find((z) => z.key === select.value); showZone(); render().then(flyToZone); });
+  for (const z of state.zones) {
+    const taille = z.en_ligne ? 'en ligne' : `${(z.bytes / 1e6).toFixed(0)} Mo`;
+    select.append(Object.assign(document.createElement('option'), { value: z.key, textContent: `${z.label} · ${taille}` }));
+  }
+  select.addEventListener('change', () => { state.zone = state.zones.find((z) => z.key === select.value); majInfoZone(); render().then(flyToZone); });
 }
 
-function showZone() {
-  $('zoneinfo').textContent = `Plan : OpenStreetMap au ${state.zone.osm}, jusqu'au zoom ${state.zone.maxzoom}. Satellite et relief : chargés depuis Internet.`;
+function infoZone() {
+  const z = state.zone;
+  const origine = z.en_ligne ? 'chargé depuis Internet' : 'lisible hors ligne';
+  return `Plan : OpenStreetMap au ${z.osm}, ${origine}, détaillé jusqu'au zoom ${z.maxzoom}. Satellites et relief : chargés depuis Internet.`;
+}
+
+function majInfoZone() {
+  const plusFin = [...state.zones].sort((a, b) => b.maxzoom - a.maxzoom)[0];
+  const limite = state.map && state.map.getZoom() >= zoomMax(state.zone) - 0.05;
+  $('zoneinfo').textContent = limite && plusFin.maxzoom > state.zone.maxzoom
+    ? `Zoom maximal de cette zone atteint. Pour zoomer plus loin, choisissez « ${plusFin.label} ».` : infoZone();
 }
 
 async function start() {
@@ -191,7 +242,8 @@ async function start() {
   state.zones = await res.json();
   if (!state.zones.length) { showError('Aucune zone : placez un fichier .pmtiles dans data/maps et déclarez-le dans zones.json.'); return; }
   state.zone = state.zones[0];
-  fillFonds(); fillZones(); showZone();
+  appliquerTheme();
+  fillTheme(); fillFonds(); fillZones(); majInfoZone();
   $('labels').addEventListener('change', (e) => { state.labels = e.target.checked; render(); });
   $('relief3d').addEventListener('change', (e) => { state.relief3d = e.target.checked; render().then(setPitch); });
   await render();
