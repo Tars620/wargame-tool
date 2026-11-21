@@ -5,6 +5,7 @@ import { estJoueur, role } from './role.js';
 import { affilies, estPoste, exigePoste, etatLiaison, lierAuto, phraseLiaison, porteeLiaison } from './moteur.js';
 import { pieceDepuisModele, migrerPieces } from './catalogue.js';
 import { enVol, enduranceRestante, estDrone, modeFeu, rayonBrouillage, rayonDeSurfaceKm, rayonVision } from './regles.js';
+import { h, ecrireJson, lireJson } from './ui.js';
 
 export const SOURCE_ID = 'portees';
 const STORAGE_KEY = 'wg.pieces.v1';
@@ -14,17 +15,6 @@ const state = { retirees: [], catalogue: [], pieces: [], camp: 'bleu', arme: nul
   marqueurs: new Map(), racine: null, visibles: null };
 
 // ---------- utilitaires DOM ----------
-function h(tag, props = {}, ...kids) {
-  const n = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) {
-    if (k === 'class') n.className = v;
-    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
-    else if (v !== false && v != null) n.setAttribute(k, v);
-  }
-  for (const c of kids.flat()) if (c != null && c !== false) n.append(c.nodeType ? c : document.createTextNode(String(c)));
-  return n;
-}
-
 function nombre(valeur, min, max, repli) {
   const n = Number(String(valeur).replace(',', '.'));
   return Number.isFinite(n) ? Math.min(Math.max(n, min), max) : repli;
@@ -34,9 +24,10 @@ const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toStrin
 const piece = (id) => state.pieces.find((p) => p.id === id) || null;
 
 // ---------- persistance (navigateur) ----------
-function sauver() { if (estJoueur()) return; try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.pieces)); } catch { /* stockage indisponible */ } }
+function sauver() { if (!estJoueur()) ecrireJson(STORAGE_KEY, state.pieces); }
 function charger() {
-  try { const brut = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); return Array.isArray(brut) ? brut : []; } catch { return []; }
+  const brut = lireJson(STORAGE_KEY, []);
+  return Array.isArray(brut) ? brut : [];
 }
 
 // ---------- état : jamais de modification en place ----------

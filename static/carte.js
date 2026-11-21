@@ -10,6 +10,7 @@ import { monter as monterMeteo, pourStyle as meteoPourStyle } from './meteo.js';
 import { monter as monterOrdres, noterOperation, collection as consignesGeojson, layerSpecs as consignesCouches, setTheme as themeOrdres, SOURCE_CONSIGNES } from './ordres.js';
 import { monter as monterDessin, collection as dessinsGeojson, collectionBrouillon, layerSpecs as dessinsCouches,
   setTheme as themeDessin, majTheme as majThemeDessin, SOURCE_DESSINS, SOURCE_BROUILLON } from './dessin.js';
+import { ecrireJson, ecrireTexte, lireJson, lireTexte, menuDeroulant } from './ui.js';
 
 // Polices des noms de lieux : encore chargées depuis Internet (voir la note de la page).
 const GLYPHS = 'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf';
@@ -25,7 +26,7 @@ const PITCH_MAX = 85;
 const EXAGERATION = { min: 1, max: 6, pas: 0.5, defaut: 3 };
 const EXAGERATION_CLE = 'wg.exageration';
 let exageration = EXAGERATION.defaut;
-try { const v = Number(localStorage.getItem(EXAGERATION_CLE)); if (v >= EXAGERATION.min && v <= EXAGERATION.max) exageration = v; } catch { /* stockage indisponible */ }
+{ const v = Number(lireTexte(EXAGERATION_CLE)); if (v >= EXAGERATION.min && v <= EXAGERATION.max) exageration = v; }
 const SURZOOM = 2;        // niveaux d'agrandissement au-delà des données d'une zone locale
 const SURZOOM_DETAIL = 5; // une zone détaillée (zoom 14 ou plus) peut aller bien plus loin : le vecteur reste net
 const ZOOM_ABSOLU = 20;
@@ -50,7 +51,7 @@ const { Protocol } = window.pmtiles; // chargé par carte.html (version autonome
 const $ = (id) => document.getElementById(id);
 const state = { zones: [], zone: null, fond: 'plan', labels: true, relief3d: false, nasaDate: null, map: null, theme: lireTheme() };
 
-function lireTheme() { try { const t = localStorage.getItem(THEME_KEY); return THEMES[t] ? t : 'sombre'; } catch { return 'sombre'; } }
+function lireTheme() { const t = lireTexte(THEME_KEY); return THEMES[t] ? t : 'sombre'; }
 function appliquerTheme() { document.documentElement.dataset.theme = state.theme; themeDessin(state.theme); themeOrdres(state.theme); }
 
 // ---------- construction du style ----------
@@ -218,14 +219,16 @@ function flyToZone() {
 // ---------- panneau ----------
 function fillTheme() {
   const box = $('theme');
+  if (box.firstChild) { // déjà monté : on ne met à jour que la coche
+    for (const [cle, b] of Object.entries(THEMES).map(([c], k) => [c, box.querySelectorAll('[role=menuitemradio]')[k]])) b.setAttribute('aria-checked', String(state.theme === cle));
+    return;
+  }
   const principal = document.createElement('button');
   Object.assign(principal, { type: 'button', textContent: 'Thème', id: 'h-theme' });
   principal.setAttribute('aria-haspopup', 'menu'); principal.setAttribute('aria-expanded', 'false');
   const menu = document.createElement('div');
   Object.assign(menu, { className: 'menu-temps', hidden: true });
   menu.setAttribute('role', 'menu');
-  const ouvrir = (ouvert) => { menu.hidden = !ouvert; principal.setAttribute('aria-expanded', String(ouvert)); };
-  principal.addEventListener('click', () => ouvrir(menu.hidden));
   for (const [cle, t] of Object.entries(THEMES)) {
     const b = document.createElement('button');
     Object.assign(b, { type: 'button', textContent: t.nom });
@@ -234,17 +237,13 @@ function fillTheme() {
       ouvrir(false);
       if (state.theme === cle) return;
       state.theme = cle;
-      try { localStorage.setItem(THEME_KEY, cle); } catch { /* stockage indisponible */ }
+      ecrireTexte(THEME_KEY, cle);
       fillTheme(); render().then(majThemeDessin);
     });
     menu.append(b);
   }
   box.replaceChildren(principal, menu);
-  if (!box.dataset.ecoute) {
-    box.dataset.ecoute = 'oui';
-    document.addEventListener('mousedown', (e) => { const m = box.querySelector('.menu-temps'); if (m && !m.hidden && !box.contains(e.target)) { m.hidden = true; box.querySelector('#h-theme').setAttribute('aria-expanded', 'false'); } });
-    document.addEventListener('keydown', (e) => { const m = box.querySelector('.menu-temps'); if (e.key === 'Escape' && m && !m.hidden) { m.hidden = true; box.querySelector('#h-theme').setAttribute('aria-expanded', 'false'); } });
-  }
+  const ouvrir = menuDeroulant(box, principal, menu);
 }
 
 function fillFonds() {
@@ -286,7 +285,7 @@ function majInfoZone() {
 }
 
 // ---------- scénario : enregistrer, ouvrir, exporter ----------
-const lireStock = (cle, repli) => { try { return JSON.parse(localStorage.getItem(cle)) ?? repli; } catch { return repli; } };
+const lireStock = lireJson;
 const stockActuel = () => ({ pieces: lireStock(CLES_STOCK.pieces, []), dessins: lireStock(CLES_STOCK.dessins, []), ordres: lireStock(CLES_STOCK.ordres, {}), journal: lireStock(CLES_STOCK.journal, []) });
 const horodatage = () => new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
 
@@ -313,10 +312,7 @@ function fillScenario() {
     if (!v.ok) { dire(`Scénario refusé : ${v.erreur}`, true); return; }
     const sc = v.scenario;
     if (!confirm(`Ouvrir ce scénario ? Il remplace le scénario actuel (${sc.pieces.length} pièce(s), ${sc.dessins.length} dessin(s)).`)) return;
-    try {
-      localStorage.setItem(CLES_STOCK.pieces, JSON.stringify(sc.pieces)); localStorage.setItem(CLES_STOCK.dessins, JSON.stringify(sc.dessins));
-      localStorage.setItem(CLES_STOCK.ordres, JSON.stringify(sc.ordres)); localStorage.setItem(CLES_STOCK.journal, JSON.stringify(sc.journal));
-    } catch { dire('Impossible d\'enregistrer le scénario dans le navigateur (stockage plein ou bloqué).', true); return; }
+    if (!['pieces', 'dessins', 'ordres', 'journal'].every((cle) => ecrireJson(CLES_STOCK[cle], sc[cle]))) { dire('Impossible d\'enregistrer le scénario dans le navigateur (stockage plein ou bloqué).', true); return; }
     location.reload();
   });
 
@@ -339,10 +335,10 @@ const ONGLET_KEY = 'wg.onglet';
 const ONGLETS = ['ia', 'pieces', 'consignes', 'dessins', 'journal'];
 function voletsDroite() {
   let courant = 'ia';
-  try { const v = localStorage.getItem(ONGLET_KEY); if (ONGLETS.includes(v)) courant = v; } catch { /* valeur par défaut */ }
+  { const v = lireTexte(ONGLET_KEY); if (ONGLETS.includes(v)) courant = v; }
   const montrer = (nom) => {
     courant = nom;
-    try { localStorage.setItem(ONGLET_KEY, nom); } catch { /* stockage indisponible */ }
+    ecrireTexte(ONGLET_KEY, nom);
     for (const b of document.querySelectorAll('#onglets-d [data-onglet]')) b.setAttribute('aria-selected', String(b.dataset.onglet === nom));
     for (const v of document.querySelectorAll('[data-volet]')) v.hidden = v.dataset.volet !== nom;
   };
@@ -355,19 +351,17 @@ function voletsDroite() {
 }
 
 function sectionsRepliables() {
-  let etat = {};
-  try { etat = JSON.parse(localStorage.getItem(SECTIONS_KEY) || '{}'); } catch { etat = {}; }
+  let etat = lireJson(SECTIONS_KEY, {});
   for (const d of document.querySelectorAll('details[data-cle]')) {
     if (d.dataset.cle in etat) d.open = etat[d.dataset.cle];
-    d.addEventListener('toggle', () => { etat = { ...etat, [d.dataset.cle]: d.open }; try { localStorage.setItem(SECTIONS_KEY, JSON.stringify(etat)); } catch { /* stockage indisponible */ } });
+    d.addEventListener('toggle', () => { etat = { ...etat, [d.dataset.cle]: d.open }; ecrireJson(SECTIONS_KEY, etat); });
   }
 }
 
 // Les barres latérales sont collées aux bords de l'écran et se replient en entier (un onglet reste visible).
 const PANNEAUX_KEY = 'wg.panneaux';
 function panneauxRepliables() {
-  let ouvert = { g: true, d: true };
-  try { ouvert = { ...ouvert, ...JSON.parse(localStorage.getItem(PANNEAUX_KEY) || '{}') }; } catch { /* valeurs par défaut */ }
+  let ouvert = { g: true, d: true, ...lireJson(PANNEAUX_KEY, {}) };
   const appliquer = () => {
     document.body.classList.toggle('g-ferme', !ouvert.g);
     document.body.classList.toggle('d-ferme', !ouvert.d);
@@ -378,7 +372,7 @@ function panneauxRepliables() {
   for (const cote of ['g', 'd']) {
     $(`onglet-${cote}`).addEventListener('click', () => {
       ouvert = { ...ouvert, [cote]: !ouvert[cote] };
-      try { localStorage.setItem(PANNEAUX_KEY, JSON.stringify(ouvert)); } catch { /* stockage indisponible */ }
+      ecrireJson(PANNEAUX_KEY, ouvert);
       appliquer();
     });
   }
@@ -421,7 +415,7 @@ async function start() {
   const majRelief = () => { ligneRelief.hidden = !state.relief3d; $('relief-val').textContent = `×${String(exageration).replace('.', ',')}`; };
   curseur.addEventListener('input', () => {
     exageration = Number(curseur.value); majRelief();
-    try { localStorage.setItem(EXAGERATION_CLE, String(exageration)); } catch { /* stockage indisponible */ }
+    ecrireTexte(EXAGERATION_CLE, exageration);
     if (!enAttente) { // une mise à jour du relief par image au plus : le curseur ne bloque plus la carte
       enAttente = true;
       requestAnimationFrame(() => { enAttente = false; if (state.map && state.relief3d && state.map.getSource('dem')) state.map.setTerrain({ source: 'dem', exaggeration: exageration }); });

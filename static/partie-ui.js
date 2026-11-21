@@ -8,6 +8,7 @@ import { maintenant, enMarche, vitesse, synchroniserHorloge } from './temps.js';
 import { visiblesPour } from './moteur.js';
 import { terrain } from './terrain-carte.js';
 import { assembler, valider, CLES_STOCK } from './scenario.js';
+import { ecrireJson } from './ui.js';
 
 const $ = (id) => document.getElementById(id);
 function el(tag, props = {}, ...kids) {
@@ -61,7 +62,7 @@ async function recupererSiVide() {
   if (!etat || !etat.pieces || !etat.pieces.length) return;
   const v = valider(JSON.parse(JSON.stringify(assembler({ pieces: etat.pieces, dessins: etat.dessins || [], ordres: etat.ordres || {}, journal: [] }))));
   if (!v.ok) return;
-  try { for (const cle of Object.keys(CLES_STOCK)) localStorage.setItem(CLES_STOCK[cle], JSON.stringify(v.scenario[cle])); } catch { return; }
+  if (!Object.keys(CLES_STOCK).every((cle) => ecrireJson(CLES_STOCK[cle], v.scenario[cle]))) return;
   location.reload();
 }
 

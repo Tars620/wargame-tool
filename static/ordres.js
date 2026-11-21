@@ -8,6 +8,7 @@ import { estJoueur, role } from './role.js';
 import { empiler, envoyerOrdre } from './partie.js';
 import { aFeu, brouilleSur, doitRentrer, effets, enVol, enduranceRestante, estDrone, rayonVision, retourPossible } from './regles.js';
 import { conditions } from './meteo.js';
+import { h, ecrireJson, lireJson } from './ui.js';
 
 export const SOURCE_CONSIGNES = 'consignes';
 const STORAGE_ORDRES = 'wg.ordres.v1';
@@ -22,19 +23,9 @@ const state = { map: null, ordres: {}, journal: [], depart: null, pointDeVue: 'a
   forme: { type: 'aller', allure: 'normale', dureeMin: 10, cibleId: '' }, contactsVus: new Set(), liaisons: null, positionsEquipes: new Map(), meteo: null, theme: 'sombre' };
 const $ = (id) => document.getElementById(id);
 
-function h(tag, props = {}, ...kids) {
-  const n = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) {
-    if (k === 'class') n.className = v;
-    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
-    else if (v !== false && v != null) n.setAttribute(k, v);
-  }
-  for (const c of kids.flat()) if (c != null && c !== false) n.append(c.nodeType ? c : document.createTextNode(String(c)));
-  return n;
-}
 const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-const lire = (cle, repli) => { try { return JSON.parse(localStorage.getItem(cle)) ?? repli; } catch { return repli; } };
-const ecrire = (cle, valeur) => { try { localStorage.setItem(cle, JSON.stringify(valeur)); } catch { /* stockage indisponible */ } };
+const lire = lireJson;
+const ecrire = ecrireJson;
 const sauver = () => { if (estJoueur()) return; ecrire(STORAGE_ORDRES, state.ordres); ecrire(STORAGE_JOURNAL, state.journal); };
 const nomDe = (pieces, id) => (pieces.find((p) => p.id === id) || { nom: 'pièce retirée' }).nom;
 const km = (x) => formatKm(x);

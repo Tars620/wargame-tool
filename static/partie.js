@@ -1,14 +1,15 @@
 // Partie en ligne : création et adhésion, publication de l'état par l'arbitre, vue filtrée et ordres pour les joueurs.
 // Les jetons vivent dans sessionStorage (un par onglet) : deux onglets de rôles différents ne se mélangent jamais.
 import { definir, role } from './role.js';
+import { ecrireJson, lireJson } from './ui.js';
 
 const PAS_MS = 1000;
 const LOT_EVENEMENTS = 50;
 const CAMPS = ['bleu', 'rouge'];
 
 const cleJeton = (code) => `wg.jeton.${code}`;
-const lire = (cle) => { try { return JSON.parse(sessionStorage.getItem(cle) || 'null'); } catch { return null; } };
-const ecrire = (cle, valeur) => { try { sessionStorage.setItem(cle, JSON.stringify(valeur)); } catch { /* stockage indisponible */ } };
+const lire = (cle) => lireJson(cle, null, sessionStorage);
+const ecrire = (cle, valeur) => ecrireJson(cle, valeur, sessionStorage);
 
 async function appel(chemin, { methode = 'GET', corps = null, jeton = role.jeton } = {}) {
   const r = await fetch(chemin, { method: methode, headers: { 'Content-Type': 'application/json', ...(jeton ? { 'X-Token': jeton } : {}) }, body: corps ? JSON.stringify(corps) : undefined, cache: 'no-store' });

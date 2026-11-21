@@ -16,7 +16,7 @@ export function pieceDepuisModele(modele, { id, nom, camp, lng, lat }) {
 }
 
 /** Ancien type de pièce -> nouveau modèle. Les autres anciens types (blindé) n'ont pas d'équivalent. */
-export const CORRESPONDANCE = { 'uav-reco': 'drone-isr', 'uav-arme': 'drone-owa', 'poste-commandement': 'equipe-pilotes', 'guerre-electronique': 'brouilleur' };
+const CORRESPONDANCE = { 'uav-reco': 'drone-isr', 'uav-arme': 'drone-owa', 'poste-commandement': 'equipe-pilotes', 'guerre-electronique': 'brouilleur' };
 const ANCIENS_NOMS = { 'uav-reco': 'UAV de reconnaissance', 'uav-arme': 'UAV armé', 'poste-commandement': 'Poste de commandement', 'guerre-electronique': 'Guerre électronique' };
 
 /**

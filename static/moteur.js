@@ -14,7 +14,7 @@ export const position = (p) => [p.lng, p.lat];
 // ---------- liaison avec une équipe de pilotes ----------
 // Une pièce « équipe » porte commande. Un drone porte liaison: true : il doit être rattaché à une équipe de son camp et rester dans sa propre
 // portée opérationnelle (portee_op_km) autour d'elle. Une équipe peut avoir autant de drones qu'on veut ; un drone n'a qu'une équipe.
-export const LIAISON_KM = 30; // portée par défaut d'un drone qui n'en déclare pas
+const LIAISON_KM = 30; // portée par défaut d'un drone qui n'en déclare pas
 export const exigePoste = (p) => Boolean(p.liaison);
 export const estPoste = (p) => Boolean(p.commande);
 export const porteeLiaison = (drone, poste) => (drone.portee_op_km > 0 ? drone.portee_op_km : (poste && poste.commande && poste.commande.portee_km > 0 ? poste.commande.portee_km : LIAISON_KM));

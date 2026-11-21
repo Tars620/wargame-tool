@@ -6,9 +6,9 @@ import { pieceDepuisModele } from './catalogue.js';
 import { enduranceRestante, modeFeu, rayonVision } from './regles.js';
 import { distanceKm } from './geo.js';
 
-export const ACTIONS_MAX = 20;
+const ACTIONS_MAX = 20;
 export const NOMBRE_MAX = 30;
-export const PIECES_MAX = 60;
+const PIECES_MAX = 60;
 const CAMPS = ['bleu', 'rouge'];
 const GENRES = { front: 'ligne de front', limite: 'limite', zone: 'zone' };
 const POINTS_MIN = { front: 2, limite: 2, zone: 3 };

@@ -57,4 +57,3 @@ export function parler(texte) {
   window.speechSynthesis.speak(u);
 }
 export function taire() { if (lectureDisponible()) { window.speechSynthesis.cancel(); enCours = null; } }
-export const parle = () => enCours !== null && lectureDisponible() && window.speechSynthesis.speaking;

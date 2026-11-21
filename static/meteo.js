@@ -1,7 +1,7 @@
 import { maintenant, surTick } from './temps.js';
 
-export const SOURCE_METEO = 'meteo';
-export const SOURCE_RADAR = 'radar';
+const SOURCE_METEO = 'meteo';
+const SOURCE_RADAR = 'radar';
 const OPEN_METEO = 'https://api.open-meteo.com/v1/forecast';
 const VARIABLES = 'temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,cloud_cover,visibility';
 const RADAR_INDEX = 'https://api.rainviewer.com/public/weather-maps.json';

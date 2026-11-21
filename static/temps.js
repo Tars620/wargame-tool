@@ -1,4 +1,5 @@
 import { estJoueur } from './role.js';
+import { menuDeroulant } from './ui.js';
 import { PARIS, heure, date, etiquetteDecalage, nomZone, ecartAvecParis, parisVersMs, msVersParis } from './fuseaux.js';
 
 const VITESSES = [[1, '×1', 'Temps réel'], [10, '×10', '10 s de jeu par seconde'], [60, '×60', '1 min de jeu par seconde'], [300, '×300', '5 min de jeu par seconde'], [1800, '×1800', '30 min de jeu par seconde']];
@@ -16,7 +17,7 @@ export const vitesse = () => state.vitesse;
 export function surTick(fn) { state.abonnes.push(fn); }
 
 function figer() { state.ms = maintenant(); state.ancre = performance.now(); }
-export function regler(ms) { state.ms = ms; state.ancre = performance.now(); state.dernier = ms; afficher(); }
+function regler(ms) { state.ms = ms; state.ancre = performance.now(); state.dernier = ms; afficher(); }
 export function demarrer() { figer(); state.enMarche = true; state.dernier = state.ms; majCommandes(); }
 export function arreter() { figer(); state.enMarche = false; majCommandes(); }
 export function reglerVitesse(v) { figer(); state.vitesse = v; majCommandes(); afficher(); }
@@ -27,10 +28,10 @@ export function synchroniserHorloge(h) {
   afficher();
 }
 /** Revient à l'heure réelle : vitesse normale, en marche. */
-export function heureReelle() { state.vitesse = 1; state.enMarche = true; regler(Date.now()); majCommandes(); }
+function heureReelle() { state.vitesse = 1; state.enMarche = true; regler(Date.now()); majCommandes(); }
 
 /** Fuseau du point au centre de la carte, ou null si la vue est trop large pour désigner un lieu. */
-export function zoneLocale() {
+function zoneLocale() {
   const { lng, lat, zoom } = state.centre;
   if (zoom < ZOOM_LOCAL_MIN || typeof window.tzlookup !== 'function') return null;
   try { return window.tzlookup(Math.max(-LAT_MAX, Math.min(LAT_MAX, lat)), ((lng + 540) % 360) - 180); } catch { return null; }
@@ -66,13 +67,14 @@ function tick() {
 function bouton(texte, onclick) { const b = document.createElement('button'); Object.assign(b, { type: 'button', textContent: texte }); b.addEventListener('click', onclick); return b; }
 
 let basculerReglage = () => {};
+let ouvrirMenu = () => {}; // fixé quand le menu est monté ; les entrées le referment après leur action
 
 /** Commandes du temps de jeu : un seul bouton « Temps » dans la barre du haut ; il déroule pause/lecture, vitesse, retour à maintenant et réglage de l'heure. */
 function commandes() {
   const boite = $('temps-cmd');
   if (!boite || boite.dataset.pret) return;
   boite.dataset.pret = 'oui';
-  const principal = bouton('Temps', () => ouvrirMenu(menu.hidden));
+  const principal = bouton('Temps', () => {});
   principal.id = 'h-temps'; principal.setAttribute('aria-haspopup', 'menu'); principal.setAttribute('aria-expanded', 'false');
   const menu = document.createElement('div');
   menu.id = 'menu-temps'; menu.className = 'menu-temps'; menu.hidden = true; menu.setAttribute('role', 'menu');
@@ -86,12 +88,7 @@ function commandes() {
   items.push(entree('Maintenant', heureReelle, 'h-maintenant', { groupe: true }), entree('Régler la date et l\'heure…', () => basculerReglage(true), null));
   menu.replaceChildren(...items);
   boite.replaceChildren(principal, menu);
-  function ouvrirMenu(ouvert) {
-    menu.hidden = !ouvert; principal.setAttribute('aria-expanded', String(ouvert));
-    if (ouvert) majCommandes();
-  }
-  document.addEventListener('mousedown', (e) => { if (!menu.hidden && !boite.contains(e.target)) ouvrirMenu(false); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) { ouvrirMenu(false); principal.focus(); } });
+  ouvrirMenu = menuDeroulant(boite, principal, menu, majCommandes);
 }
 
 function majCommandes() {

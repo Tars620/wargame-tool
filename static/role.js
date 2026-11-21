@@ -3,5 +3,3 @@
 export const role = { genre: 'local', code: null, camp: null, jeton: null, nom: null };
 export const definir = (r) => Object.assign(role, r);
 export const estJoueur = () => role.genre === 'joueur';
-export const estArbitre = () => role.genre !== 'joueur';
-export const enPartie = () => role.code !== null;

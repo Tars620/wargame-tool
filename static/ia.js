@@ -7,6 +7,7 @@ import { dicteeDisponible, lectureDisponible, ecouter, parler, taire } from './v
 import { estJoueur, role } from './role.js';
 import { envoyerOrdre } from './partie.js';
 import { maintenant, enMarche, vitesse, arreter, demarrer, reglerVitesse } from './temps.js';
+import { h, ecrireJson, lireJson } from './ui.js';
 
 const DELAI_CLIENT_MS = 100000;
 const ECHANGES_MEMOIRE = 4;
@@ -15,25 +16,12 @@ const EXEMPLE = "5 drones armés bleus côte à côte autour de 48,50 N 37,50 E,
 
 const REGLAGES_KEY = 'wg.voix';
 const state = { map: null, occupe: false, echanges: [], historique: [], rappel: -1, arreterEcoute: null, reglages: lireReglages() };
-function lireReglages() {
-  try { return { envoi: true, lecture: false, ...JSON.parse(localStorage.getItem(REGLAGES_KEY) || '{}') }; } catch { return { envoi: true, lecture: false }; }
-}
+function lireReglages() { return { envoi: true, lecture: false, ...lireJson(REGLAGES_KEY, {}) }; }
 function reglage(cle, valeur) {
   state.reglages = { ...state.reglages, [cle]: valeur };
-  try { localStorage.setItem(REGLAGES_KEY, JSON.stringify(state.reglages)); } catch { /* stockage indisponible */ }
+  ecrireJson(REGLAGES_KEY, state.reglages);
 }
 const $ = (id) => document.getElementById(id);
-function h(tag, props = {}, ...kids) {
-  const n = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) {
-    if (k === 'class') n.className = v;
-    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
-    else if (v !== false && v != null) n.setAttribute(k, v);
-  }
-  for (const c of kids.flat()) if (c != null && c !== false) n.append(c.nodeType ? c : document.createTextNode(String(c)));
-  return n;
-}
-
 function ajouter(noeud) {
   const fil = $('ia-fil');
   fil.append(noeud);

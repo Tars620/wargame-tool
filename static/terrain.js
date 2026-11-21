@@ -13,7 +13,7 @@ const PAS_VUE_M = 50;              // pas d'échantillonnage d'une ligne de vue 
 const MAX_ECHANTILLONS = 400;
 const LARGEUR_LIGNE = 2;           // rayon (en cellules) d'une route ou d'une rivière tracée en ligne, ~12 m
 const TUILES_MAX = 150;
-export const FORETS = new Set(['forest', 'wood']);
+const FORETS = new Set(['forest', 'wood']);
 const ROUTES_PRAT = new Set(['major_road', 'minor_road', 'other']);   // chaussées carrossables (ni chemin piéton ni rail)
 const EAUX_SANS = new Set(['fountain', 'swimming_pool', 'basin', 'reservoir_covered']);
 
@@ -152,7 +152,7 @@ const actifs = (terrain) => Boolean(terrain && terrain.actif);
 export const eauInterdite = (p) => ['vehicule', 'artillerie'].includes(categorie(p));
 export const routeSeule = (p) => p.route_seule === true;
 /** Points d'un segment, un tous les `pasM` mètres, départ exclu, arrivée comprise (au plus MAX_ECHANTILLONS). */
-export function echantillons(a, b, pasM) {
+function echantillons(a, b, pasM) {
   const km = distanceApprox(a, b);
   if (km === 0) return [];
   const pas = Math.max(pasM, (km * 1000) / MAX_ECHANTILLONS);
@@ -179,7 +179,7 @@ export function voit(obs, cible, terrain) {
 }
 
 /** Une cellule est-elle franchissable à pied ou en véhicule ? L'eau bloque, sauf sous une route (pont). */
-export const estEau = (bits) => bits !== null && (bits & EAU) !== 0 && (bits & ROUTE) === 0;
+const estEau = (bits) => bits !== null && (bits & EAU) !== 0 && (bits & ROUTE) === 0;
 /** Sur un trajet, l'endroit où une pièce sensible à l'eau entrerait dans l'eau : { point, distanceKm } ou null. */
 export function premiereEau(points, terrain) {
   if (!actifs(terrain)) return null;

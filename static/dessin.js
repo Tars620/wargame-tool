@@ -1,7 +1,8 @@
 import * as maplibre from './vendor/maplibre-gl.mjs';
-import { distanceKm, longueurKm, aireKm2, formatKm, formatSurface } from './geo.js';
+import { longueurKm, aireKm2, formatKm, formatSurface } from './geo.js';
 import { couloir, COULOIR_DEFAUT_KM } from './couloir.js';
 import { estJoueur } from './role.js';
+import { h, ecrireJson, ecrireTexte, lireJson, lireTexte } from './ui.js';
 
 export const SOURCE_DESSINS = 'dessins';
 export const SOURCE_BROUILLON = 'brouillon';
@@ -21,23 +22,13 @@ const state = { dessins: [], outil: 'selection', camp: 'bleu', brouillon: [], cu
   theme: 'sombre', map: null, poignees: [], couloirs: lireCouloirs(), cacheCouloirs: new Map() };
 
 const $ = (id) => document.getElementById(id);
-function h(tag, props = {}, ...kids) {
-  const n = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) {
-    if (k === 'class') n.className = v;
-    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
-    else if (v !== false && v != null) n.setAttribute(k, v);
-  }
-  for (const c of kids.flat()) if (c != null && c !== false) n.append(c.nodeType ? c : document.createTextNode(String(c)));
-  return n;
-}
-
-function lireCouloirs() { try { return localStorage.getItem(STORAGE_COULOIRS) === 'oui'; } catch { return false; } }
+function lireCouloirs() { return lireTexte(STORAGE_COULOIRS) === 'oui'; }
 const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 const dessin = (id) => state.dessins.find((d) => d.id === id) || null;
-const sauver = () => { if (estJoueur()) return; try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.dessins)); } catch { /* stockage indisponible */ } };
+const sauver = () => { if (!estJoueur()) ecrireJson(STORAGE_KEY, state.dessins); };
 function charger() {
-  try { const brut = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); return Array.isArray(brut) ? brut : []; } catch { return []; }
+  const brut = lireJson(STORAGE_KEY, []);
+  return Array.isArray(brut) ? brut : [];
 }
 function maj(id, patch) { state.dessins = state.dessins.map((d) => (d.id === id ? { ...d, ...patch } : d)); sauver(); }
 
@@ -136,7 +127,7 @@ function dessinerOutils() {
   $('aide-dessin').style.display = state.outil === 'selection' && !state.selection ? 'none' : '';
 }
 
-export function setOutil(outil) {
+function setOutil(outil) {
   state.outil = outil; state.brouillon = []; state.curseur = null; state.fige = false;
   const dessine = outil !== 'selection';
   if (state.map) {
@@ -149,7 +140,7 @@ export function setOutil(outil) {
 
 function basculerCouloirs() {
   state.couloirs = !state.couloirs;
-  try { localStorage.setItem(STORAGE_COULOIRS, state.couloirs ? 'oui' : 'non'); } catch { /* stockage indisponible */ }
+  ecrireTexte(STORAGE_COULOIRS, state.couloirs ? 'oui' : 'non');
   dessinerOutils(); rafraichir();
 }
 

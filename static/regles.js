@@ -1,9 +1,6 @@
 // Règles de pièces : unités documentées, qui détruit qui, endurance des drones, brouillage. Fonctions pures (testables avec node).
 import { destination, distanceKm, pointVers } from './geo.js';
 
-/** Catégories qu'une arme au sol peut viser (tout sauf les drones en vol). */
-export const CIBLES_SOL = ['fantassin', 'vehicule', 'artillerie', 'brouilleur', 'pilotes'];
-
 // ---------- unités ----------
 export const rayonDeSurfaceKm = (km2) => Math.sqrt(km2 / Math.PI);
 export const rayonDeSurfaceM = (m2) => Math.sqrt(m2 / Math.PI);
@@ -61,7 +58,7 @@ export const retourPossible = (p) => estDrone(p) && p.retour === true;
 export const enduranceRestante = (p) => (p.endurance_restante_min !== undefined && p.endurance_restante_min !== null ? p.endurance_restante_min : p.endurance_min);
 
 /** Marge prise sur le trajet de retour pour décider de rentrer (10 %). */
-export const MARGE_RETOUR = 1.1;
+const MARGE_RETOUR = 1.1;
 /** Minutes de vol nécessaires pour rentrer à `poste` à la vitesse `kmh`, marge comprise. */
 export const minutesRetour = (p, poste, kmh) => (poste && kmh > 0 ? (distanceKm([p.lng, p.lat], [poste.lng, poste.lat]) / kmh) * 60 * MARGE_RETOUR : 0);
 /** Un drone en vol qui peut rentrer doit le faire dès qu'il ne lui reste que le temps du retour. */

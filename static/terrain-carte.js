@@ -1,6 +1,7 @@
 // Terrain côté navigateur : charge les tuiles vectorielles de la zone, expose l'instance de terrain au moteur, règle et surcouche « ce que voit le moteur ».
 import { creerTerrain, coinTuile, tuileDe, cleTuile, ZOOM_TERRAIN, FORET, EAU, ROUTE } from './terrain.js';
 import { decoder } from './mvt.js';
+import { ecrireJson, lireJson } from './ui.js';
 
 const STOCK = 'wg.terrain';
 const TUILES_VUE_MAX = 40;
@@ -10,9 +11,8 @@ const $ = (id) => document.getElementById(id);
 
 const cfg = { url: null, maxzoom: 0 };
 const archives = new Map();
-let reglage = { actif: true, voir: false };
-try { reglage = { ...reglage, ...JSON.parse(localStorage.getItem(STOCK) || '{}') }; } catch { /* stockage indisponible */ }
-const sauver = () => { try { localStorage.setItem(STOCK, JSON.stringify(reglage)); } catch { /* sans effet */ } };
+let reglage = { actif: true, voir: false, ...lireJson(STOCK, {}) };
+const sauver = () => ecrireJson(STOCK, reglage);
 
 async function charger(z, x, y) {
   if (!cfg.url) return null;
