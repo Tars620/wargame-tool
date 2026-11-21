@@ -190,9 +190,6 @@ function aideTexte() {
 }
 
 function dessinerOutils() {
-  const boutons = Object.entries(OUTILS).map(([cle, nom]) =>
-    h('button', { type: 'button', 'aria-pressed': String(state.outil === cle), onclick: () => setOutil(cle) }, nom)
-  );
   const couleur = (camp) => (camp === 'neutre' ? NEUTRE[state.theme] : COULEURS[camp]);
   // Un seul bouton : la couleur du camp en cours ; il déroule les trois couleurs, sans leur nom (l'infobulle le donne).
   const choix = Object.keys(NOM_CAMP).map((camp) =>
@@ -222,23 +219,47 @@ function dessinerOutils() {
       'data-tip': `Camp des prochains tracés : ${NOM_CAMP[state.camp].toLowerCase()}`,
       onclick: () => {
         state.menuCamp = !state.menuCamp;
+        state.menuOutils = false;
         dessinerOutils();
       }
     }),
     state.menuCamp ? h('div', { class: 'camp-menu' }, ...choix) : null
   );
-  const bascule = h(
-    'button',
-    {
-      type: 'button',
-      'aria-pressed': String(state.couloirs),
-      onclick: basculerCouloirs,
-      class: 'bord-droit',
-      'data-tip': "Montre la zone de part et d'autre des lignes de front et des limites (30 km par défaut, réglable par ligne)"
-    },
-    'Couloirs'
+  // Un seul bouton « outils » : il déroule la sélection, les trois tracés, la mesure et l'affichage des couloirs.
+  const entree = (nom, onclick, role, coche, extra = {}) =>
+    h('button', { type: 'button', role, 'aria-checked': String(coche), onclick: () => { state.menuOutils = false; onclick(); }, ...extra }, nom);
+  const menuOutils = h(
+    'div',
+    { class: 'outil-sel' },
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'outil-courant',
+        'data-actif': String(state.outil !== 'selection'),
+        'aria-expanded': String(Boolean(state.menuOutils)),
+        'aria-haspopup': 'menu',
+        onclick: () => {
+          state.menuOutils = !state.menuOutils;
+          state.menuCamp = false;
+          dessinerOutils();
+        }
+      },
+      OUTILS[state.outil]
+    ),
+    state.menuOutils
+      ? h(
+          'div',
+          { class: 'menu-temps menu-outils', role: 'menu' },
+          ...Object.entries(OUTILS).map(([cle, nom]) => entree(nom, () => setOutil(cle), 'menuitemradio', state.outil === cle)),
+          entree('Afficher les couloirs', basculerCouloirs, 'menuitemcheckbox', state.couloirs, {
+            class: 'debut-groupe',
+            title: "Montre la zone de part et d'autre des lignes de front et des limites (30 km par défaut, réglable par ligne)"
+          })
+        )
+      : null
   );
-  $('outils').replaceChildren(...boutons, camps, bascule);
+  $('outils').replaceChildren(menuOutils, camps);
   $('aide-dessin').textContent = aideTexte();
   $('aide-dessin').style.display = state.outil === 'selection' && !state.selection ? 'none' : '';
 }
@@ -512,8 +533,9 @@ export function monter(map) {
     rafraichir();
   });
   document.addEventListener('pointerdown', (e) => {
-    if (state.menuCamp && !e.target.closest('.camp-sel')) {
+    if ((state.menuCamp && !e.target.closest('.camp-sel')) || (state.menuOutils && !e.target.closest('.outil-sel'))) {
       state.menuCamp = false;
+      state.menuOutils = false;
       dessinerOutils();
     }
   });
@@ -526,7 +548,11 @@ export function monter(map) {
   document.addEventListener('keydown', (e) => {
     const saisie = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement && document.activeElement.tagName);
     if (e.key === 'Escape') {
-      if (state.brouillon.length) {
+      if (state.menuOutils || state.menuCamp) {
+        state.menuOutils = false;
+        state.menuCamp = false;
+        dessinerOutils();
+      } else if (state.brouillon.length) {
         state.brouillon = [];
         state.curseur = null;
         state.fige = false;
