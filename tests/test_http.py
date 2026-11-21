@@ -140,6 +140,7 @@ class RouteTests(HttpCase):
         self.assertNotIn("url", zones["en-ligne"])
 
     def test_version_changes_when_a_static_file_changes(self):
+        os.utime(server.ZONES_FILE, (1, 1))  # sinon ce fichier, créé à l'instant, serait toujours le plus récent
         avant = json.loads(self.get("/api/version")[2])["version"]
         chemin = os.path.join(server.STATIC, "carte.html")
         ancien = os.path.getmtime(chemin)
