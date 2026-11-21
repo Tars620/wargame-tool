@@ -417,11 +417,15 @@ async function start() {
   if (inclinaison > 0) { state.relief3d = true; $('relief3d').checked = true; }
   const ligneRelief = $('relief-ligne'), curseur = $('relief-ex');
   curseur.min = EXAGERATION.min; curseur.max = EXAGERATION.max; curseur.step = EXAGERATION.pas; curseur.value = exageration;
+  let enAttente = false;
   const majRelief = () => { ligneRelief.hidden = !state.relief3d; $('relief-val').textContent = `×${String(exageration).replace('.', ',')}`; };
   curseur.addEventListener('input', () => {
     exageration = Number(curseur.value); majRelief();
     try { localStorage.setItem(EXAGERATION_CLE, String(exageration)); } catch { /* stockage indisponible */ }
-    if (state.map && state.relief3d && state.map.getSource('dem')) state.map.setTerrain({ source: 'dem', exaggeration: exageration });
+    if (!enAttente) { // une mise à jour du relief par image au plus : le curseur ne bloque plus la carte
+      enAttente = true;
+      requestAnimationFrame(() => { enAttente = false; if (state.map && state.relief3d && state.map.getSource('dem')) state.map.setTerrain({ source: 'dem', exaggeration: exageration }); });
+    }
   });
   $('relief3d').addEventListener('change', (e) => { state.relief3d = e.target.checked; majRelief(); render().then(setPitch); });
   majRelief();
