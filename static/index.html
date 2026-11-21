@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Journal de wargame</title>
+<style>
+:root { --encre:#1d1d1f; --gris:#6e6e73; --filet:#d2d2d7; --fond:#f5f5f7; --blanc:#fff; --bleu:#1a6fbd; --rouge:#c0392b; --vert:#2e7d46; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.45 Inter,system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--encre); background:var(--fond); }
+h1,h2,h3 { margin:0 0 .5em; font-weight:500; }
+h1 { font-size:22px; } h2 { font-size:17px; } h3 { font-size:14px; text-transform:uppercase; letter-spacing:.04em; color:var(--gris); }
+button, input, select, textarea { font:inherit; color:inherit; }
+input, select, textarea { width:100%; padding:8px 10px; border:1px solid var(--filet); background:var(--blanc); }
+textarea { min-height:70px; resize:vertical; }
+label { display:block; margin:10px 0 4px; font-size:13px; color:var(--gris); }
+button { padding:8px 14px; border:1px solid var(--encre); background:var(--encre); color:#fff; cursor:pointer; }
+button.sec { background:var(--blanc); color:var(--encre); border-color:var(--filet); }
+button:disabled { opacity:.45; cursor:default; }
+.home { max-width:880px; margin:40px auto; padding:0 16px; display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+.card { background:var(--blanc); border:1px solid var(--filet); padding:18px; }
+.err { color:var(--rouge); margin-top:10px; min-height:1.2em; }
+.bar { background:var(--encre); color:#fff; padding:10px 16px; display:flex; flex-wrap:wrap; gap:14px; align-items:center; }
+.bar .t { font-weight:500; font-size:16px; } .bar .m { color:#c7c7cc; font-size:13px; }
+.bar button { padding:4px 10px; }
+.layout { display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:16px; padding:16px; align-items:start; }
+.timeline { background:var(--blanc); border:1px solid var(--filet); padding:6px 16px; min-height:300px; }
+.panel { position:sticky; top:12px; display:grid; gap:12px; }
+.ev { padding:10px 0; border-bottom:1px solid var(--fond); }
+.ev .h { font-size:12px; color:var(--gris); display:flex; gap:8px; flex-wrap:wrap; }
+.ev .h b { color:var(--encre); font-weight:500; }
+.ev p { margin:4px 0 0; white-space:pre-wrap; }
+.ev .l { color:var(--gris); font-size:13px; }
+.tag { border:1px solid var(--filet); padding:0 6px; font-size:11px; color:var(--gris); }
+.turn { margin:14px -16px 4px; padding:6px 16px; background:var(--fond); font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:var(--gris); }
+.banner { background:#fff6e0; border:1px solid #ecd9a0; padding:8px 12px; margin-bottom:10px; font-size:13px; }
+.pending { display:grid; gap:6px; } .pending button { text-align:left; }
+.keys { font-size:13px; color:var(--gris); } .keys code { color:var(--encre); }
+.replay { display:flex; gap:8px; align-items:center; color:#c7c7cc; font-size:13px; } .replay input { width:160px; padding:0; }
+@media (max-width:860px){ .home{grid-template-columns:1fr} .layout{grid-template-columns:1fr} .panel{position:static} }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+Bibliothèques copiées dans static/vendor (versions figées, intégrité npm vérifiée) :
+- maplibre-gl 6.19.0      BSD-3-Clause  (texte : maplibre-gl-6.19.0-LICENSE.txt)
+- pmtiles 4.5.0 (dist/pmtiles.js, autonome)  BSD-3-Clause  (auteur déclaré : Brandon Liu ; le paquet n'embarque pas de fichier LICENSE)
+- @protomaps/basemaps 5.7.2  BSD-3-Clause  (auteur déclaré : The Protomaps Authors ; idem)
+Données cartographiques : © OpenStreetMap contributors (ODbL), via Protomaps Basemap.
+Imagerie : NASA GIBS (VIIRS) ; Sentinel-2 cloudless by EOX IT Services GmbH (contient des données Copernicus Sentinel modifiées, CC BY-NC-SA 4.0 : usage non commercial).
+Relief : Mapzen/AWS Terrain Tiles (sources SRTM, GMTED, NED et autres, voir https://github.com/tilezen/joerd/blob/master/docs/attribution.md).

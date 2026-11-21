@@ -1,0 +1,4 @@
+tools/pmtiles
+data/
+wargame.db
+__pycache__/

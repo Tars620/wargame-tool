@@ -1,0 +1,4 @@
+{
+  "monde-z7": {"label": "Monde (zoom 7)", "bounds": null, "center": [10, 30], "zoom": 2, "maxzoom": 7, "osm": "2026-11-20"},
+  "maroc-z12": {"label": "Maroc (zoom 12)", "bounds": [-13.5, 27.5, -0.9, 36.1], "center": [-6.5, 32], "zoom": 5, "maxzoom": 12, "osm": "2026-11-20"}
+}

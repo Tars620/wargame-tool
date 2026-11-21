@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carte</title>
+<link rel="stylesheet" href="/static/vendor/maplibre-gl.css">
+<style>
+@font-face { font-family: Inter; src: url(/static/fonts/inter-latin.woff2) format("woff2"); font-weight: 100 900; font-display: swap; }
+:root {
+  --fond: #0a0a0c; --panneau: #111214; --panneau-2: #17181b; --trait: #2a2c30; --trait-fort: #4a4d54;
+  --texte: #e8e8ea; --texte-2: #9a9aa2; --blanc: #ffffff;
+  --bleu: #4c8dff; --rouge: #e5484d;   /* réservés aux camps et aux états */
+  --t-xs: 11px; --t-sm: 12px; --t-base: 13px; --t-md: 14px; --barre-h: 38px;
+}
+*, *::before, *::after { box-sizing: border-box; border-radius: 0 !important; }
+html, body { height: 100%; margin: 0; }
+body { font: 300 var(--t-md)/1.45 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--texte); background: var(--fond); }
+.top { position: fixed; inset: 0 0 auto 0; height: var(--barre-h); background: #000; border-bottom: 1px solid var(--trait); display: flex; align-items: center; gap: 18px; padding: 0 14px; z-index: 5; }
+.top b { font-weight: 500; letter-spacing: .04em; text-transform: uppercase; font-size: var(--t-base); }
+.top a { color: var(--texte-2); text-decoration: none; font-size: var(--t-base); }
+.top a:hover { color: var(--blanc); }
+#map { position: fixed; inset: var(--barre-h) 0 0 0; }
+.panneau { position: fixed; top: calc(var(--barre-h) + 12px); width: 280px; max-height: calc(100% - var(--barre-h) - 24px); overflow: auto; background: var(--panneau); border: 1px solid var(--trait); padding: 14px; z-index: 4; }
+.gauche { left: 12px; } .droite { right: 12px; width: 300px; }
+.panneau h3 { margin: 18px 0 8px; font-size: var(--t-sm); font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--texte-2); }
+.panneau h3:first-child { margin-top: 0; }
+.panneau h4 { margin: 14px 0 6px; font-size: var(--t-sm); font-weight: 500; color: var(--texte); }
+.opt { display: flex; gap: 8px; align-items: flex-start; padding: 7px 9px; margin-top: -1px; border: 1px solid var(--trait); font-size: var(--t-base); cursor: pointer; }
+.opt:has(input:checked) { background: var(--panneau-2); border-color: var(--blanc); position: relative; }
+.opt input { margin: 2px 0 0; accent-color: var(--blanc); }
+.opt small, .modele small { display: block; color: var(--texte-2); font-size: var(--t-sm); }
+select, input[type=text] { width: 100%; padding: 7px 9px; border: 1px solid var(--trait); background: var(--fond); color: var(--texte); font: inherit; }
+select:focus, input[type=text]:focus { outline: 1px solid var(--blanc); }
+button { font: inherit; font-weight: 300; color: var(--texte); background: transparent; border: 1px solid var(--trait-fort); padding: 7px 12px; cursor: pointer; }
+button:hover { border-color: var(--blanc); }
+.note { margin: 8px 0 0; font-size: var(--t-sm); color: var(--texte-2); }
+.err { margin: 8px 0 0; font-size: var(--t-sm); color: var(--rouge); min-height: 1em; }
+.lecture { position: fixed; left: 304px; bottom: 12px; z-index: 4; background: var(--panneau); border: 1px solid var(--trait); padding: 4px 9px; font-size: var(--t-sm); color: var(--texte-2); font-variant-numeric: tabular-nums; }
+
+/* banque de pièces */
+.camps { display: flex; margin-bottom: 8px; }
+.camp { flex: 1; margin-left: -1px; border-color: var(--trait); color: var(--texte-2); }
+.camp:first-child { margin-left: 0; }
+.camp[aria-pressed=true] { color: var(--blanc); border-color: var(--c); background: var(--panneau-2); box-shadow: inset 0 -2px 0 var(--c); }
+.modele { display: flex; gap: 10px; width: 100%; text-align: left; margin-top: -1px; padding: 8px 10px; border-color: var(--trait); }
+.modele.arme { border-color: var(--blanc); background: var(--panneau-2); }
+.modele .ico { flex: none; width: 34px; height: 28px; color: var(--c); }
+.modele .txt b { display: block; font-weight: 500; font-size: var(--t-base); }
+.champ { display: grid; grid-template-columns: 62px 1fr auto; align-items: center; gap: 8px; margin: 4px 0; font-size: var(--t-base); }
+.champ span { color: var(--texte-2); } .champ em { font-style: normal; color: var(--texte-2); font-size: var(--t-sm); min-width: 34px; }
+.champ.large { grid-template-columns: 62px 1fr; margin-bottom: 8px; }
+.duo { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+.duo .champ { grid-template-columns: 1fr; gap: 2px; } .duo .champ em { display: none; }
+.barre { display: inline-flex; gap: 2px; margin: 4px 0; } .barre i { width: 14px; height: 8px; border: 1px solid var(--trait-fort); }
+.barre i.plein { background: var(--blanc); border-color: var(--blanc); }
+.danger { margin-top: 12px; width: 100%; color: var(--rouge); border-color: var(--trait-fort); }
+.danger:hover { border-color: var(--rouge); }
+
+/* pièces posées sur la carte */
+.pion { width: 32px; height: 28px; padding: 0; display: block; background: #000; color: var(--c); border: 1px solid var(--c); cursor: grab; }
+.pion.choisi { outline: 2px solid var(--blanc); outline-offset: 2px; }
+
+/* commandes de la carte, en noir */
+.maplibregl-ctrl-group { background: var(--panneau) !important; border: 1px solid var(--trait); box-shadow: none !important; }
+.maplibregl-ctrl-group button { border: 0; border-bottom: 1px solid var(--trait); }
+.maplibregl-ctrl-group button .maplibregl-ctrl-icon { filter: invert(1); }
+.maplibregl-ctrl-scale { background: rgba(10,10,12,.85) !important; color: var(--texte) !important; border-color: var(--texte-2) !important; font-family: Inter, system-ui, sans-serif; }
+.maplibregl-ctrl-attrib { background: rgba(10,10,12,.85) !important; color: var(--texte-2) !important; font-family: Inter, system-ui, sans-serif; }
+.maplibregl-ctrl-attrib a { color: var(--texte-2) !important; }
+@media (max-width: 900px) { .droite { display: none; } .gauche { width: calc(100% - 24px); max-height: 45%; } .lecture { left: 12px; } }
+</style>
+</head>
+<body>
+<div class="top"><b>Carte</b><a href="/">Journal de partie</a></div>
+<div id="map"></div>
+
+<aside class="panneau gauche">
+  <h3>Fond</h3>
+  <div id="fonds"></div>
+  <h3>Superpositions</h3>
+  <label class="opt"><input type="checkbox" id="labels" checked><span>Frontières et noms<small>Affichés au-dessus des satellites</small></span></label>
+  <label class="opt"><input type="checkbox" id="relief3d"><span>Relief en 3D<small>Inclinaison de la vue, glisser avec Ctrl</small></span></label>
+  <h3>Zone de jeu</h3>
+  <select id="zone"></select>
+  <p class="note" id="zoneinfo"></p>
+  <div class="err" id="err"></div>
+</aside>
+
+<aside class="panneau droite">
+  <h3>Banque de pièces</h3>
+  <div id="banque"></div>
+  <h3>Pièce sélectionnée</h3>
+  <div id="fiche"></div>
+  <h3>Portées affichées</h3>
+  <div id="portees"></div>
+</aside>
+
+<div class="lecture" id="lecture">—</div>
+<script src="/static/vendor/pmtiles.js"></script>
+<script type="module" src="/static/carte.js"></script>
+</body>
+</html>
