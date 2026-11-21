@@ -4,12 +4,12 @@ import { init, entrer, creer, liens, tunnel, etatPublie, demarrerArbitre, demarr
 import { listerPieces, remplacerPieces } from './pieces.js';
 import { etatOrdres, traiterCommande, remplacerOrdres, remplacerJournal, resultatsOrdres } from './ordres.js';
 import { listerDessins, remplacerDessins } from './dessin.js';
-import { maintenant, enMarche, vitesse, synchroniserHorloge } from './temps.js';
+import { maintenant, enMarche, vitesse, synchroniserHorloge, CLE_DEPART_EN_PAUSE } from './temps.js';
 import { visiblesPour } from './moteur.js';
 import { terrain } from './terrain-carte.js';
 import { listerImpacts, remplacerImpacts } from './impacts.js';
 import { assembler, valider, CLES_STOCK } from './scenario.js';
-import { ecrireJson } from './ui.js';
+import { ecrireJson, ecrireTexte } from './ui.js';
 
 const $ = (id) => document.getElementById(id);
 function el(tag, props = {}, ...kids) {
@@ -170,6 +170,7 @@ function ligneLien(nom, url) {
 /** Vide les pièces, dessins, consignes et le journal du navigateur (la carte, la zone et les réglages restent). */
 function viderStockage() {
   const vide = { pieces: [], dessins: [], ordres: {}, journal: [] };
+  ecrireTexte(CLE_DEPART_EN_PAUSE, '1'); // la partie repart en pause : « Lancer l'opération » la démarre
   ecrireJson('wg.coupures.v1', []); // routes coupées
   ecrireJson('wg.impacts.v1', []); // cratères
   return Object.keys(CLES_STOCK).every((cle) => ecrireJson(CLES_STOCK[cle], vide[cle]));
@@ -181,7 +182,7 @@ async function reinitialiser() {
   suspendre();
   if (role.code) {
     const maintenant_ = Date.now();
-    await publierEtat({ pieces: [], ordres: {}, dessins: [], coupures: [], impacts: [], horloge: { ms: maintenant_, vitesse: 1, enMarche: true }, visibles: { bleu: [], rouge: [] } });
+    await publierEtat({ pieces: [], ordres: {}, dessins: [], coupures: [], impacts: [], horloge: { ms: maintenant_, vitesse: 1, enMarche: false }, visibles: { bleu: [], rouge: [] } });
     await annoncer('Partie réinitialisée par l\'arbitre.', maintenant_).catch(() => null);
   }
   if (!viderStockage()) throw new Error('Impossible de vider les données du navigateur (stockage bloqué).');

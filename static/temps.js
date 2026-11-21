@@ -1,5 +1,7 @@
 import { estJoueur } from './role.js';
-import { menuDeroulant } from './ui.js';
+import { ecrireTexte, lireTexte, menuDeroulant } from './ui.js';
+
+export const CLE_DEPART_EN_PAUSE = 'wg.depart.pause';
 import { PARIS, heure, dateComplete as date, etiquetteDecalage, nomZone, ecartAvecParis, parisVersMs, msVersParis } from './fuseaux.js';
 
 const VITESSES = [
@@ -184,7 +186,9 @@ function commandes() {
   const lancer = bouton("Lancer l'opération", () => (state.enMarche ? arreter() : demarrer()));
   lancer.id = 'h-lancer';
   lancer.className = 'lancer';
-  boite.replaceChildren(lancer, principal, menu);
+  boite.replaceChildren(principal, menu);
+  const zone = $('lancer-op');
+  if (zone) zone.replaceChildren(lancer);
   ouvrirMenu = menuDeroulant(boite, principal, menu, majCommandes);
 }
 
@@ -251,6 +255,11 @@ export function monter(map) {
   };
   map.on('move', maj);
   maj();
+  // Après « Réinitialiser » ou « Nouvelle partie », l'opération attend d'être lancée : l'horloge démarre en pause.
+  if (!estJoueur() && lireTexte(CLE_DEPART_EN_PAUSE) === '1') {
+    ecrireTexte(CLE_DEPART_EN_PAUSE, '0');
+    state.enMarche = false;
+  }
   commandes();
   reglageHeure();
   afficher();

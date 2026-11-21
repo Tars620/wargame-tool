@@ -67,6 +67,18 @@ export function surVoix(fn) {
   if (lectureDisponible()) window.speechSynthesis.addEventListener('voiceschanged', fn);
 }
 
+// Voix par défaut : des voix d'homme naturelles d'abord (Eddy, Reed, Thomas…), en français de France avant le canadien ; sinon la première voix française.
+const PREFEREES = ['Eddy', 'Reed', 'Thomas', 'Rocko', 'Grandpa', 'Jacques'];
+function voixAutomatique(voix) {
+  const fr = voix.filter((v) => v.lang && v.lang.toLowerCase().startsWith('fr'));
+  for (const prenom of PREFEREES) {
+    const trouvees = fr.filter((v) => v.name.startsWith(prenom));
+    const choisie = trouvees.find((v) => v.lang.replace('_', '-').toLowerCase() === 'fr-fr') || trouvees[0];
+    if (choisie) return choisie;
+  }
+  return fr[0] || null;
+}
+
 /** Lit un texte à voix haute (français), avec la voix demandée par son nom, sinon la première voix française. */
 export function parler(texte, nomVoix = null) {
   if (!lectureDisponible() || !texte) return;
@@ -75,7 +87,7 @@ export function parler(texte, nomVoix = null) {
   u.lang = LANGUE;
   u.rate = 1.05;
   const voix = window.speechSynthesis.getVoices();
-  const choisie = (nomVoix && voix.find((v) => v.name === nomVoix)) || voix.find((v) => v.lang && v.lang.toLowerCase().startsWith('fr'));
+  const choisie = (nomVoix && voix.find((v) => v.name === nomVoix)) || voixAutomatique(voix);
   if (choisie) u.voice = choisie;
   enCours = u;
   window.speechSynthesis.speak(u);

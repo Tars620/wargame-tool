@@ -303,6 +303,9 @@ function createMap() {
   const altitude = () => $('map').style.setProperty('--alt', String(Math.round(14 + map.getPitch() * 0.4)));
   map.on('pitch', altitude);
   altitude();
+  const capCarte = () => $('map').style.setProperty('--cap-carte', `${Math.round(map.getBearing())}deg`);
+  map.on('rotate', capCarte);
+  capCarte();
   new ResizeObserver(() => map.resize()).observe($('map'));
   // Les panneaux se montent dès que le style est prêt : inutile d'attendre les tuiles (lentes quand la carte est en ligne).
   map.once('style.load', () => {

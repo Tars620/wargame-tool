@@ -1,6 +1,6 @@
 // Pièces sur la carte : portées, liens, traces (couches) et pions (marqueurs).
 import * as maplibre from './vendor/maplibre-gl.mjs';
-import { cercle } from './geo.js';
+import { capVers, cercle, distanceKm } from './geo.js';
 import { symbole } from './symboles.js';
 import { estJoueur, role } from './role.js';
 import { estPoste, exigePoste, etatLiaison, porteeLiaison } from './moteur.js';
@@ -49,6 +49,22 @@ export function layerSpecs() {
       paint: { 'line-color': ['case', ['==', ['get', 'perdu'], true], '#d9a441', couleurDe], 'line-width': 1.1, 'line-opacity': 0.75 }
     },
     {
+      id: 'sillage-halo',
+      type: 'line',
+      source: SOURCE_ID,
+      filter: ['==', ['get', 'genre'], 'sillage'],
+      layout: { 'line-cap': 'round' },
+      paint: { 'line-color': couleurDe, 'line-width': 7, 'line-blur': 5, 'line-opacity': ['*', ['get', 'a'], 0.45] }
+    },
+    {
+      id: 'sillage',
+      type: 'line',
+      source: SOURCE_ID,
+      filter: ['==', ['get', 'genre'], 'sillage'],
+      layout: { 'line-cap': 'round' },
+      paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['get', 'a'], 0, 0.5, 1, 2.4], 'line-opacity': ['*', ['get', 'a'], 0.85] }
+    },
+    {
       id: 'portee-trace',
       type: 'line',
       source: SOURCE_ID,
@@ -58,10 +74,36 @@ export function layerSpecs() {
   ];
 }
 
+// ---------- sillages : la trace lumineuse des drones en vol, qui s'efface derrière eux ----------
+const SILLAGE_POINTS = 26;
+const histoire = new Map(); // id -> positions récentes
+function majSillages(pieces) {
+  for (const p of pieces) {
+    if (!estDrone(p) || !enVol(p) || p.detruit) {
+      histoire.delete(p.id);
+      continue;
+    }
+    const h_ = histoire.get(p.id) || [];
+    const fin = h_[h_.length - 1];
+    if (!fin || distanceKm(fin, [p.lng, p.lat]) > 0.00002) histoire.set(p.id, [...h_, [p.lng, p.lat]].slice(-SILLAGE_POINTS));
+  }
+}
+function sillages(montrees) {
+  const sortie = [];
+  for (const p of montrees) {
+    const pts = histoire.get(p.id);
+    if (!pts || pts.length < 2) continue;
+    for (let k = 1; k < pts.length; k += 1)
+      sortie.push({ type: 'Feature', properties: { camp: p.camp, genre: 'sillage', a: k / pts.length }, geometry: { type: 'LineString', coordinates: [pts[k - 1], pts[k]] } });
+  }
+  return sortie;
+}
+
 export function collection() {
   const montrees = state.pieces.filter((p) => estVisible(p) && !p.detruit && (!estJoueur() || p.camp === role.camp)); // un joueur ne voit ni portées ni liens de l'adversaire
   const visibles = state.portees === 'toutes' ? montrees : state.portees === 'selection' ? montrees.filter((p) => p.id === state.selection) : [];
-  const features = [];
+  majSillages(state.pieces);
+  const features = [...sillages(montrees)];
   for (const p of visibles) {
     const proprietes = { camp: p.camp, id: p.id };
     const centre = [p.lng, p.lat];
@@ -129,15 +171,36 @@ export const rafraichirCarte = sourceGeojson(() => state.map, SOURCE_ID, collect
 // ---------- marqueurs ----------
 export const modeleDe = (p) => state.catalogue.find((m) => m.id === p.type) || { nom: p.nom };
 
+// ---------- drones : cap et mouvement ----------
+const DUREE_MOUVEMENT_MS = 2600; // un drone qui vient de bouger garde son souffle et ses rotors à plein régime
+const dernier = new Map(); // id -> { lng, lat, cap, t, minuteur }
+/** Retient la direction du dernier déplacement (le drone se tourne vers elle) et signale qu'il est en mouvement. */
+function suivreMouvement(p, el) {
+  if (!estDrone(p)) return;
+  const d = dernier.get(p.id);
+  if (!d) dernier.set(p.id, { lng: p.lng, lat: p.lat, cap: 0, t: -1e9, minuteur: 0 });
+  else if ((d.lng !== p.lng || d.lat !== p.lat) && distanceKm([d.lng, d.lat], [p.lng, p.lat]) > 0.00002) {
+    d.cap = capVers([d.lng, d.lat], [p.lng, p.lat]);
+    d.lng = p.lng;
+    d.lat = p.lat;
+    d.t = performance.now();
+    clearTimeout(d.minuteur);
+    d.minuteur = setTimeout(() => el.classList.remove('en-mouvement'), DUREE_MOUVEMENT_MS);
+  }
+  const e = dernier.get(p.id);
+  el.style.setProperty('--cap', `${Math.round(e.cap)}deg`);
+  el.classList.toggle('en-mouvement', performance.now() - e.t < DUREE_MOUVEMENT_MS && enVol(p));
+}
+
 export function styleMarqueur(p, el) {
   el.style.setProperty('--c', COULEURS[p.camp]);
   if (el.dataset.camp !== p.camp) {
     const drone = estDrone(p);
-    const s = symbole(modeleDe(p), p.camp, drone ? 30 : 22);
+    const s = symbole(modeleDe(p), p.camp, drone ? 42 : 22);
     if (drone) {
       // trois sortes de drones, trois silhouettes : anneau pointillé qui tourne (observation), anneau plein qui pulse (attaque), anneau fin (filoguidé)
       s.classList.add('aerien');
-      s.append(h('i', { class: 'halo' }), h('b', { class: 'tag' }, ETIQUETTE_DRONE[p.type] || 'UAV'));
+      s.append(h('i', { class: 'souffle' }), h('i', { class: 'halo' }), h('b', { class: 'tag' }, ETIQUETTE_DRONE[p.type] || 'UAV'));
       el.dataset.drone = ['drone-isr', 'drone-owa', 'drone-filoguide'].includes(p.type) ? p.type.slice(6) : 'autre';
     }
     el.replaceChildren(s);
@@ -146,6 +209,7 @@ export function styleMarqueur(p, el) {
   el.title = `${p.nom} (${NOM_CAMP[p.camp]})${p.detruit ? ', détruit' : ''}`;
   el.classList.toggle('choisi', p.id === state.selection);
   el.classList.toggle('detruit', !!p.detruit);
+  suivreMouvement(p, el);
   el.classList.toggle('en-vol', estDrone(p) && enVol(p) && !p.detruit); // un drone en vol se lit comme tel : en altitude, avec son ombre au sol
 }
 

@@ -1,3 +1,7 @@
+import { estModeleDrone, iconeDrone } from './drones.js';
+
+const COULEURS_CAMP = { bleu: '#4c8dff', rouge: '#e5484d' };
+
 // Symboles militaires APP-6D / MIL-STD-2525D, dessinés par milsymbol (MIT, global `ms`).
 const IDENTITE = { bleu: '3', rouge: '6' }; // 3 = ami (bleu), 6 = hostile (rouge)
 const IDENTITE_INCONNUE = '4'; // 4 = inconnu
@@ -12,7 +16,10 @@ export function sidc(modele, camp) {
 export function symbole(modele, camp, taille = 24) {
   const el = document.createElement('span');
   el.className = 'symbole';
-  if (window.ms && modele.sidc) el.append(new window.ms.Symbol(sidc(modele, camp), { size: taille }).asDOM());
+  if (estModeleDrone(modele)) {
+    el.style.setProperty('--c', COULEURS_CAMP[camp] || '#9a9aa2'); // les drones ont leur propre silhouette par type
+    el.append(iconeDrone(modele, Math.max(taille, 28)));
+  } else if (window.ms && modele.sidc) el.append(new window.ms.Symbol(sidc(modele, camp), { size: taille }).asDOM());
   else el.textContent = (modele.nom || '?').slice(0, 2).toUpperCase();
   return el;
 }

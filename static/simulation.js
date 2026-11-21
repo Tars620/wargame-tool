@@ -46,7 +46,16 @@ function evenement(t, e, pieces) {
       );
     const cibleP = pieces.find((q) => q.id === e.cibleId);
     const lieu = e.impact || (cibleP ? [cibleP.lng, cibleP.lat] : null);
-    if (lieu) enregistrerImpact({ lng: lieu[0], lat: lieu[1], rayonM: e.rayonM || 0, genre: e.type === 'tir_zone' ? 'zone' : e.type, t: Math.round(t) });
+    const tireur = pieces.find((q) => q.id === e.pieceId);
+    if (lieu)
+      enregistrerImpact({
+        lng: lieu[0],
+        lat: lieu[1],
+        rayonM: e.rayonM || 0,
+        genre: e.type === 'tir_zone' ? 'zone' : e.type,
+        t: Math.round(t),
+        ...(e.type !== 'frappe' && tireur ? { de: [tireur.lng, tireur.lat], camp: tireur.camp } : {}) // une frappe de drone n'a pas d'obus : le drone arrive sur sa cible
+      });
     const touches = effets(e, pieces);
     for (const { id, cause } of touches) {
       detruire(id, cause);
