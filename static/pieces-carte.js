@@ -8,7 +8,6 @@ import { enVol, estDrone, rayonBrouillage, rayonVision } from './regles.js';
 import { h, sourceGeojson } from './ui.js';
 import { COULEURS, NOM_CAMP, SOURCE_ID, estVisible, state } from './pieces-etat.js';
 
-const ETIQUETTE_DRONE = { 'drone-isr': 'ISR', 'drone-owa': 'OWA', 'drone-filoguide': 'FILO' };
 const couleurDe = ['match', ['get', 'camp'], 'rouge', COULEURS.rouge, COULEURS.bleu];
 
 export function layerSpecs() {
@@ -206,11 +205,11 @@ export function styleMarqueur(p, el) {
   el.style.setProperty('--c', COULEURS[p.camp]);
   if (el.dataset.camp !== p.camp) {
     const drone = estDrone(p);
-    const s = symbole(modeleDe(p), p.camp, drone ? 42 : 22);
+    const s = symbole(modeleDe(p), p.camp, drone ? 36 : 22);
     if (drone) {
       // trois sortes de drones, trois silhouettes : anneau pointillé qui tourne (observation), anneau plein qui pulse (attaque), anneau fin (filoguidé)
       s.classList.add('aerien');
-      s.append(h('i', { class: 'souffle' }), h('i', { class: 'halo' }), h('b', { class: 'tag' }, ETIQUETTE_DRONE[p.type] || 'UAV'));
+      s.append(h('i', { class: 'souffle' }), h('i', { class: 'halo' }));
       el.dataset.drone = ['drone-isr', 'drone-owa', 'drone-filoguide'].includes(p.type) ? p.type.slice(6) : 'autre';
     }
     el.replaceChildren(s);
