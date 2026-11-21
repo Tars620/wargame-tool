@@ -519,7 +519,7 @@ Actions possibles (un objet par action, champ "action") :
   Une consigne "groupe" ou "pieces" s'applique à chaque pièce concernée. Les pièces posées dans la même réponse n'ont pas d'id encore : désigne-les par "groupe".
 - {"action":"rattacher","pieces":["id",...] ou "piece":"id" ou "groupe":{"modele","camp"},"poste":"<id ou nom d'une équipe de pilotes>"}
   Change l'équipe de pilotes d'un ou plusieurs drones. Inutile à la pose : les drones posés sont rattachés d'eux-mêmes à l'équipe la plus proche qui les couvre.
-- {"action":"dessin","genre":"front|limite|zone","camp":"bleu|rouge|neutre","points":[[lng,lat],...],"nom":"facultatif"}
+- {"action":"dessin","genre":"front|zone","camp":"bleu|rouge|neutre","points":[[lng,lat],...],"nom":"facultatif"}
 - {"action":"vue","lng":nombre,"lat":nombre,"zoom":nombre}
 - {"action":"temps","vitesse":1|10|60|300|1800,"pause":true|false}
 Règles du jeu, à respecter et à expliquer quand elles bloquent la demande :

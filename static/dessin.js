@@ -12,7 +12,7 @@ const CACHE_COULOIRS_MAX = 200;
 const COULEURS = { bleu: '#4c8dff', rouge: '#e5484d' };
 const NEUTRE = { sombre: '#c9ccd4', clair: '#3a3c42' };
 const NOM_CAMP = { bleu: 'Bleu', rouge: 'Rouge', neutre: 'Neutre' };
-const OUTILS = { selection: 'Sélection', front: 'Ligne de front', limite: 'Limite', zone: 'Zone', mesure: 'Mesure' };
+const OUTILS = { selection: 'Sélection', front: 'Ligne de front', zone: 'Zone', mesure: 'Mesure' }; // « limite » n'est plus proposée ; les anciennes s'affichent encore
 const NOM_GENRE = { front: 'Ligne de front', limite: 'Limite', zone: 'Zone' };
 const POINTS_MIN = { front: 2, limite: 2, zone: 3, mesure: 2 };
 const SELECTABLES = ['zone-fond', 'zone-trait', 'limite-trait', 'front-trait'];
@@ -254,7 +254,7 @@ function dessinerOutils() {
           ...Object.entries(OUTILS).map(([cle, nom]) => entree(nom, () => setOutil(cle), 'menuitemradio', state.outil === cle)),
           entree('Afficher les couloirs', basculerCouloirs, 'menuitemcheckbox', state.couloirs, {
             class: 'debut-groupe',
-            title: "Montre la zone de part et d'autre des lignes de front et des limites (30 km par défaut, réglable par ligne)"
+            title: "Montre la zone de part et d'autre des lignes de front (30 km par défaut, réglable par ligne)"
           })
         )
       : null

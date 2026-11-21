@@ -1,6 +1,6 @@
 {
   "monde-z7": {
-    "label": "Monde (hors ligne, zoom 9 maximum)",
+    "label": "Hors ligne : monde entier, peu détaillé",
     "bounds": null,
     "center": [
       10,
@@ -11,7 +11,7 @@
     "osm": "2026-11-20"
   },
   "planete-en-ligne": {
-    "label": "Planète (en ligne, zoom 20)",
+    "label": "En ligne : monde entier, très détaillé",
     "bounds": null,
     "center": [
       10,

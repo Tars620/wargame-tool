@@ -24,7 +24,7 @@ La page se recharge seule quand le code du serveur change (`/api/version`), en g
   Protomaps du 2026-11-20 (tranches bornées à 8 Mo, adresse fixée dans `zones.json`). Une zone sans données
   plus fines est agrandie de 2 niveaux au plus, puis la page propose la zone la plus détaillée.
 - **Dessin** (barre en haut de la carte) : ligne de front (trait épais avec chevrons dans le sens du tracé),
-  limite (pointillés), zone (périmètre et surface), mesure (distance, non enregistrée). Camp bleu, rouge ou neutre.
+  zone (périmètre et surface), mesure (distance, non enregistrée). Camp bleu, rouge ou neutre.
   Double-clic ou Entrée termine, Retour arrière retire le dernier point, Échap annule. Dessin sélectionné :
   glisser les carrés pour déplacer un point, clic droit pour en retirer un. Enregistrés dans le navigateur.
 

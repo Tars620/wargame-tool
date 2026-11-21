@@ -395,8 +395,9 @@ function fillZones() {
 
 function infoZone() {
   const z = state.zone;
-  const origine = z.en_ligne ? 'chargé depuis Internet' : 'lisible hors ligne';
-  return `Plan : OpenStreetMap au ${z.osm}, ${origine}, détaillé jusqu'au zoom ${z.maxzoom}. Satellites et relief : chargés depuis Internet.`;
+  return z.en_ligne
+    ? 'Téléchargée depuis Internet au fil du zoom (OpenStreetMap). Il faut cette source pour le terrain : forêts, eau, routes.'
+    : 'Enregistrée sur cet ordinateur, utilisable sans Internet, mais peu détaillée. Le terrain n\'y fonctionne pas.';
 }
 
 function majInfoZone() {
