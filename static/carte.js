@@ -20,8 +20,12 @@ const NASA_LAYER = 'VIIRS_SNPP_CorrectedReflectance_TrueColor';
 const nasaTiles = (date) => `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/${NASA_LAYER}/default/${date}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg`;
 const NASA_PROBE = '6/25/31'; // une tuile quelconque, servie dès qu'une journée d'imagerie existe
 const NASA_MAX_DAYS = 45;
-const PITCH_3D = 60;
-const TERRAIN_EXAGGERATION = 1.4;
+const PITCH_3D = 70;
+const PITCH_MAX = 85;
+const EXAGERATION = { min: 1, max: 6, pas: 0.5, defaut: 3 };
+const EXAGERATION_CLE = 'wg.exageration';
+let exageration = EXAGERATION.defaut;
+try { const v = Number(localStorage.getItem(EXAGERATION_CLE)); if (v >= EXAGERATION.min && v <= EXAGERATION.max) exageration = v; } catch { /* stockage indisponible */ }
 const SURZOOM = 2;        // niveaux d'agrandissement au-delà des données d'une zone locale
 const SURZOOM_DETAIL = 5; // une zone détaillée (zoom 14 ou plus) peut aller bien plus loin : le vecteur reste net
 const ZOOM_ABSOLU = 20;
@@ -94,12 +98,12 @@ function plan(labels) {
 function hillshade() {
   const r = THEMES[state.theme].relief;
   return { id: 'hillshade', type: 'hillshade', source: 'dem', paint: {
-    'hillshade-exaggeration': 0.5, 'hillshade-shadow-color': r.shadow, 'hillshade-highlight-color': r.highlight, 'hillshade-accent-color': r.accent } };
+    'hillshade-exaggeration': state.relief3d ? 0.8 : 0.5, 'hillshade-shadow-color': r.shadow, 'hillshade-highlight-color': r.highlight, 'hillshade-accent-color': r.accent } };
 }
 
 function layersFor(fond, labels) {
-  if (fond === 'plan') return plan(labels);
-  if (fond === 'relief') {
+  if (fond === 'plan' && !state.relief3d) return plan(labels);
+  if (fond === 'relief' || fond === 'plan') { // en 3D, le plan reçoit aussi l'ombrage : sans lui le relief ne se lit pas
     const vec = plan(labels);
     const at = Math.max(vec.findIndex((l) => l.id === 'water'), 0);
     return [...vec.slice(0, at), hillshade(), ...vec.slice(at)];
@@ -138,7 +142,7 @@ function buildStyle() {
   style.sources[SOURCE_BROUILLON] = { type: 'geojson', data: collectionBrouillon() };
   style.sources[PIECES_SOURCE] = { type: 'geojson', data: piecesGeojson() };
   style.layers = [...style.layers, ...meteo.layers, ...dessinsCouches(), ...consignesCouches(), ...piecesCouches()];
-  if (state.relief3d) style.terrain = { source: 'dem', exaggeration: TERRAIN_EXAGGERATION };
+  if (state.relief3d) style.terrain = { source: 'dem', exaggeration: exageration };
   return style;
 }
 
@@ -160,7 +164,7 @@ function createMap() {
   maplibre.addProtocol('pmtiles', new Protocol().tile);
   const zone = state.zone;
   const map = new maplibre.Map({ container: 'map', style: buildStyle(), center: zone.center, zoom: zone.zoom,
-    maxZoom: zoomMax(zone), maxBounds: boundsFor(zone), attributionControl: { compact: false }, hash: true });
+    maxZoom: zoomMax(zone), maxPitch: PITCH_MAX, maxBounds: boundsFor(zone), attributionControl: { compact: false }, hash: true });
   map.addControl(new maplibre.NavigationControl({ visualizePitch: true }), 'bottom-right');
   map.addControl(new maplibre.ScaleControl({ unit: 'metric' }), 'bottom-right');
   map.on('mousemove', (e) => { $('lecture').textContent = `${e.lngLat.lat.toFixed(4)}, ${e.lngLat.lng.toFixed(4)}  ·  zoom ${map.getZoom().toFixed(1)}`; });
@@ -411,7 +415,16 @@ async function start() {
   // L'adresse garde l'inclinaison de la vue (#zoom/lat/lng/cap/inclinaison) : un lien ou un rechargement inclinés rouvrent donc avec le relief.
   const inclinaison = Number(location.hash.replace('#', '').split('/')[4]);
   if (inclinaison > 0) { state.relief3d = true; $('relief3d').checked = true; }
-  $('relief3d').addEventListener('change', (e) => { state.relief3d = e.target.checked; render().then(setPitch); });
+  const ligneRelief = $('relief-ligne'), curseur = $('relief-ex');
+  curseur.min = EXAGERATION.min; curseur.max = EXAGERATION.max; curseur.step = EXAGERATION.pas; curseur.value = exageration;
+  const majRelief = () => { ligneRelief.hidden = !state.relief3d; $('relief-val').textContent = `×${String(exageration).replace('.', ',')}`; };
+  curseur.addEventListener('input', () => {
+    exageration = Number(curseur.value); majRelief();
+    try { localStorage.setItem(EXAGERATION_CLE, String(exageration)); } catch { /* stockage indisponible */ }
+    if (state.map && state.relief3d && state.map.getSource('dem')) state.map.setTerrain({ source: 'dem', exaggeration: exageration });
+  });
+  $('relief3d').addEventListener('change', (e) => { state.relief3d = e.target.checked; majRelief(); render().then(setPitch); });
+  majRelief();
   await render();
   window.__carteOk = true; // lu par le filet de sécurité de carte.html
 }

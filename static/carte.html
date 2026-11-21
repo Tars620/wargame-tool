@@ -113,6 +113,10 @@ details[open] > summary::before { transform: rotate(45deg); margin-bottom: 4px; 
 .reglage-heure input { width: 190px; padding: 5px 8px; border: 1px solid var(--trait); background: var(--fond); color: var(--texte); font: inherit; color-scheme: dark; }
 :root[data-theme=clair] .reglage-heure input { color-scheme: light; }
 .reglage-heure .note { flex-basis: 100%; margin: 0; }
+.relief-ligne { display: flex; align-items: center; gap: 10px; margin: 6px 0 0; font-size: var(--t-sm); color: var(--texte-2); }
+.relief-ligne[hidden] { display: none; }
+.relief-ligne input { flex: 1; width: auto; padding: 0; border: 0; accent-color: var(--accent); background: transparent; }
+.relief-ligne #relief-val { min-width: 28px; text-align: right; color: var(--texte); }
 .grille2 { display: grid; grid-template-columns: 1fr 1fr; padding-top: 1px; margin-right: -1px; }
 .grille2 .opt { margin: -1px -1px 0 0; padding: 5px 6px; gap: 6px; } .grille2 .opt span { white-space: nowrap; }
 
@@ -231,6 +235,7 @@ body { font-variant-numeric: tabular-nums; }
       <label class="opt"><input type="checkbox" id="labels" checked><span>Frontières, noms</span></label>
       <label class="opt"><input type="checkbox" id="relief3d"><span>Relief 3D</span></label>
     </div>
+    <label class="relief-ligne" id="relief-ligne" hidden><span>Relief</span><input type="range" id="relief-ex" aria-label="Exagération du relief"><span id="relief-val"></span></label>
     <p class="note">Relief 3D : inclinaison de la vue, glisser avec Ctrl.</p>
   </details>
   <details data-cle="g-terrain" data-arbitre><summary>Terrain</summary>
