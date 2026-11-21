@@ -1,7 +1,11 @@
 import { estJoueur } from './role.js';
 import { ecrireTexte, lireTexte, menuDeroulant } from './ui.js';
 
-export const CLE_DEPART_EN_PAUSE = 'wg.depart.pause';
+// L'opération attend d'être lancée : à l'ouverture de la page l'arbitre trouve l'horloge en pause et clique sur « Lancer l'opération ».
+// Le choix est gardé pour cet onglet seulement : recharger la page en pleine opération la laisse en marche.
+export const CLE_OPERATION_LANCEE = 'wg.operation.lancee';
+const operationLancee = () => lireTexte(CLE_OPERATION_LANCEE, '0', sessionStorage) === '1';
+const noterOperationLancee = (oui) => ecrireTexte(CLE_OPERATION_LANCEE, oui ? '1' : '0', sessionStorage);
 import { PARIS, heure, dateComplete as date, etiquetteDecalage, nomZone, ecartAvecParis, parisVersMs, msVersParis } from './fuseaux.js';
 
 const VITESSES = [
@@ -39,12 +43,14 @@ function regler(ms) {
   afficher();
 }
 export function demarrer() {
+  noterOperationLancee(true);
   figer();
   state.enMarche = true;
   state.dernier = state.ms;
   majCommandes();
 }
 export function arreter() {
+  noterOperationLancee(false);
   figer();
   state.enMarche = false;
   majCommandes();
@@ -262,10 +268,12 @@ export function monter(map) {
   };
   map.on('move', maj);
   maj();
-  // Après « Réinitialiser » ou « Nouvelle partie », l'opération attend d'être lancée : l'horloge démarre en pause.
-  if (!estJoueur() && lireTexte(CLE_DEPART_EN_PAUSE) === '1') {
-    ecrireTexte(CLE_DEPART_EN_PAUSE, '0');
-    state.enMarche = false;
+  if (!estJoueur()) {
+    const t = maintenant();
+    state.enMarche = operationLancee(); // en pause tant que l'opération n'a pas été lancée dans cet onglet
+    state.ms = t;
+    state.dernier = t;
+    state.ancre = performance.now();
   }
   commandes();
   reglageHeure();
