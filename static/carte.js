@@ -176,7 +176,7 @@ function hillshade() {
   return {
     id: 'hillshade',
     type: 'hillshade',
-    source: 'dem',
+    source: 'dem-ombre',
     paint: {
       'hillshade-exaggeration': state.relief3d ? 0.8 : 0.5,
       'hillshade-shadow-color': r.shadow,
@@ -210,14 +210,11 @@ function sourcesFor(fond, labels, zone) {
   const vector = { type: 'vector', url: urlZone(zone), attribution: '© OpenStreetMap' };
   if (fond === 'plan' || fond === 'relief' || labels) sources.protomaps = vector;
   if (fond === 'relief' || state.relief3d) {
-    sources.dem = {
-      type: 'raster-dem',
-      tiles: [DEM_TILES],
-      encoding: 'terrarium',
-      tileSize: 256,
-      maxzoom: 15,
-      attribution: 'Relief : Mapzen / AWS Terrain Tiles'
-    };
+    // Deux sources pour les mêmes tuiles : le relief (terrain 3D) et l'ombrage ne doivent pas partager la leur (artefacts et lenteur signalés par MapLibre).
+    const dem = { type: 'raster-dem', tiles: [DEM_TILES], encoding: 'terrarium', tileSize: 256, maxzoom: 15, attribution: 'Relief : Mapzen / AWS Terrain Tiles' };
+    sources.dem = dem;
+    const { attribution, ...sansCredit } = dem; // l'ombrage ne répète pas le crédit
+    sources['dem-ombre'] = sansCredit;
   }
   if (fond === 's2')
     sources.imagerie = {
@@ -729,7 +726,7 @@ async function start() {
   $('relief3d').addEventListener('change', (e) => {
     state.relief3d = e.target.checked;
     majRelief();
-    render({ complet: true }).then(setPitch);
+    render().then(setPitch); // par différences : un rechargement complet vidait la carte à chaque passage en 3D
   });
   majRelief();
   await render();
