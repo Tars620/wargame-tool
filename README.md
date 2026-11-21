@@ -147,3 +147,14 @@ Le moteur lit le terrain dans les mêmes tuiles vectorielles que la carte (zoom 
 - **Traçabilité** : chaque événement et chaque ordre est enregistré dans le journal chaîné (empreintes vérifiables, export Markdown ou JSON par l'arbitre).
 - **Assistant** : disponible pour les participants. Pour un joueur il ne propose que des ordres à ses pièces ; poser, tracer, rattacher ou régler le temps est refusé (« réservé à l'arbitre »). Il consomme le forfait de l'arbitre, un appel à la fois.
 - **Limites actuelles** : la détection est un simple rayon d'observation, sans terrain (forêt, relief) pour l'instant ; une pièce adverse disparaît de la vue dès qu'elle n'est plus détectée (pas de mémoire des dernières positions) ; les observateurs du journal n'ont pas de vue de la carte ; le réseau n'est pas chiffré (usage sur réseau de confiance) ; si l'arbitre ferme son onglet, les joueurs voient le dernier état figé.
+
+## Héberger sur un serveur (accessible depuis Internet)
+Le programme n'a aucune dépendance (Python 3 seul, base SQLite) et tient dans ~20 Mo de mémoire. Exemple de mise en place :
+1. Copier le projet dans `/opt/wargame`, avec `data/maps/monde-z7.pmtiles` (voir « Zones de jeu » : ce fichier n'est pas dans le dépôt, il pèse ~190 Mo).
+2. Installer le service `deploy/wargame.service` (écoute seulement en interne, mémoire plafonnée).
+3. Mettre nginx devant (`deploy/nginx.conf.example`) avec un certificat, puis un nom de domaine qui pointe vers le serveur.
+4. Facultatif mais recommandé en public : `WG_CLE_CREATION=<clé aléatoire>` dans `/etc/wargame.env`. Créer une partie à distance exige alors cette clé
+   (demandée une fois dans le navigateur) ; les joueurs rejoignent avec leur lien, sans clé.
+
+Sur un serveur, les liens bleu, rouge et arbitre utilisent l'adresse du site ; le lien Internet temporaire (tunnel) et l'assistant IA (qui appelle le
+programme `claude` de l'ordinateur local) ne sont disponibles que depuis l'ordinateur qui fait tourner le serveur.

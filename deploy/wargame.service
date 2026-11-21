@@ -1,0 +1,27 @@
+# Service systemd : /etc/systemd/system/wargame.service
+# Copier le dossier du projet dans /opt/wargame, créer l'utilisateur (useradd --system --shell /usr/sbin/nologin wargame),
+# puis : systemctl daemon-reload && systemctl enable --now wargame
+[Unit]
+Description=Wargame (carte et parties)
+After=network.target
+
+[Service]
+User=wargame
+Group=wargame
+WorkingDirectory=/opt/wargame
+# Facultatif, un fichier lisible seulement par root contenant : WG_CLE_CREATION=<une clé longue et aléatoire>
+# Avec cette clé, créer une partie depuis Internet exige de la connaître (les joueurs, eux, n'en ont pas besoin).
+EnvironmentFile=-/etc/wargame.env
+ExecStart=/usr/bin/python3 server.py --host 127.0.0.1 --port 8090 --db /opt/wargame/data/wargame.db
+Restart=on-failure
+RestartSec=3
+MemoryHigh=150M
+MemoryMax=220M
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/wargame/data
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
