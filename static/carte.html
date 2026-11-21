@@ -120,10 +120,14 @@ details[open] > summary::before { transform: rotate(45deg); margin-bottom: 4px; 
 .outils > button { display: flex; align-items: center; height: 100%; padding: 0 12px; border: 0; border-right: 1px solid var(--trait); font-size: var(--t-base); line-height: 1; white-space: nowrap; }
 .outils > button[aria-pressed=true] { background: var(--panneau-2); box-shadow: inset 0 -2px 0 var(--accent); color: var(--accent); }
 .outils > button:hover { background: var(--panneau-2); }
-.outils .cellule-camp { padding: 0 12px; color: var(--texte); background: color-mix(in srgb, var(--c) 32%, var(--panneau)); }
-.outils .cellule-camp:hover { background: color-mix(in srgb, var(--c) 55%, var(--panneau)); }
-.outils > .cellule-camp[aria-pressed=true] { background: var(--c); color: var(--sur); box-shadow: inset 0 -2px 0 var(--accent); }
-.outils .cellule-camp:first-of-type { border-left: 1px solid var(--trait-fort); }
+.camp-sel { position: relative; display: flex; border-left: 1px solid var(--trait-fort); border-right: 1px solid var(--trait); }
+.outils .camp-courant { width: 44px; height: 100%; border: 0; padding: 0; background: var(--c); position: relative; }
+.outils .camp-courant::after { content: ''; position: absolute; right: 5px; bottom: 5px; border: 4px solid transparent; border-top-color: #000; border-right-color: #000; opacity: .55; }
+.outils .camp-courant:hover { filter: brightness(1.12); }
+.camp-menu { position: absolute; top: 100%; left: -1px; z-index: 6; display: flex; flex-direction: column; background: var(--panneau); border: 1px solid var(--trait-fort); border-top: 0; }
+.camp-menu .camp-choix { width: 44px; height: 32px; border: 0; padding: 0; background: var(--c); border-top: 1px solid var(--trait); }
+.camp-menu .camp-choix:hover { filter: brightness(1.15); }
+.camp-menu .camp-choix[aria-pressed=true] { box-shadow: inset 0 0 0 3px var(--accent); }
 .outils .bord-droit { border-left: 1px solid var(--trait-fort); }
 .aide { flex: 1 1 auto; min-width: 0; align-self: center; padding: 0 10px; font-size: var(--t-sm); color: var(--texte-2); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .poignee { width: 12px; height: 12px; background: var(--accent); border: 2px solid var(--fond); cursor: grab; }

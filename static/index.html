@@ -37,10 +37,15 @@ button:disabled { opacity:.45; cursor:default; }
 .pending { display:grid; gap:6px; } .pending button { text-align:left; }
 .keys { font-size:13px; color:var(--gris); } .keys code { color:var(--encre); }
 .replay { display:flex; gap:8px; align-items:center; color:#c7c7cc; font-size:13px; } .replay input { width:160px; padding:0; }
+.topnav { display:flex; align-items:stretch; background:#000; color:#fff; height:36px; border-bottom:1px solid #2a2a2e; }
+.topnav b { font-weight:500; letter-spacing:.04em; text-transform:uppercase; font-size:13px; align-self:center; padding:0 14px; }
+.topnav a { color:#fff; text-decoration:none; font-size:14px; display:flex; align-items:center; padding:0 16px; border-left:1px solid #2a2a2e; border-right:1px solid #2a2a2e; background:#1d1d1f; }
+.topnav a:hover { background:#3a3a3e; }
 @media (max-width:860px){ .home{grid-template-columns:1fr} .layout{grid-template-columns:1fr} .panel{position:static} }
 </style>
 </head>
 <body>
+<nav class="topnav"><a href="/carte">← Carte</a><b>Journal de partie</b></nav>
 <div id="root"></div>
 <script src="/static/app.js"></script>
 </body>

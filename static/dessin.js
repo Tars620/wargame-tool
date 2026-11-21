@@ -121,12 +121,17 @@ function aideTexte() {
 
 function dessinerOutils() {
   const boutons = Object.entries(OUTILS).map(([cle, nom]) => h('button', { type: 'button', 'aria-pressed': String(state.outil === cle), onclick: () => setOutil(cle) }, nom));
-  const camps = Object.entries(NOM_CAMP).map(([camp, nom]) => h('button', { type: 'button', class: 'cellule-camp', 'data-tip': `Camp des prochains tracés : ${nom.toLowerCase()}`,
-    'aria-pressed': String(state.camp === camp), style: `--c:${camp === 'neutre' ? NEUTRE[state.theme] : COULEURS[camp]};--sur:${camp === 'neutre' && state.theme === 'clair' ? '#fff' : '#000'}`,
-    onclick: () => { state.camp = camp; dessinerOutils(); } }, nom));
+  const couleur = (camp) => (camp === 'neutre' ? NEUTRE[state.theme] : COULEURS[camp]);
+  // Un seul bouton : la couleur du camp en cours ; il déroule les trois couleurs, sans leur nom (l'infobulle le donne).
+  const choix = Object.keys(NOM_CAMP).map((camp) => h('button', { type: 'button', class: 'camp-choix', 'aria-pressed': String(state.camp === camp), style: `--c:${couleur(camp)}`,
+    'data-tip': NOM_CAMP[camp], 'aria-label': NOM_CAMP[camp], onclick: () => { state.camp = camp; state.menuCamp = false; dessinerOutils(); } }));
+  const camps = h('div', { class: 'camp-sel' },
+    h('button', { type: 'button', class: 'camp-courant', style: `--c:${couleur(state.camp)}`, 'aria-expanded': String(Boolean(state.menuCamp)), 'aria-label': `Camp des prochains tracés : ${NOM_CAMP[state.camp]}`,
+      'data-tip': `Camp des prochains tracés : ${NOM_CAMP[state.camp].toLowerCase()}`, onclick: () => { state.menuCamp = !state.menuCamp; dessinerOutils(); } }),
+    state.menuCamp ? h('div', { class: 'camp-menu' }, ...choix) : null);
   const bascule = h('button', { type: 'button', 'aria-pressed': String(state.couloirs), onclick: basculerCouloirs, class: 'bord-droit',
     'data-tip': 'Montre la zone de part et d\'autre des lignes de front et des limites (30 km par défaut, réglable par ligne)' }, 'Couloirs');
-  $('outils').replaceChildren(...boutons, ...camps, bascule);
+  $('outils').replaceChildren(...boutons, camps, bascule);
   $('aide-dessin').textContent = aideTexte();
   $('aide-dessin').style.display = state.outil === 'selection' && !state.selection ? 'none' : '';
 }
@@ -286,6 +291,7 @@ export function monter(map) {
     state.curseur = [e.lngLat.lng, e.lngLat.lat];
     $('aide-dessin').textContent = aideTexte(); rafraichir();
   });
+  document.addEventListener('pointerdown', (e) => { if (state.menuCamp && !e.target.closest('.camp-sel')) { state.menuCamp = false; dessinerOutils(); } });
   document.addEventListener('wg:outil', (e) => { if (e.detail === 'piece' && state.outil !== 'selection') setOutil('selection'); });
   document.addEventListener('wg:selection', (e) => { if (e.detail === 'piece' && state.selection) choisir(null); });
   document.addEventListener('keydown', (e) => {
