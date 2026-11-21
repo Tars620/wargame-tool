@@ -65,6 +65,16 @@ de trajet aux vitesses min et max. Les pièces sont gardées dans le navigateur 
 Les valeurs du catalogue sont des paramètres de jeu de départ, pas des données officielles.
 Le brouilleur n'a pas encore d'effet de brouillage.
 
+## Organisation du code
+JavaScript natif en modules (aucun framework ni étape de build) : `static/carte.html` + `carte.css`, puis `carte.js` qui monte les modules. Mise en forme : Prettier (`.prettierrc.json`, 160 colonnes).
+- **Moteur, sans accès au navigateur et testé** : `moteur`, `regles`, `terrain`, `geo`, `fuseaux`, `catalogue`, `scenario`, `mvt`.
+- **Briques d'interface** : `ui.js` (fabrique d'éléments `h`, `$`, stockage du navigateur, menu déroulant), `role.js` (rôle de l'onglet), `temps.js` (horloge de jeu et son menu).
+- **Pièces** : `pieces-etat` (état partagé), `pieces-carte` (couches et pions), `pieces-actions` (créer, déplacer, détruire, rattacher), `pieces-fiche` (banque et fiche), `pieces` (point d'entrée et montage).
+- **Consignes et simulation** : `ordres-etat`, `journal`, `simulation` (avance les consignes avec l'horloge), `ordres-carte` (trajets sur la carte), `ordres` (panneau, ordres des joueurs, montage).
+- **Autres** : `dessin`, `meteo`, `terrain-carte` (tuiles et surcouche), `ia`, `ia-actions`, `voix`, `partie`, `partie-ui`, et `app.js` pour la page « Journal de partie ».
+- Les modules d'un même ensemble ne s'importent pas en cercle : l'état partagé porte de petits liens (`state.surChoix`, `state.redessiner`, `state.redessinerListe`) que le module propriétaire fixe à son chargement.
+- Contrôle de mise en page : `scripts/audit_mise_en_page.js` (à passer dans la console de la carte).
+
 ## Limites connues
 - Pièces, consignes et journal des opérations sont gardés dans le navigateur : ni partagés entre postes, ni encore
   reliés au journal de partie. Les tirs ne causent aucun dégât (arbitrage humain) ; la météo ne limite que le vent des UAV.
