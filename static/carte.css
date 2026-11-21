@@ -19,12 +19,8 @@ body { font: var(--poids) var(--t-md)/1.45 Inter, system-ui, -apple-system, "Seg
 .top b { font-weight: var(--poids); letter-spacing: .04em; text-transform: uppercase; font-size: var(--t-base); }
 .top a { color: var(--texte); text-decoration: none; font-size: var(--t-base); }
 .top a:hover { color: var(--accent); }
-/* La carte occupe toute la largeur sous les panneaux : les ouvrir ou les fermer ne la redimensionne plus (c'était ce qui faisait ramer). Les panneaux glissent, la carte se décale par son « padding ». */
-@property --gauche-w { syntax: '<length>'; inherits: true; initial-value: 300px; }
-@property --droite-w { syntax: '<length>'; inherits: true; initial-value: 400px; }
-body { transition: --gauche-w .22s cubic-bezier(.4, 0, .2, 1), --droite-w .22s cubic-bezier(.4, 0, .2, 1); }
-#map { position: fixed; top: var(--haut); bottom: 0; left: 0; right: 0; }
-.maplibregl-ctrl-bottom-right { right: var(--droite-w); } .maplibregl-ctrl-bottom-left { left: var(--gauche-w); }
+/* La carte a exactement la taille de la zone visible entre les panneaux : un canevas plus large (caché sous les panneaux) doublerait le travail à chaque image. */
+#map { position: fixed; top: var(--haut); bottom: 0; left: var(--gauche-w); right: var(--droite-w); }
 body.g-ferme { --gauche-w: 0px; } body.d-ferme { --droite-w: 0px; }
 .panneau { position: fixed; top: var(--haut); bottom: 0; overflow: auto; background: var(--panneau); border: 1px solid var(--trait); border-top: 0; border-bottom: 0; padding: 6px 10px 8px; z-index: 4; transition: transform .22s cubic-bezier(.4, 0, .2, 1); will-change: transform; }
 .gauche { left: 0; width: var(--g); border-left: 0; } .droite { right: 0; width: var(--d); border-right: 0; }
@@ -95,6 +91,7 @@ button:hover { border-color: var(--accent); }
 @keyframes souffle { 0%, 100% { opacity: .35; height: 30px; } 50% { opacity: .85; height: 46px; } }
 @keyframes vol { 0%, 100% { transform: translateY(calc(var(--alt) * -1px)); } 50% { transform: translateY(calc(var(--alt) * -1px - 3px)); } }
 @keyframes balayage { to { transform: rotate(360deg); } }
+body.bouge .pion .symbole, body.bouge .pion .halo, body.bouge .pion .souffle { animation-play-state: paused; }
 @keyframes pouls { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.18); opacity: .45; } }
 .legende-zones { list-style: none; margin: 6px 0; padding: 0; font-size: var(--t-sm); } .legende-zones li { display: flex; align-items: center; gap: 8px; margin: 2px 0; } .legende-zones i { width: 14px; height: 10px; flex: none; opacity: .85; }
 

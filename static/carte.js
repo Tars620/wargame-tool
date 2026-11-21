@@ -39,6 +39,7 @@ const nasaTiles = (date) => `https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/
 const NASA_PROBE = '6/25/31'; // une tuile quelconque, servie dès qu'une journée d'imagerie existe
 const NASA_MAX_DAYS = 45;
 const PIXEL_RATIO_MAX = 1.5; // un écran dense (x2) coûte quatre fois les pixels : on plafonne pour rester léger
+const PIXEL_RATIO_MAX_3D = 1.25; // en relief 3D chaque image coûte bien plus cher
 const PITCH_3D = 70;
 const PITCH_MAX = 85;
 const EXAGERATION = { min: 1, max: 6, pas: 0.5, defaut: 3 };
@@ -155,13 +156,13 @@ function batiments() {
     type: 'fill-extrusion',
     source: 'protomaps',
     'source-layer': 'buildings',
-    minzoom: 13,
+    minzoom: 14,
     paint: {
       'fill-extrusion-color': THEMES[state.theme].batiment,
       'fill-extrusion-height': ['coalesce', ['get', 'height'], 9],
       'fill-extrusion-base': ['coalesce', ['get', 'min_height'], 0],
-      'fill-extrusion-opacity': 0.92,
-      'fill-extrusion-vertical-gradient': true
+      'fill-extrusion-opacity': 1, // opaque : pas de tri ni de mélange coûteux
+      'fill-extrusion-vertical-gradient': false
     }
   };
 }
@@ -272,6 +273,38 @@ function showError(message) {
 }
 const zoomMax = (zone) => Math.min(zone.maxzoom + (zone.maxzoom >= 14 ? SURZOOM_DETAIL : SURZOOM), ZOOM_ABSOLU);
 
+/** Résolution de dessin : plafonnée, et un peu plus basse en relief 3D. */
+const resolution = () => Math.min(window.devicePixelRatio || 1, state.relief3d ? PIXEL_RATIO_MAX_3D : PIXEL_RATIO_MAX);
+
+/** Vue décrite par l'adresse (#zoom/latitude/longitude/cap/inclinaison), sinon rien : la zone choisie donne la vue de départ. */
+function vueDepuisAdresse() {
+  const [zoom, lat, lng, cap = 0, inclinaison = 0] = location.hash.replace('#', '').split('/').map(Number);
+  if (![zoom, lat, lng].every(Number.isFinite)) return {};
+  return { zoom, center: [lng, lat], bearing: Number.isFinite(cap) ? cap : 0, pitch: Number.isFinite(inclinaison) ? inclinaison : 0 };
+}
+const DELAI_ADRESSE_MS = 600;
+/** Garde l'adresse à jour une fois le mouvement fini (une écriture au plus toutes les 600 ms : Safari en limite le nombre) ; une adresse changée à la main déplace la carte. */
+function suivreAdresse(map) {
+  const forme = () => {
+    const c = map.getCenter();
+    const f = (v, n) => v.toFixed(n);
+    const base = `#${f(map.getZoom(), 2)}/${f(c.lat, 5)}/${f(c.lng, 5)}`;
+    return map.getBearing() || map.getPitch() ? `${base}/${f(map.getBearing(), 1)}/${f(map.getPitch(), 1)}` : base;
+  };
+  let minuteur = 0;
+  map.on('moveend', () => {
+    clearTimeout(minuteur);
+    minuteur = setTimeout(() => {
+      const h = forme();
+      if (h !== location.hash) history.replaceState(history.state, '', `${location.pathname}${location.search}${h}`);
+    }, DELAI_ADRESSE_MS);
+  });
+  window.addEventListener('hashchange', () => {
+    const v = vueDepuisAdresse();
+    if (v.center && location.hash !== forme()) map.jumpTo(v);
+  });
+}
+
 function createMap() {
   maplibre.addProtocol('pmtiles', new Protocol().tile);
   const zone = state.zone;
@@ -284,10 +317,14 @@ function createMap() {
     maxPitch: PITCH_MAX,
     maxBounds: boundsFor(zone),
     attributionControl: { compact: false },
-    pixelRatio: Math.min(window.devicePixelRatio || 1, PIXEL_RATIO_MAX),
+    pixelRatio: resolution(),
     fadeDuration: 0,
-    hash: true
+    ...vueDepuisAdresse() // l'adresse est lue ici et écrite par nous seuls (voir suivreAdresse) : la gestion intégrée de la bibliothèque la réécrit trop souvent
   });
+  suivreAdresse(map);
+  // Pendant un déplacement de la carte, les animations des pions (vol, anneaux) se figent : chaque image sert à la carte.
+  map.on('movestart', () => document.body.classList.add('bouge'));
+  map.on('moveend', () => document.body.classList.remove('bouge'));
   map.addControl(new maplibre.NavigationControl({ visualizePitch: true }), 'bottom-right');
   map.addControl(new maplibre.ScaleControl({ unit: 'metric' }), 'bottom-right');
   map.on('mousemove', (e) => {
@@ -303,8 +340,7 @@ function createMap() {
   const capCarte = () => $('map').style.setProperty('--cap-carte', `${Math.round(map.getBearing())}deg`);
   map.on('rotate', capCarte);
   capCarte();
-  new ResizeObserver(() => map.resize()).observe($('map')); // seulement quand la fenêtre change de taille
-  paddingCarte(false, map);
+  new ResizeObserver(() => map.resize()).observe($('map')); // un seul redimensionnement quand un panneau s'ouvre ou se ferme
   // Les panneaux se montent dès que le style est prêt : inutile d'attendre les tuiles (lentes quand la carte est en ligne).
   map.once('style.load', () => {
     monterTemps(map);
@@ -360,7 +396,9 @@ async function render({ complet = false } = {}) {
 }
 
 function setPitch() {
-  state.map && state.map.easeTo({ pitch: state.relief3d ? PITCH_3D : 0, bearing: state.relief3d ? -20 : 0, duration: 1200 });
+  if (!state.map) return;
+  state.map.setPixelRatio(resolution());
+  state.map.easeTo({ pitch: state.relief3d ? PITCH_3D : 0, bearing: state.relief3d ? -20 : 0, duration: 1200 });
 }
 
 function flyToZone() {
@@ -624,16 +662,6 @@ function basculerSection(d) {
 
 // Les barres latérales sont collées aux bords de l'écran et se replient en entier (un onglet reste visible).
 const PANNEAUX_KEY = 'wg.panneaux';
-/** Décale le centre de la carte pour qu'il reste au milieu de la partie visible entre les panneaux (la carte, elle, ne change pas de taille). */
-function paddingCarte(anime, carte = state.map) {
-  if (!carte) return;
-  const px = (v) => Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(v)) || 0;
-  const corps = document.body.classList;
-  const padding = { left: corps.contains('g-ferme') ? 0 : px('--g'), right: corps.contains('d-ferme') ? 0 : px('--d'), top: 0, bottom: 0 };
-  if (anime) carte.easeTo({ padding, duration: 220, easing: (t) => t * t * (3 - 2 * t) });
-  else carte.setPadding(padding);
-}
-window.addEventListener('resize', () => paddingCarte(false));
 function panneauxRepliables() {
   let ouvert = { g: true, d: true, ...lireJson(PANNEAUX_KEY, {}) };
   const appliquer = () => {
@@ -641,7 +669,6 @@ function panneauxRepliables() {
     document.body.classList.toggle('d-ferme', !ouvert.d);
     $('onglet-g').textContent = ouvert.g ? '‹' : '›';
     $('onglet-d').textContent = ouvert.d ? '›' : '‹';
-    paddingCarte(true);
   };
   for (const cote of ['g', 'd']) {
     $(`onglet-${cote}`).addEventListener('click', () => {
