@@ -63,7 +63,12 @@ const THEMES = {
   sombre: {
     nom: 'Sombre',
     base: 'black',
-    reglages: { background: '#050506', water: '#050506', earth: '#1a1b1f' },
+    // Routes, forêts et eaux doivent se lire : elles décident des déplacements (artillerie sur route, forêt qui cache, eau qui bloque).
+    reglages: {
+      background: '#050506', water: '#0f1d2e', earth: '#1a1b1f', wood_a: '#1f2b24', wood_b: '#1f2b24', park_a: '#1e2620', park_b: '#1e2620',
+      minor_a: '#3b3e45', minor_b: '#33363c', minor_service: '#2c2e33', other: '#2c2e33', link: '#3b3e45', major: '#51545c', highway: '#62656e',
+      bridges_minor: '#3b3e45', bridges_major: '#51545c', bridges_highway: '#62656e', railway: '#3a3d44', buildings: '#101114'
+    },
     frontPlan: '#a3a6b0',
     relief: { shadow: '#000000', highlight: '#5a5d66', accent: '#1d1e22' }
   },

@@ -8,6 +8,7 @@ Les décisions restent humaines : l'outil enregistre, ne décide pas.
 """
 import argparse
 import atexit
+import gzip
 import hashlib
 import json
 import os
@@ -475,6 +476,9 @@ def _disque_elaguer():
         pass
 
 
+_STATIQUE = {}  # fichiers de l'application déjà lus et compressés : chemin -> (date, octets, gzip, etag)
+
+
 def _cache_lire(cle):
     with _relais_verrou:
         valeur = _relais_cache.get(cle)
@@ -754,7 +758,33 @@ class Handler(BaseHTTPRequestHandler):
                  "mjs": "text/javascript; charset=utf-8", "css": "text/css; charset=utf-8",
                  "woff2": "font/woff2", "txt": "text/plain; charset=utf-8"}.get(name.rsplit(".", 1)[-1],
                                                                                 "application/octet-stream")
-        self._send_file(full, ctype)
+        self._servir_statique(full, ctype, name.rsplit(".", 1)[-1], name.startswith(("vendor/", "fonts/")))
+
+    def _servir_statique(self, full, ctype, ext, stable):
+        """Fichier de l'application : compressé (gzip) pour le texte, avec ETag. Les bibliothèques et polices (stables) se gardent un jour dans le navigateur,
+        le reste se revalide à chaque ouverture (réponse vide 304 si rien n'a changé). Sans cela, un lien lent (tunnel) mettait plus d'une minute à charger."""
+        if self.headers.get("Range") or not os.path.isfile(full):
+            return self._send_file(full, ctype)
+        etat = os.stat(full)
+        entree = _STATIQUE.get(full)
+        if not entree or entree[0] != etat.st_mtime_ns:
+            with open(full, "rb") as f:
+                brut = f.read()
+            compresse = gzip.compress(brut, 6) if ext in ("js", "mjs", "css", "html", "txt", "json") and len(brut) > 1024 else None
+            entree = (etat.st_mtime_ns, brut, compresse, f'"{etat.st_mtime_ns:x}-{len(brut):x}"')
+            _STATIQUE[full] = entree
+        _, brut, compresse, etag = entree
+        extra = {"ETag": etag, "Cache-Control": "public, max-age=86400" if stable else "no-cache", "Vary": "Accept-Encoding"}
+        if self.headers.get("If-None-Match") == etag:
+            self.send_response(304)
+            for k, v in extra.items():
+                self.send_header(k, v)
+            self.end_headers()
+            return
+        if compresse is not None and "gzip" in (self.headers.get("Accept-Encoding") or ""):
+            extra["Content-Encoding"] = "gzip"
+            return self._send(200, compresse, ctype, extra)
+        self._send(200, brut, ctype, extra)
 
     def _relay_online(self, key):
         """Relaie une tranche d'une carte en ligne (le navigateur ne peut pas la lire lui-même : pas de CORS).
