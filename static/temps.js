@@ -108,11 +108,29 @@ function afficher() {
   majCommandes();
 }
 
+/** Pas de simulation au plus longs que ça (ms de temps de jeu) : en deçà, une seconde de jeu rapide ne saute pas ce qui se passe entre deux tops. */
+export const PAS_SIMULATION_MS = 15000;
+/** Au plus ce nombre de pas par top d'horloge : un onglet endormi pendant des heures ne gèle pas la page à son réveil. */
+export const PAS_PAR_TOP_MAX = 240;
+/**
+ * Découpe un laps de temps de jeu en pas bornés : [{ t, dt }]. Sans cela, un top en retard (onglet en veille, ordinateur qui rame, vitesse élevée)
+ * faisait un seul pas énorme, et l'endurance d'un drone tombait à zéro avant que son retour automatique ait pu se déclencher.
+ */
+export function decouperPas(debut, fin, pasMax = PAS_SIMULATION_MS, nMax = PAS_PAR_TOP_MAX) {
+  const pas = [];
+  let t = debut;
+  while (t < fin && pas.length < nMax) {
+    const dt = Math.min(pasMax, fin - t);
+    t += dt;
+    pas.push({ t, dt });
+  }
+  return pas;
+}
+
 function tick() {
   const t = maintenant();
-  const dt = t - state.dernier;
+  for (const { t: tp, dt } of decouperPas(state.dernier, t)) for (const fn of state.abonnes) fn(tp, dt);
   state.dernier = t;
-  if (dt > 0) for (const fn of state.abonnes) fn(t, dt);
   afficher();
 }
 

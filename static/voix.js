@@ -52,15 +52,31 @@ export function ecouter({ surTexte, surFin, surErreur }) {
 }
 
 let enCours = null;
-/** Lit un texte à voix haute (français). */
-export function parler(texte) {
+
+/** Voix françaises installées sur cet ordinateur, triées par nom ({ name, lang }). Vide tant que le navigateur ne les a pas chargées. */
+export function voixFrancaises() {
+  if (!lectureDisponible()) return [];
+  return window.speechSynthesis
+    .getVoices()
+    .filter((v) => v.lang && v.lang.toLowerCase().startsWith('fr'))
+    .map((v) => ({ name: v.name, lang: v.lang }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
+}
+/** Appelle `fn` quand la liste des voix change (le navigateur la charge après le démarrage). */
+export function surVoix(fn) {
+  if (lectureDisponible()) window.speechSynthesis.addEventListener('voiceschanged', fn);
+}
+
+/** Lit un texte à voix haute (français), avec la voix demandée par son nom, sinon la première voix française. */
+export function parler(texte, nomVoix = null) {
   if (!lectureDisponible() || !texte) return;
   taire();
   const u = new SpeechSynthesisUtterance(texte);
   u.lang = LANGUE;
   u.rate = 1.05;
-  const voix = window.speechSynthesis.getVoices().find((v) => v.lang && v.lang.toLowerCase().startsWith('fr'));
-  if (voix) u.voice = voix;
+  const voix = window.speechSynthesis.getVoices();
+  const choisie = (nomVoix && voix.find((v) => v.name === nomVoix)) || voix.find((v) => v.lang && v.lang.toLowerCase().startsWith('fr'));
+  if (choisie) u.voice = choisie;
   enCours = u;
   window.speechSynthesis.speak(u);
 }

@@ -3,11 +3,13 @@ import { avecIdsReels, contexte, planifier } from './ia-actions.js';
 import { listerPieces, catalogue, creerPieces, attacherPoste } from './pieces.js';
 import { ajouterConsignes, etatOrdres, libelleConsigne, noterOperation } from './ordres.js';
 import { ajouterDessin, listerDessins } from './dessin.js';
-import { dicteeDisponible, lectureDisponible, ecouter, parler, taire } from './voix.js';
+import { dicteeDisponible, lectureDisponible, ecouter, parler, taire, voixFrancaises, surVoix } from './voix.js';
 import { estJoueur, role } from './role.js';
 import { envoyerOrdre } from './partie.js';
 import { maintenant, enMarche, vitesse, arreter, demarrer, reglerVitesse } from './temps.js';
 import { h, ecrireJson, lireJson } from './ui.js';
+import { visiblesPour } from './moteur.js';
+import { terrain } from './terrain-carte.js';
 
 const DELAI_CLIENT_MS = 100000;
 const ECHANGES_MEMOIRE = 4;
@@ -25,6 +27,23 @@ function reglage(cle, valeur) {
   ecrireJson(REGLAGES_KEY, state.reglages);
 }
 const $ = (id) => document.getElementById(id);
+/** Choix de la voix de lecture : « Automatique » ou l'une des voix françaises du système, avec un bouton d'essai. */
+function choixVoix() {
+  const liste = h('select', { 'aria-label': 'Voix de lecture', onchange: (e) => reglage('voix', e.target.value || null) });
+  const remplir = () => {
+    const voix = voixFrancaises();
+    liste.replaceChildren(
+      h('option', { value: '' }, 'Voix : automatique'),
+      ...voix.map((v) => h('option', { value: v.name, selected: v.name === state.reglages.voix }, `${v.name} (${v.lang})`))
+    );
+    liste.value = voix.some((v) => v.name === state.reglages.voix) ? state.reglages.voix : '';
+  };
+  remplir();
+  surVoix(remplir); // le navigateur charge la liste après le démarrage
+  const essai = h('button', { type: 'button', onclick: () => parler('Bonjour, voici cette voix.', state.reglages.voix) }, 'Essai');
+  return h('div', { class: 'ia-voix' }, liste, essai);
+}
+
 function ajouter(noeud) {
   const fil = $('ia-fil');
   fil.append(noeud);
@@ -32,6 +51,19 @@ function ajouter(noeud) {
   return noeud;
 }
 const ligne = (classe, texte) => ajouter(h('p', { class: `ia-ligne ${classe}` }, texte));
+
+/** Qui est détecté par quel camp en ce moment : { idPièce: ['bleu'] } (arbitre seulement : un joueur ne doit rien savoir du camp adverse). */
+function detections() {
+  const pieces = listerPieces();
+  const sortie = {};
+  for (const camp of ['bleu', 'rouge']) {
+    for (const id of visiblesPour(camp, pieces, terrain)) {
+      const p = pieces.find((q) => q.id === id);
+      if (p && p.camp !== camp) sortie[id] = [...(sortie[id] || []), camp];
+    }
+  }
+  return sortie;
+}
 
 function situation() {
   const c = state.map.getCenter();
@@ -46,7 +78,8 @@ function situation() {
       dessins: listerDessins(),
       libelleConsigne,
       vue: { lng: Math.round(c.lng * 1e4) / 1e4, lat: Math.round(c.lat * 1e4) / 1e4, zoom: Math.round(state.map.getZoom() * 10) / 10 },
-      horloge: { heure_utc: new Date(maintenant()).toISOString(), vitesse: vitesse(), enMarche: enMarche() }
+      horloge: { heure_utc: new Date(maintenant()).toISOString(), vitesse: vitesse(), enMarche: enMarche() },
+      detectees: estJoueur() ? {} : detections()
     }),
     echanges: state.echanges.slice(-ECHANGES_MEMOIRE)
   };
@@ -188,7 +221,7 @@ async function envoyer() {
     attente.remove();
     if (rep.message) {
       ligne('assistant', rep.message);
-      if (state.reglages.lecture) parler(rep.message);
+      if (state.reglages.lecture) parler(rep.message, state.reglages.voix);
     }
     const plan = restreindre(planifier(rep.actions, { pieces: listerPieces(), catalogue: catalogue() }));
     if (plan.length) afficherPlan(plan);
@@ -332,7 +365,8 @@ export function monter(map) {
             }),
             'Lire les réponses à voix haute'
           )
-        : null
+        : null,
+      lectureDisponible() ? choixVoix() : null
     )
   );
 }

@@ -58,7 +58,7 @@ export function disposer(centre, n, disposition, ecartKm, capDeg = 0) {
 }
 
 /** Ce que l'assistant sait de la situation : compact, arrondi, borné. */
-export function contexte({ catalogue = [], pieces = [], ordres = {}, dessins = [], vue = null, horloge = null, libelleConsigne = () => '' }) {
+export function contexte({ catalogue = [], pieces = [], ordres = {}, dessins = [], vue = null, horloge = null, detectees = {}, libelleConsigne = () => '' }) {
   const fiche = (m) => ({
     id: m.id,
     nom: m.nom,
@@ -87,6 +87,7 @@ export function contexte({ catalogue = [], pieces = [], ordres = {}, dessins = [
       lng: r4(p.lng),
       lat: r4(p.lat),
       detruit: !!p.detruit,
+      ...(detectees[p.id] && detectees[p.id].length ? { detectee_par: detectees[p.id] } : {}),
       ...(p.endurance_min ? { etat: p.etat || 'sol', endurance_restante_min: Math.round(enduranceRestante(p) * 10) / 10 } : {}),
       ...(exigePoste(p) ? { equipe: p.poste || null, liaison_ok: etatLiaison(p, pieces).ok } : {}),
       consignes: (ordres[p.id] || []).filter((c) => c.statut !== 'terminee').map((c) => libelleConsigne(c))

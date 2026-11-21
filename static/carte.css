@@ -216,3 +216,7 @@ html[data-role=joueur] [data-arbitre] { display: none !important; }
 *, *::before, *::after { font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; font-synthesis: none; }
 b, strong, h1, h2, h3, h4, h5, th, summary, label, button, .maplibregl-map, .maplibregl-ctrl, .maplibregl-popup { font-weight: var(--poids); }
 body { font-variant-numeric: tabular-nums; }
+
+.ia-voix { display: flex; gap: 4px; margin-top: 4px; }
+.ia-voix select { flex: 1; min-width: 0; padding: 3px 6px; font-size: var(--t-xs); }
+.ia-voix button { padding: 3px 10px; font-size: var(--t-xs); }

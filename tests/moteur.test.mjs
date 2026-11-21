@@ -107,3 +107,27 @@ test('visibilité : un camp voit les siens et ce que voient ses pièces, pas le 
   const r1 = piece('r1', 'rouge', 17, 47.1), r2 = piece('r2', 'rouge', 17, 48);
   assert.deepEqual([...visiblesPour('bleu', [drone, r1, r2])].sort(), ['d1', 'r1']);
 });
+
+test('temps : un top en retard est découpé en pas bornés (un drone ne perd plus toute son endurance en un seul pas)', async () => {
+  const { decouperPas, PAS_SIMULATION_MS, PAS_PAR_TOP_MAX } = await import('../static/temps.js');
+  assert.deepEqual(decouperPas(1000, 1000), []);
+  assert.deepEqual(decouperPas(0, 15000), [{ t: 15000, dt: 15000 }], 'un top normal reste un seul pas');
+  const pas = decouperPas(0, 3600 * 1000); // une heure de jeu d'un coup
+  assert.equal(pas.length, 240);
+  assert.ok(pas.every((p) => p.dt <= PAS_SIMULATION_MS));
+  assert.equal(pas.reduce((s, p) => s + p.dt, 0), 3600 * 1000, 'toute la durée est jouée');
+  assert.equal(pas[pas.length - 1].t, 3600 * 1000);
+  assert.equal(decouperPas(0, 24 * 3600 * 1000).length, PAS_PAR_TOP_MAX, 'un onglet endormi un jour ne gèle pas la page');
+  const reste = decouperPas(5000, 5000 + 40000);
+  assert.deepEqual(reste.map((p) => p.dt), [15000, 15000, 10000]);
+});
+
+test('contexte de l\'assistant : les pièces détectées portent le camp qui les a repérées', async () => {
+  const { contexte } = await import('../static/ia-actions.js');
+  const ctx = contexte({
+    catalogue: [],
+    pieces: [{ id: 'a', nom: 'A', type: 'x', camp: 'bleu', lng: 1, lat: 2 }, { id: 'b', nom: 'B', type: 'x', camp: 'rouge', lng: 1, lat: 2 }],
+    detectees: { b: ['bleu'] }
+  });
+  assert.deepEqual(ctx.pieces.map((p) => p.detectee_par ?? null), [null, ['bleu']]);
+});
