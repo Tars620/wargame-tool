@@ -191,7 +191,7 @@ function pas(t, dtMs) {
     state.ordres = { ...state.ordres, [piece.id]: file.map((x, j) => (j === i ? suivi : x)) };
     change = true;
   }
-  if (change) { sauver(); suivreContacts(t); dessinerConsignes(); rafraichirCarte(); }
+  if (change) { sauver(); suivreContacts(t); dessinerListe(); rafraichirCarte(); }
   majVisibilite();
 }
 
@@ -301,12 +301,35 @@ function dessinerConsignes() {
   }
   lignes.push(h('div', { id: 'o-bilan' }), h('button', { type: 'button', id: 'o-ajouter', class: 'primaire', onclick: ajouter }, 'Donner la consigne'));
 
-  const file = fileDe(piece.id);
-  const suite = file.length ? file.map((c) => h('div', { class: 'consigne' },
-    h('span', {}, h('b', {}, libelle(c, pieces)), h('small', {}, STATUTS[c.statut])), h('button', { type: 'button', title: 'Retirer', onclick: () => retirer(piece.id, c.id) }, '×')))
-    : [h('p', { class: 'note' }, 'Aucune consigne pour cette pièce.')];
-  boite.replaceChildren(...lignes, h('h4', {}, `Consignes de ${piece.nom}`), ...suite);
+  boite.replaceChildren(...lignes, h('div', { id: 'o-liste' }));
+  listeVue = null;
+  dessinerListe();
   dessinerBilan();
+}
+
+// La suite des consignes change à chaque pas d'horloge ; le formulaire au-dessus, jamais : sinon une liste déroulante ouverte se refermerait sous la souris.
+let listeVue = null;
+function dessinerListe() {
+  const zone = $('o-liste');
+  const piece = pieceCourante();
+  if (!zone || !piece) return;
+  const pieces = listerPieces();
+  const file = fileDe(piece.id);
+  const lignes = file.map((c) => ({ id: c.id, texte: libelle(c, pieces), statut: STATUTS[c.statut] }));
+  const cle = JSON.stringify([piece.id, piece.nom, lignes]);
+  if (cle === listeVue) return; // rien n'a changé : on ne touche pas à la page (un clic sur « × » ne doit pas tomber dans le vide)
+  listeVue = cle;
+  const suite = lignes.length ? lignes.map((l) => h('div', { class: 'consigne' },
+    h('span', {}, h('b', {}, l.texte), h('small', {}, l.statut)), h('button', { type: 'button', title: 'Retirer', onclick: () => retirer(piece.id, l.id) }, '×')))
+    : [h('p', { class: 'note' }, 'Aucune consigne pour cette pièce.')];
+  zone.replaceChildren(h('h4', {}, `Consignes de ${piece.nom}`), ...suite);
+}
+
+/** Reconstruit le formulaire, sauf si l'arbitre est en train de s'en servir (champ actif dans le panneau). */
+function dessinerConsignesSiLibre() {
+  const actif = document.activeElement;
+  if (actif && $('consignes') && $('consignes').contains(actif) && ['SELECT', 'INPUT'].includes(actif.tagName)) { dessinerListe(); return; }
+  dessinerConsignes();
 }
 
 // ---------- montage ----------
@@ -319,7 +342,7 @@ export function monter(map) {
   document.addEventListener('wg:pieces', () => {
     const ids = new Set(listerPieces().map((p) => p.id));
     state.ordres = Object.fromEntries(Object.entries(state.ordres).filter(([id]) => ids.has(id)));
-    dessinerConsignes(); dessinerOperation(); rafraichirCarte(); majVisibilite();
+    dessinerConsignesSiLibre(); dessinerOperation(); rafraichirCarte(); majVisibilite();
   });
   document.addEventListener('keydown', (e) => {
     if (!state.pointage) return;
