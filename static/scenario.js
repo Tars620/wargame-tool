@@ -35,9 +35,16 @@ function piece(p, i) {
   const meteo = brut(p.meteo_max) && nombre(p.meteo_max.vent_kmh, 0, 1000) ? { vent_kmh: p.meteo_max.vent_kmh } : null;
   const dep = brut(p.dernier_deplacement) && nombre(p.dernier_deplacement.km, 0, 1e6) && points(p.dernier_deplacement.trace, 2)
     ? { km: p.dernier_deplacement.km, trace: p.dernier_deplacement.trace.map((q) => [q[0], q[1]]) } : null;
-  return { id: p.id, type: p.type, nom: p.nom, camp: p.camp, lng: p.lng, lat: p.lat,
+  exiger(p.poste === undefined || p.poste === null || texte(p.poste, 40), `${ou} : poste de commandement invalide`);
+  exiger(p.commande === undefined || (brut(p.commande) && nombre(p.commande.portee_km, 0, 5000)), `${ou} : portée de liaison invalide`);
+  const sortie = { id: p.id, type: p.type, nom: p.nom, camp: p.camp, lng: p.lng, lat: p.lat,
     mouvement: { min: p.mouvement.min, max: p.mouvement.max }, feu: { portee_km: p.feu.portee_km, puissance: p.feu.puissance },
     vision: { rayon_km: p.vision.rayon_km }, meteo_max: meteo, dernier_deplacement: dep };
+  if (p.detruit === true) sortie.detruit = true;
+  if (p.liaison === true) sortie.liaison = true;
+  if (p.commande !== undefined) sortie.commande = { portee_km: p.commande.portee_km };
+  if (p.poste) sortie.poste = p.poste;
+  return sortie;
 }
 
 function dessin(d, i) {
@@ -61,7 +68,7 @@ function consigne(c, idPiece) {
   if (c.allure !== undefined) s.allure = c.allure;
   if (c.type === 'aller') { exiger(points(c.points, 1), `${ou} : destination invalide`); s.points = c.points.map((q) => [q[0], q[1]]); }
   if (c.type === 'observer') { exiger(nombre(c.dureeMin, 0, 1e6), `${ou} : durée invalide`); s.dureeMin = c.dureeMin; }
-  if (c.type === 'engager') { exiger(texte(c.cibleId, 40), `${ou} : cible invalide`); s.cibleId = c.cibleId; }
+  if (c.type === 'engager') { exiger(texte(c.cibleId, 40), `${ou} : cible invalide`); s.cibleId = c.cibleId; if (c.detruit === true) s.detruit = true; }
   for (const cle of ['etape', 'ecouleMin', 'distanceKm', 'debutMs', 'finMs']) {
     if (c[cle] !== undefined) { exiger(nombre(c[cle], 0, 1e15), `${ou} : ${cle} invalide`); s[cle] = c[cle]; }
   }
@@ -115,7 +122,7 @@ export function versGeoJSON(scenario, catalogue = []) {
     const modele = catalogue.find((m) => m.id === p.type);
     features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lng, p.lat] }, properties: {
       kind: 'unit', id: p.id, name: p.nom, side: IDENTITE[p.camp], camp: p.camp, type: p.type, sidc: modele && modele.sidc ? sidc(modele, p.camp) : null,
-      speed_min_kmh: p.mouvement.min, speed_max_kmh: p.mouvement.max, fire_range_km: p.feu.portee_km, fire_power: p.feu.puissance, vision_km: p.vision.rayon_km } });
+      speed_min_kmh: p.mouvement.min, speed_max_kmh: p.mouvement.max, fire_range_km: p.feu.portee_km, fire_power: p.feu.puissance, vision_km: p.vision.rayon_km, destroyed: p.detruit === true, command_post: Boolean(p.commande), linked_to: p.poste || null } });
   }
   for (const d of scenario.dessins) {
     const geometry = d.genre === 'zone' ? { type: 'Polygon', coordinates: [[...d.points, d.points[0]]] } : { type: 'LineString', coordinates: d.points };

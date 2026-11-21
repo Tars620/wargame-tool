@@ -1,8 +1,8 @@
 import { distanceKm, formatKm, formatDuree } from './geo.js';
-import { ALLURES, avancer, contacts, verifier, visiblesPour, vitesse } from './moteur.js';
+import { ALLURES, avancer, contacts, etatLiaison, exigePoste, phraseLiaison, verifier, visiblesPour, vitesse } from './moteur.js';
 import { PARIS, date, heure } from './fuseaux.js';
 import { maintenant, surTick } from './temps.js';
-import { listerPieces, pieceChoisie, choisirPiece, positionner, appliquerVisibilite, detruire, restaurer } from './pieces.js';
+import { listerPieces, pieceChoisie, choisirPiece, positionner, appliquerVisibilite, detruire, restaurer, rafraichirPortees } from './pieces.js';
 import { conditions } from './meteo.js';
 
 export const SOURCE_CONSIGNES = 'consignes';
@@ -15,7 +15,7 @@ const STATUTS = { attente: 'En attente', lance: 'À démarrer', en_cours: 'En co
 const TYPES = { aller: 'Aller à', observer: 'Observer', engager: 'Engager (feu)' };
 
 const state = { map: null, ordres: {}, journal: [], depart: null, pointDeVue: 'arbitre', pointage: null,
-  forme: { type: 'aller', allure: 'normale', dureeMin: 10, cibleId: '' }, contactsVus: new Set(), meteo: null, theme: 'sombre' };
+  forme: { type: 'aller', allure: 'normale', dureeMin: 10, cibleId: '' }, contactsVus: new Set(), liaisons: null, meteo: null, theme: 'sombre' };
 const $ = (id) => document.getElementById(id);
 
 function h(tag, props = {}, ...kids) {
@@ -182,9 +182,18 @@ function pas(t, dtMs) {
     const file = fileDe(piece.id);
     const i = file.findIndex((c) => c.statut === 'lance' || c.statut === 'en_cours');
     if (i < 0) continue;
+    if (exigePoste(piece) && !etatLiaison(piece, pieces).ok) continue; // liaison coupée : rien ne s'exécute tant qu'elle ne revient pas
     let c = file[i];
     if (c.statut === 'lance') { c = { ...c, statut: 'en_cours', debutMs: t, depart: [piece.lng, piece.lat] }; noter(t, `${piece.nom} : début « ${libelle(c, pieces)} ».`, 'info'); }
     const r = avancer(piece, c, dtMin, pieces);
+    if (exigePoste(piece) && r.position) { // le poste a pu bouger : jamais plus loin que sa portée
+      const l = etatLiaison({ ...piece, lng: r.position[0], lat: r.position[1] }, pieces);
+      if (!l.ok && l.raison === 'hors_portee') {
+        noter(t, `LIAISON : ${piece.nom} s'arrête, la suite de « ${libelle(c, pieces)} » sortirait de la portée de son poste (${l.poste.nom}).`, 'alerte');
+        state.ordres = { ...state.ordres, [piece.id]: file.map((x, j) => (j === i ? { ...c, statut: 'terminee', finMs: t } : x)) };
+        change = true; continue;
+      }
+    }
     positionner(piece.id, r.position, r.termine && c.type !== 'observer' ? c.depart : null);
     for (const e of r.evenements) evenement(t, e, pieces);
     const suivi = r.termine ? { ...r.consigne, statut: 'terminee', finMs: t } : { ...r.consigne, statut: 'en_cours' };
@@ -192,7 +201,24 @@ function pas(t, dtMs) {
     change = true;
   }
   if (change) { sauver(); suivreContacts(t); dessinerListe(); rafraichirCarte(); }
+  suivreLiaisons(t);
+  if (change) rafraichirPortees();
   majVisibilite();
+}
+
+/** Journal des liaisons : une ligne quand une liaison se coupe, une quand elle revient (la situation de départ n'est pas rapportée). */
+function suivreLiaisons(t) {
+  const pieces = listerPieces();
+  const coupees = new Set();
+  for (const p of pieces) if (exigePoste(p) && !p.detruit && !etatLiaison(p, pieces).ok) coupees.add(p.id);
+  if (state.liaisons) {
+    for (const p of pieces) {
+      if (coupees.has(p.id) && !state.liaisons.has(p.id)) noter(t, `LIAISON COUPÉE : ${p.nom} ${phraseLiaison(etatLiaison(p, pieces))}.`, 'alerte');
+      else if (!coupees.has(p.id) && state.liaisons.has(p.id) && exigePoste(p) && !p.detruit) noter(t, `Liaison rétablie : ${p.nom} avec ${etatLiaison(p, pieces).poste.nom}.`, 'info');
+    }
+    if (coupees.size !== state.liaisons.size || [...coupees].some((id) => !state.liaisons.has(id))) rafraichirPortees();
+  }
+  state.liaisons = coupees;
 }
 
 function suivreContacts(t) {

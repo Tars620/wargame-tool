@@ -4,8 +4,8 @@ const IDENTITE_INCONNUE = '4';              // 4 = inconnu
 
 /** Code SIDC à 20 chiffres d'un modèle de pièce pour un camp : version, contexte, identité, ensemble, statut, entité. */
 export function sidc(modele, camp) {
-  const { jeu, entite } = modele.sidc;
-  return `100${IDENTITE[camp] || IDENTITE_INCONNUE}${jeu}0000${entite}0000`;
+  const { jeu, entite, etat_major: etatMajor } = modele.sidc;
+  return `100${IDENTITE[camp] || IDENTITE_INCONNUE}${jeu}0${etatMajor ? '2' : '0'}00${entite}0000`; // chiffre 8 : 2 = état-major (mât sur le symbole)
 }
 
 /** Élément DOM du symbole ; à défaut de bibliothèque ou de code, deux lettres du nom. */

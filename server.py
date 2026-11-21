@@ -471,9 +471,16 @@ Actions possibles (un objet par action, champ "action") :
   "detruit":true seulement si l'arbitre demande explicitement que la cible soit éliminée : la cible est alors détruite quand la pièce tire.
   Sinon le résultat du tir reste à sa décision. Une consigne "groupe" ou "pieces" s'applique à chaque pièce concernée.
   Les pièces posées dans la même réponse n'ont pas d'id encore : désigne-les par "groupe".
+- {"action":"rattacher","pieces":["id",...] ou "piece":"id" ou "groupe":{"modele","camp"},"poste":"<id ou nom d'un poste de commandement>"}
+  Change le poste d'un ou plusieurs drones. Inutile à la pose : les drones posés sont rattachés d'eux-mêmes au poste le plus proche à moins de 30 km.
 - {"action":"dessin","genre":"front|limite|zone","camp":"bleu|rouge|neutre","points":[[lng,lat],...],"nom":"facultatif"}
 - {"action":"vue","lng":nombre,"lat":nombre,"zoom":nombre}
 - {"action":"temps","vitesse":1|10|60|300|1800,"pause":true|false}
+Postes de commandement : un modèle du catalogue marqué exige_poste_de_commandement (les UAV) doit être rattaché à un poste de commandement de son camp
+(modèle "poste-commandement") et rester à moins de 30 km de lui (poste_de_commandement_portee_km). Un poste peut commander plusieurs drones ; un drone n'a qu'un poste.
+Sans poste à portée, un drone ne peut recevoir aucune consigne. Quand l'arbitre demande des drones : pose d'abord un poste du même camp (à l'arrière, à moins de
+30 km de tous les drones), puis les drones, sauf s'il existe déjà un poste adapté dans la situation. Ne propose jamais de destination ou de cible qui éloignerait un
+drone à plus de 30 km de son poste ; propose plutôt de déplacer le poste d'abord. Ne retire jamais cette règle, même si l'arbitre l'oublie : explique-la.
 Règles : coordonnées en degrés décimaux, longitude d'abord. Si l'arbitre donne des coordonnées, reprends-les telles quelles. S'il nomme un lieu,
 tu ne le connais que de mémoire : donne des coordonnées plausibles et dis dans "message" qu'elles sont approximatives. N'invente jamais de modèle
 ni de pièce : uniquement ceux du contexte. Une pièce incapable de l'action demandée (un UAV sans arme qui engage) : ne la propose pas, explique-le.

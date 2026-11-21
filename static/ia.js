@@ -1,6 +1,6 @@
 // Terminal de l'assistant : l'arbitre écrit en langage courant, l'assistant propose un plan, l'arbitre l'applique (tout ou partie).
 import { avecIdsReels, contexte, planifier } from './ia-actions.js';
-import { listerPieces, catalogue, creerPieces } from './pieces.js';
+import { listerPieces, catalogue, creerPieces, attacherPoste } from './pieces.js';
 import { ajouterConsignes, etatOrdres, libelleConsigne, noterOperation } from './ordres.js';
 import { ajouterDessin, listerDessins } from './dessin.js';
 import { dicteeDisponible, lectureDisponible, ecouter, parler, taire } from './voix.js';
@@ -56,6 +56,7 @@ function appliquer(items) {
   let n = 0;
   for (const { libelle, op } of items) {
     if (op.kind === 'poser') Object.assign(ids, creerPieces(op.specs));
+    else if (op.kind === 'rattacher') for (const l of op.liens) attacherPoste(ids[l.ref] || l.ref, ids[l.poste] || l.poste);
     else if (op.kind === 'consigne') ajouterConsignes(op.cibles.map((c) => avecIdsReels(c, ids)));
     else if (op.kind === 'dessin') ajouterDessin({ genre: op.genre, camp: op.camp, points: op.points, nom: op.nom });
     else if (op.kind === 'vue') state.map.flyTo({ center: [op.lng, op.lat], zoom: op.zoom, duration: 800 });

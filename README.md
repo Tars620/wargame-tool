@@ -58,7 +58,7 @@ La page se recharge seule quand le code du serveur change (`/api/version`), en g
   n'a pas été essayé dans orbat-mapper. *terra-draw* (dessin) fait double emploi avec nos outils de dessin.
 
 ## Pièces (`/carte`, panneau de droite)
-Banque de six pièces (UAV de reconnaissance, UAV armé, fantassin, véhicule blindé, artillerie, brouilleur),
+Banque de sept pièces (poste de commandement, UAV de reconnaissance, UAV armé, fantassin, véhicule blindé, artillerie, brouilleur),
 définies dans `static/pieces.json`. Choisir un camp et une pièce, puis cliquer sur la carte pour la poser.
 Chaque pièce a trois propriétés, modifiables après la pose : **mouvement** (vitesse min/max en km/h),
 **feu** (portée en km, puissance de 0 à 10), **vision** (rayon en km). Les portées sont tracées sur la carte
@@ -93,3 +93,13 @@ On décrit la situation en français ; l'assistant la traduit en actions que l'a
 - **Temps de jeu** : plus de bouton « Lancer l'opération ». Les consignes s'exécutent dès qu'elles sont données, au rythme de l'horloge ; le bouton en haut (×1, Pause) l'arrête ou la reprend.
 - **Voix** : bouton « Micro » à droite de la saisie. On parle, le texte apparaît dans le terminal, puis la demande part à la fin de la phrase (case décochable, pour relire avant d'envoyer). Case « Lire les réponses à voix haute » pour entendre la réponse ; la lecture s'arrête dès qu'on envoie ou dicte autre chose. ⚠ Le son est traité par le fournisseur du navigateur (Apple pour Safari, Google pour Chrome), il quitte l'ordinateur et la dictée exige Internet. Sans cette API (Firefox), le bouton n'apparaît pas. L'application n'enregistre aucun son.
 - **Relief en 3D** : l'inclinaison de la vue est dans l'adresse ; rouvrir un lien incliné coche donc « Relief en 3D ».
+
+## Postes de commandement
+
+- **Règle** : tout drone (UAV) doit être rattaché à un poste de commandement de son camp et rester à moins de 30 km de lui (portée de liaison, propriété du poste, modifiable dans sa fiche). Un poste peut commander autant de drones que l'on veut ; un drone n'a qu'un poste.
+- **Rattachement** : automatique à la pose, au poste vivant le plus proche qui couvre le drone ; modifiable dans la fiche du drone (seuls les postes à portée sont proposés) ou par l'assistant. Un poste détruit n'est pas remplacé d'office : c'est une décision de l'arbitre.
+- **Ce que le moteur refuse** : toute consigne d'un drone sans poste, au poste détruit ou hors de portée ; une destination à plus de 30 km du poste ; un engagement dont le point de tir serait à plus de 30 km. Déplacer un poste avertit des drones qui sortiraient de sa portée.
+- **Pendant l'exécution** : si la liaison se coupe (poste déplacé, détruit, drone déplacé à la main), l'événement est daté dans le journal, le lien passe en ambre sur la carte et le drone n'exécute plus rien tant qu'elle n'est pas rétablie. Un drone qui, en cours de route, sortirait de la portée s'arrête et sa consigne est interrompue.
+- **Sur la carte** : trait plein du poste vers chacun de ses drones ; anneau pointillé de 30 km autour du poste (selon l'option « Portées affichées »).
+- **Assistant** : il pose d'abord un poste du même camp quand on lui demande des drones, refuse de proposer un ordre qui romprait la liaison, et explique pourquoi.
+- **Limites** : la liaison est une distance, sans relief ni ligne de vue ; un poste n'a pas de capacité maximale de drones ; les liaisons sont suivies par drone et par poste, pas encore par chaîne (un poste relayé par un autre).

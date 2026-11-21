@@ -1,6 +1,31 @@
 {
-  "note": "Valeurs de départ : paramètres de jeu modifiables sur chaque pièce, pas des données officielles. mouvement = vitesse en km/h (min et max) ; feu = portée en km et puissance destructrice de 0 à 10 ; vision = rayon en km. meteo_max = limites d'emploi (vent en km/h) : dépassées, la consigne est signalée. sidc = symbole APP-6D / MIL-STD-2525D (ensemble de symboles + entité), dessiné par milsymbol ; l'identité (ami ou hostile) vient du camp.",
+  "note": "Valeurs de départ : paramètres de jeu modifiables sur chaque pièce, pas des données officielles. mouvement = vitesse en km/h (min et max) ; feu = portée en km et puissance destructrice de 0 à 10 ; vision = rayon en km. meteo_max = limites d'emploi (vent en km/h) : dépassées, la consigne est signalée. sidc = symbole APP-6D / MIL-STD-2525D (ensemble de symboles + entité), dessiné par milsymbol ; l'identité (ami ou hostile) vient du camp. commande = poste de commandement : portée de liaison en km (les drones rattachés doivent rester à moins de cette distance). liaison = la pièce doit être rattachée à un poste de commandement de son camp.",
   "pieces": [
+    {
+      "id": "poste-commandement",
+      "nom": "Poste de commandement",
+      "icone": "poste",
+      "mouvement": {
+        "min": 20,
+        "max": 50
+      },
+      "feu": {
+        "portee_km": 0,
+        "puissance": 0
+      },
+      "vision": {
+        "rayon_km": 3
+      },
+      "commande": {
+        "portee_km": 30
+      },
+      "sidc": {
+        "jeu": "10",
+        "entite": "110000",
+        "etat_major": true
+      },
+      "avertissement": "Les drones rattachés à ce poste doivent rester à moins de 30 km de lui. Un poste peut commander plusieurs drones."
+    },
     {
       "id": "uav-reco",
       "nom": "UAV de reconnaissance",
@@ -22,7 +47,8 @@
       "sidc": {
         "jeu": "01",
         "entite": "110300"
-      }
+      },
+      "liaison": true
     },
     {
       "id": "uav-arme",
@@ -45,7 +71,8 @@
       "sidc": {
         "jeu": "01",
         "entite": "110300"
-      }
+      },
+      "liaison": true
     },
     {
       "id": "fantassin",

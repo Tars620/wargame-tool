@@ -1,7 +1,8 @@
 // Assistant : transforme la réponse du modèle en plan d'actions vérifié. Fonctions pures (testables avec node).
 // Le modèle propose ; rien n'est appliqué ici. Tout est revalidé : coordonnées, modèles, pièces et capacités.
 import { destination } from './geo.js';
-import { ALLURES, verifier } from './moteur.js';
+import { ALLURES, estPoste, etatLiaison, exigePoste, lierAuto, phraseLiaison, porteeDuPoste, verifier } from './moteur.js';
+import { distanceKm } from './geo.js';
 
 export const ACTIONS_MAX = 20;
 export const NOMBRE_MAX = 30;
@@ -51,8 +52,10 @@ export function disposer(centre, n, disposition, ecartKm, capDeg = 0) {
 /** Ce que l'assistant sait de la situation : compact, arrondi, borné. */
 export function contexte({ catalogue = [], pieces = [], ordres = {}, dessins = [], vue = null, horloge = null, libelleConsigne = () => '' }) {
   return {
-    catalogue: catalogue.map((m) => ({ id: m.id, nom: m.nom, vitesse_kmh: [m.mouvement.min, m.mouvement.max], feu_portee_km: m.feu.portee_km, puissance: m.feu.puissance, vision_km: m.vision.rayon_km })),
+    catalogue: catalogue.map((m) => ({ id: m.id, nom: m.nom, vitesse_kmh: [m.mouvement.min, m.mouvement.max], feu_portee_km: m.feu.portee_km, puissance: m.feu.puissance, vision_km: m.vision.rayon_km,
+      ...(m.liaison ? { exige_poste_de_commandement: true } : {}), ...(m.commande ? { poste_de_commandement_portee_km: m.commande.portee_km } : {}) })),
     pieces: pieces.slice(0, PIECES_MAX).map((p) => ({ id: p.id, nom: p.nom, modele: p.type, camp: p.camp, lng: r4(p.lng), lat: r4(p.lat), detruit: !!p.detruit,
+      ...(exigePoste(p) ? { poste: p.poste || null, liaison_ok: etatLiaison(p, pieces).ok } : {}),
       consignes: (ordres[p.id] || []).filter((c) => c.statut !== 'terminee').map((c) => libelleConsigne(c)) })),
     dessins: dessins.slice(0, 20).map((d) => ({ genre: d.genre, camp: d.camp, nom: d.nom, points: d.points.slice(0, 12).map(([x, y]) => [r4(x), r4(y)]) })),
     vue, horloge,
@@ -66,7 +69,9 @@ export function contexte({ catalogue = [], pieces = [], ordres = {}, dessins = [
 export function planifier(actions, { pieces = [], catalogue = [] } = {}) {
   const items = [];
   const virtuelles = [];
-  const toutes = () => [...pieces, ...virtuelles];
+  const lies = new Map(); // rattachements décidés au fil du plan (poste choisi automatiquement ou demandé)
+  const toutes = () => [...pieces, ...virtuelles].map((p) => (lies.has(p.id) ? { ...p, poste: lies.get(p.id) } : p));
+  const relier = () => { for (const [id, poste] of Object.entries(lierAuto(toutes()))) lies.set(id, poste); };
   const vivantes = () => toutes().filter((p) => !p.detruit);
   const modele = (id) => catalogue.find((m) => m.id === id) || null;
 
@@ -108,9 +113,12 @@ export function planifier(actions, { pieces = [], catalogue = [] } = {}) {
     const existantes = toutes().filter((p) => p.type === m.id).length;
     const specs = disposer(centre, n, disposition, ecart, cap).map(([lng, lat], i) => ({
       vid: `virt-${virtuelles.length + i}`, type: m.id, camp: a.camp, lng, lat, nom: n === 1 && texte(a.nom) ? texte(a.nom) : `${m.nom} ${existantes + i + 1}` }));
-    for (const s of specs) virtuelles.push({ ...s, id: s.vid, mouvement: m.mouvement, feu: m.feu, vision: m.vision, meteo_max: m.meteo_max || null });
+    for (const s of specs) virtuelles.push({ ...s, id: s.vid, mouvement: m.mouvement, feu: m.feu, vision: m.vision, meteo_max: m.meteo_max || null, liaison: m.liaison === true, commande: m.commande || undefined });
+    relier();
+    const sansPoste = m.liaison ? specs.filter((sp) => !lies.has(sp.vid)).length : 0;
+    const avertissements = sansPoste ? [`${sansPoste} drone${sansPoste > 1 ? 's' : ''} sans poste de commandement à portée (30 km) : aucune consigne possible. Posez d'abord un poste de commandement du même camp à moins de 30 km.`] : [];
     const lieu = `${r4(centre[1]).toString().replace('.', ',')} N, ${r4(centre[0]).toString().replace('.', ',')} E`;
-    return { libelle: `Poser ${n > 1 ? `${n} × ` : ''}${m.nom}, ${a.camp}${n > 1 ? `, en ${disposition}, écart ${fr(ecart)} km` : ''}, près de ${lieu}`, problemes: [], op: { kind: 'poser', specs } };
+    return { libelle: `Poser ${n > 1 ? `${n} × ` : ''}${m.nom}, ${a.camp}${n > 1 ? `, en ${disposition}, écart ${fr(ecart)} km` : ''}, près de ${lieu}`, problemes: [], avertissements, op: { kind: 'poser', specs } };
   };
 
   const consigne = (a) => {
@@ -146,6 +154,24 @@ export function planifier(actions, { pieces = [], catalogue = [] } = {}) {
     return { libelle: `${nom} : ${verbe}`, problemes, avertissements: regrouper(cibles.flatMap((c) => c.avertissements)), op: cibles.length ? { kind: 'consigne', cibles } : null };
   };
 
+  const rattacher = (a) => {
+    const { liste: drones, problemes } = selection(a, 'piece', 'pieces', 'groupe');
+    const r = a.poste !== undefined ? parNom(a.poste) : { erreur: 'poste non précisé' };
+    if (!r.piece) return { libelle: 'Rattacher à un poste', problemes: [...problemes, r.erreur], op: null };
+    const poste = r.piece;
+    if (!estPoste(poste)) return { libelle: 'Rattacher à un poste', problemes: [`${poste.nom} n'est pas un poste de commandement`], op: null };
+    const liens = [];
+    for (const d of drones) {
+      if (!exigePoste(d)) problemes.push(`${d.nom} n'a pas besoin de poste de commandement`);
+      else if (d.camp !== poste.camp) problemes.push(`${d.nom} : ${poste.nom} est d'un autre camp`);
+      else if (poste.detruit) problemes.push(`${poste.nom} est détruit`);
+      else if (distanceKm([d.lng, d.lat], [poste.lng, poste.lat]) > porteeDuPoste(poste)) problemes.push(`${d.nom} est à plus de ${porteeDuPoste(poste)} km de ${poste.nom}`);
+      else liens.push({ ref: d.id, poste: poste.id });
+    }
+    liens.forEach((l) => lies.set(l.ref, l.poste));
+    return { libelle: `Rattacher ${liens.length > 1 ? `${liens.length} drones` : drones[0] ? drones[0].nom : 'des drones'} à ${poste.nom}`, problemes, op: liens.length ? { kind: 'rattacher', liens } : null };
+  };
+
   const dessin = (a) => {
     const pts = points(a.points);
     const problemes = [];
@@ -171,7 +197,7 @@ export function planifier(actions, { pieces = [], catalogue = [] } = {}) {
     return { libelle: `Horloge de jeu : ${dit}`, problemes: [], op: { kind: 'temps', vitesse: v, pause: typeof a.pause === 'boolean' ? a.pause : null } };
   };
 
-  const FABRIQUES = { poser, consigne, dessin, vue, temps };
+  const FABRIQUES = { poser, rattacher, consigne, dessin, vue, temps };
   const liste = Array.isArray(actions) ? actions : [];
   for (const a of liste.slice(0, ACTIONS_MAX)) {
     const f = a && typeof a === 'object' ? FABRIQUES[a.action] : null;
