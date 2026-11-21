@@ -33,6 +33,8 @@ CHUNK = 1024 * 1024
 MAX_RELAIS = 8 * 1024 * 1024  # taille maximale d'une tranche relayée depuis une carte en ligne
 CERTIFICATS = "/etc/ssl/cert.pem"
 RELAIS_CACHE_MAX = 128 * 1024 * 1024  # mémoire gardée pour les tranches déjà relayées
+CACHE_DISQUE = os.path.join(HERE, "data", "cache_relais")  # même cache sur disque : la carte déjà vue survit à un redémarrage
+CACHE_DISQUE_MAX = 1024 * 1024 * 1024
 _relais_cache = OrderedDict()
 _relais_taille = 0
 _relais_verrou = threading.Lock()
@@ -422,17 +424,70 @@ def list_zones():
     return zones
 
 
+def _chemin_disque(cle):
+    return os.path.join(CACHE_DISQUE, hashlib.sha1("|".join(map(str, cle)).encode()).hexdigest())
+
+
+def _disque_lire(cle):
+    """Tranche gardée sur disque : une ligne d'en-tête JSON puis les octets. None si absente ou abîmée."""
+    try:
+        with open(_chemin_disque(cle), "rb") as f:
+            meta = json.loads(f.readline())
+            return f.read(), meta["status"], meta["content_range"]
+    except (OSError, ValueError, KeyError):
+        return None
+
+
+_disque_ecritures = 0
+
+
+def _disque_ecrire(cle, valeur):
+    """Écrit la tranche (fichier temporaire puis renommage : jamais à moitié) ; élague les plus anciennes au-delà de CACHE_DISQUE_MAX."""
+    global _disque_ecritures
+    data, status, content_range = valeur
+    try:
+        os.makedirs(CACHE_DISQUE, exist_ok=True)
+        chemin = _chemin_disque(cle)
+        with open(chemin + ".tmp", "wb") as f:
+            f.write(json.dumps({"status": status, "content_range": content_range}).encode() + b"\n" + data)
+        os.replace(chemin + ".tmp", chemin)
+        _disque_ecritures += 1
+        if _disque_ecritures % 200 == 0:
+            _disque_elaguer()
+    except OSError:
+        pass  # le cache est un confort : sans disque, la carte marche quand même
+
+
+def _disque_elaguer():
+    try:
+        fichiers = [(os.path.getmtime(p), os.path.getsize(p), p) for p in (os.path.join(CACHE_DISQUE, n) for n in os.listdir(CACHE_DISQUE)) if os.path.isfile(p)]
+        total = sum(t for _, t, _ in fichiers)
+        for _, taille, chemin in sorted(fichiers):
+            if total <= CACHE_DISQUE_MAX * 0.8:
+                break
+            os.remove(chemin)
+            total -= taille
+    except OSError:
+        pass
+
+
 def _cache_lire(cle):
     with _relais_verrou:
         valeur = _relais_cache.get(cle)
         if valeur is not None:
             _relais_cache.move_to_end(cle)
-        return valeur
+            return valeur
+    valeur = _disque_lire(cle)
+    if valeur is not None:
+        _cache_ecrire(cle, valeur, disque=False)
+    return valeur
 
 
-def _cache_ecrire(cle, valeur):
-    """Mémoire bornée : on retire les entrées les plus anciennes au-delà de RELAIS_CACHE_MAX."""
+def _cache_ecrire(cle, valeur, disque=True):
+    """Mémoire bornée : on retire les entrées les plus anciennes au-delà de RELAIS_CACHE_MAX. Écrit aussi sur disque (sauf si elle en vient)."""
     global _relais_taille
+    if disque:
+        _disque_ecrire(cle, valeur)
     with _relais_verrou:
         if cle in _relais_cache:
             return
