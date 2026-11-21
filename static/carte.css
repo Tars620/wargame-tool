@@ -19,9 +19,14 @@ body { font: var(--poids) var(--t-md)/1.45 Inter, system-ui, -apple-system, "Seg
 .top b { font-weight: var(--poids); letter-spacing: .04em; text-transform: uppercase; font-size: var(--t-base); }
 .top a { color: var(--texte); text-decoration: none; font-size: var(--t-base); }
 .top a:hover { color: var(--accent); }
-#map { position: fixed; top: var(--haut); bottom: 0; left: var(--gauche-w); right: var(--droite-w); }
+/* La carte occupe toute la largeur sous les panneaux : les ouvrir ou les fermer ne la redimensionne plus (c'était ce qui faisait ramer). Les panneaux glissent, la carte se décale par son « padding ». */
+@property --gauche-w { syntax: '<length>'; inherits: true; initial-value: 300px; }
+@property --droite-w { syntax: '<length>'; inherits: true; initial-value: 400px; }
+body { transition: --gauche-w .22s cubic-bezier(.4, 0, .2, 1), --droite-w .22s cubic-bezier(.4, 0, .2, 1); }
+#map { position: fixed; top: var(--haut); bottom: 0; left: 0; right: 0; }
+.maplibregl-ctrl-bottom-right { right: var(--droite-w); } .maplibregl-ctrl-bottom-left { left: var(--gauche-w); }
 body.g-ferme { --gauche-w: 0px; } body.d-ferme { --droite-w: 0px; }
-.panneau { position: fixed; top: var(--haut); bottom: 0; overflow: auto; background: var(--panneau); border: 1px solid var(--trait); border-top: 0; border-bottom: 0; padding: 6px 10px 8px; z-index: 4; transition: transform .15s ease; }
+.panneau { position: fixed; top: var(--haut); bottom: 0; overflow: auto; background: var(--panneau); border: 1px solid var(--trait); border-top: 0; border-bottom: 0; padding: 6px 10px 8px; z-index: 4; transition: transform .22s cubic-bezier(.4, 0, .2, 1); will-change: transform; }
 .gauche { left: 0; width: var(--g); border-left: 0; } .droite { right: 0; width: var(--d); border-right: 0; }
 body.g-ferme .gauche { transform: translateX(-100%); } body.d-ferme .droite { transform: translateX(100%); }
 .onglet { position: fixed; top: calc(var(--haut) + 40px); z-index: 5; width: 20px; height: 56px; padding: 0; background: var(--panneau); border: 1px solid var(--trait); color: var(--texte-2); font-size: 18px; line-height: 1; }
@@ -70,7 +75,7 @@ button:hover { border-color: var(--accent); }
 .pion[data-drone] { z-index: 3; }
 .pion.en-vol { z-index: 6; }
 .symbole.aerien { position: relative; }
-.pion.en-vol .symbole { transform: translateY(calc(var(--alt) * -1px)); animation: vol 3.2s ease-in-out infinite; filter: drop-shadow(0 0 7px var(--c)) drop-shadow(0 7px 5px rgba(0,0,0,.45)); }
+.pion.en-vol .symbole { will-change: transform; transform: translateY(calc(var(--alt) * -1px)); animation: vol 3.2s ease-in-out infinite; filter: drop-shadow(0 0 7px var(--c)) drop-shadow(0 7px 5px rgba(0,0,0,.45)); }
 .pion.en-vol::before { content: ''; position: absolute; left: 50%; top: 50%; width: 1px; height: calc(var(--alt) * 1px); transform: translate(-50%, -100%); background: linear-gradient(to top, transparent, var(--c)); opacity: .9; }
 .pion.en-vol::after { content: ''; position: absolute; left: 50%; top: 50%; width: 18px; height: 7px; transform: translate(-50%, -50%); background: radial-gradient(ellipse at center, rgba(0,0,0,.6), transparent 70%); border-radius: 50% !important; }
 .pion.en-vol.choisi { outline: 0; } .pion.en-vol.choisi .symbole { outline: 2px solid var(--accent); outline-offset: 3px; }

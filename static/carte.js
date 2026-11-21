@@ -306,7 +306,8 @@ function createMap() {
   const capCarte = () => $('map').style.setProperty('--cap-carte', `${Math.round(map.getBearing())}deg`);
   map.on('rotate', capCarte);
   capCarte();
-  new ResizeObserver(() => map.resize()).observe($('map'));
+  new ResizeObserver(() => map.resize()).observe($('map')); // seulement quand la fenêtre change de taille
+  paddingCarte(false, map);
   // Les panneaux se montent dès que le style est prêt : inutile d'attendre les tuiles (lentes quand la carte est en ligne).
   map.once('style.load', () => {
     monterTemps(map);
@@ -586,11 +587,56 @@ function sectionsRepliables() {
       etat = { ...etat, [d.dataset.cle]: d.open };
       ecrireJson(SECTIONS_KEY, etat);
     });
+    // Ouverture et fermeture en douceur : la hauteur glisse au lieu de sauter (sans animation si « moins d'animations » est demandé).
+    d.querySelector('summary').addEventListener('click', (e) => {
+      e.preventDefault();
+      basculerSection(d);
+    });
   }
+}
+
+const DUREE_SECTION_MS = 200;
+function basculerSection(d) {
+  if (d.animation) d.animation.cancel();
+  const ouvrir = !d.open;
+  const depart = d.offsetHeight;
+  let arrivee;
+  if (ouvrir) {
+    d.open = true;
+    arrivee = d.offsetHeight;
+  } else {
+    d.open = false;
+    arrivee = d.offsetHeight; // hauteur repliée
+    d.open = true;
+  }
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches || depart === arrivee) {
+    d.open = ouvrir;
+    return;
+  }
+  d.style.overflow = 'hidden';
+  d.animation = d.animate({ height: [`${depart}px`, `${arrivee}px`] }, { duration: DUREE_SECTION_MS, easing: 'cubic-bezier(.4, 0, .2, 1)' });
+  d.animation.onfinish = () => {
+    d.style.overflow = '';
+    d.open = ouvrir;
+    d.animation = null;
+  };
+  d.animation.oncancel = () => {
+    d.style.overflow = '';
+  };
 }
 
 // Les barres latérales sont collées aux bords de l'écran et se replient en entier (un onglet reste visible).
 const PANNEAUX_KEY = 'wg.panneaux';
+/** Décale le centre de la carte pour qu'il reste au milieu de la partie visible entre les panneaux (la carte, elle, ne change pas de taille). */
+function paddingCarte(anime, carte = state.map) {
+  if (!carte) return;
+  const px = (v) => Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(v)) || 0;
+  const corps = document.body.classList;
+  const padding = { left: corps.contains('g-ferme') ? 0 : px('--g'), right: corps.contains('d-ferme') ? 0 : px('--d'), top: 0, bottom: 0 };
+  if (anime) carte.easeTo({ padding, duration: 220, easing: (t) => t * t * (3 - 2 * t) });
+  else carte.setPadding(padding);
+}
+window.addEventListener('resize', () => paddingCarte(false));
 function panneauxRepliables() {
   let ouvert = { g: true, d: true, ...lireJson(PANNEAUX_KEY, {}) };
   const appliquer = () => {
@@ -598,7 +644,7 @@ function panneauxRepliables() {
     document.body.classList.toggle('d-ferme', !ouvert.d);
     $('onglet-g').textContent = ouvert.g ? '‹' : '›';
     $('onglet-d').textContent = ouvert.d ? '›' : '‹';
-    if (state.map) state.map.resize();
+    paddingCarte(true);
   };
   for (const cote of ['g', 'd']) {
     $(`onglet-${cote}`).addEventListener('click', () => {
