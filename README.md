@@ -29,9 +29,7 @@ La page se recharge seule quand le code du serveur change (`/api/version`), en g
   glisser les carrés pour déplacer un point, clic droit pour en retirer un. Enregistrés dans le navigateur.
 
 ## Temps, météo et consignes (`/carte`)
-- **Temps de jeu** : une seule horloge, qui suit l'heure réelle au départ. Lecture, pause, vitesses ×1 à ×1800,
-  réglage de l'heure (saisie en heure de Paris), retour à l'heure réelle. En haut : heure de Paris et heure locale
-  du centre de la carte (fuseau trouvé par `tz-lookup`), affichée dès le zoom 3.
+- **Temps de jeu** : une seule horloge, qui suit l'heure réelle au départ, pilotée depuis la barre du haut : Pause/Lecture, vitesses ×1 à ×1800, **Maintenant** (retour à l'heure réelle, vitesse ×1, en une case). Un clic sur l'heure de Paris ouvre le réglage de la date et de l'heure (saisie en heure de Paris, réservé à l'arbitre). En haut : heure de Paris et heure locale du point au centre de la carte, avec le décalage.
 - **Météo** : radar de pluie en temps réel (RainViewer) ; vent et température prévus **à l'heure de jeu** sur une
   grille de 35 points (Open-Meteo, usage non commercial) ; fiche des conditions au centre. Données disponibles
   du 20/08 au 06/12/2026 (fenêtre glissante) : hors de cette plage, la page le dit.

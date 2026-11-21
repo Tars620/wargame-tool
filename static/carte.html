@@ -23,49 +23,49 @@
 *, *::before, *::after { box-sizing: border-box; border-radius: 0 !important; }
 html, body { height: 100%; margin: 0; }
 body { font: 300 var(--t-md)/1.45 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--texte); background: var(--fond); }
-.top { position: fixed; inset: 0 0 auto 0; height: var(--barre-h); background: var(--barre); border-bottom: 1px solid var(--trait); display: flex; align-items: center; gap: 18px; padding: 0 14px; z-index: 5; }
+.top { position: fixed; inset: 0 0 auto 0; height: var(--barre-h); background: var(--barre); border-bottom: 1px solid var(--trait); display: flex; align-items: center; gap: 12px; padding: 0 0 0 10px; z-index: 5; }
 .top b { font-weight: 500; letter-spacing: .04em; text-transform: uppercase; font-size: var(--t-base); }
 .top a { color: var(--texte-2); text-decoration: none; font-size: var(--t-base); }
 .top a:hover { color: var(--accent); }
 #map { position: fixed; top: var(--haut); bottom: 0; left: var(--gauche-w); right: var(--droite-w); }
 body.g-ferme { --gauche-w: 0px; } body.d-ferme { --droite-w: 0px; }
-.panneau { position: fixed; top: var(--haut); bottom: 0; overflow: auto; background: var(--panneau); border: 1px solid var(--trait); border-top: 0; border-bottom: 0; padding: 14px; z-index: 4; transition: transform .15s ease; }
+.panneau { position: fixed; top: var(--haut); bottom: 0; overflow: auto; background: var(--panneau); border: 1px solid var(--trait); border-top: 0; border-bottom: 0; padding: 6px 10px 8px; z-index: 4; transition: transform .15s ease; }
 .gauche { left: 0; width: var(--g); border-left: 0; } .droite { right: 0; width: var(--d); border-right: 0; }
 body.g-ferme .gauche { transform: translateX(-100%); } body.d-ferme .droite { transform: translateX(100%); }
 .onglet { position: fixed; top: calc(var(--haut) + 40px); z-index: 5; width: 20px; height: 56px; padding: 0; background: var(--panneau); border: 1px solid var(--trait); color: var(--texte-2); font-size: 18px; line-height: 1; }
 #onglet-g { left: var(--gauche-w); border-left: 0; } #onglet-d { right: var(--droite-w); border-right: 0; }
 .panneau h3 { margin: 18px 0 8px; font-size: var(--t-sm); font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--texte-2); }
 .panneau h3:first-child { margin-top: 0; }
-.panneau h4 { margin: 14px 0 6px; font-size: var(--t-sm); font-weight: 500; color: var(--texte); }
-.opt { display: flex; gap: 8px; align-items: flex-start; padding: 7px 9px; margin-top: -1px; border: 1px solid var(--trait); font-size: var(--t-base); cursor: pointer; }
+.panneau h4 { margin: 8px 0 3px; font-size: var(--t-sm); font-weight: 500; color: var(--texte); }
+.opt { display: flex; gap: 8px; align-items: flex-start; padding: 5px 8px; margin-top: -1px; border: 1px solid var(--trait); font-size: var(--t-base); cursor: pointer; }
 .opt:has(input:checked) { background: var(--panneau-2); border-color: var(--trait-fort); position: relative; }
 .opt input { margin: 2px 0 0; accent-color: var(--accent); }
 .opt small, .modele small { display: block; color: var(--texte-2); font-size: var(--t-sm); }
-select, input[type=text] { width: 100%; padding: 7px 9px; border: 1px solid var(--trait); background: var(--fond); color: var(--texte); font: inherit; }
+select, input[type=text] { width: 100%; padding: 5px 8px; border: 1px solid var(--trait); background: var(--fond); color: var(--texte); font: inherit; }
 select:focus, input[type=text]:focus { outline: 1px solid var(--accent); }
-button { font: inherit; font-weight: 300; color: var(--texte); background: transparent; border: 1px solid var(--trait-fort); padding: 7px 12px; cursor: pointer; }
+button { font: inherit; font-weight: 300; color: var(--texte); background: transparent; border: 1px solid var(--trait-fort); padding: 5px 10px; cursor: pointer; }
 button:hover { border-color: var(--accent); }
-.note { margin: 8px 0 0; font-size: var(--t-sm); color: var(--texte-2); }
-.err { margin: 8px 0 0; font-size: var(--t-sm); color: var(--rouge); min-height: 1em; }
+.note { margin: 4px 0 0; font-size: var(--t-sm); color: var(--texte-2); }
+.err { margin: 4px 0 0; font-size: var(--t-sm); color: var(--rouge); min-height: 1em; }
 .lecture { position: fixed; left: calc(var(--gauche-w) + 8px); bottom: 8px; z-index: 4; background: var(--panneau); border: 1px solid var(--trait); padding: 4px 9px; font-size: var(--t-sm); color: var(--texte-2); font-variant-numeric: tabular-nums; }
 
 /* banque de pièces */
-.camps { display: flex; margin-bottom: 8px; }
+.camps { display: flex; margin-bottom: 4px; }
 .camp { flex: 1; margin-left: -1px; border-color: var(--trait); color: var(--texte-2); }
 .camp:first-child { margin-left: 0; }
 .camp[aria-pressed=true] { color: var(--accent); border-color: var(--c); background: var(--panneau-2); box-shadow: inset 0 -2px 0 var(--c); }
-.modele { display: flex; gap: 10px; width: 100%; text-align: left; margin-top: -1px; padding: 8px 10px; border-color: var(--trait); }
+.modele { display: flex; gap: 10px; width: 100%; text-align: left; margin-top: -1px; padding: 5px 8px; border-color: var(--trait); }
 .modele.arme { border-color: var(--accent); background: var(--panneau-2); }
 .modele .ico { flex: none; width: 40px; display: flex; align-items: center; justify-content: center; }
 .modele .txt b { display: block; font-weight: 500; font-size: var(--t-base); }
-.champ { display: grid; grid-template-columns: 62px 1fr auto; align-items: center; gap: 8px; margin: 4px 0; font-size: var(--t-base); }
+.champ { display: grid; grid-template-columns: 62px 1fr auto; align-items: center; gap: 6px; margin: 2px 0; font-size: var(--t-base); }
 .champ span { color: var(--texte-2); } .champ em { font-style: normal; color: var(--texte-2); font-size: var(--t-sm); min-width: 34px; }
-.champ.large { grid-template-columns: 62px 1fr; margin-bottom: 8px; }
+.champ.large { grid-template-columns: 62px 1fr; margin-bottom: 4px; }
 .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
 .duo .champ { grid-template-columns: 1fr; gap: 2px; } .duo .champ em { display: none; }
 .barre { display: inline-flex; gap: 2px; margin: 4px 0; } .barre i { width: 14px; height: 8px; border: 1px solid var(--trait-fort); }
 .barre i.plein { background: var(--accent); border-color: var(--accent); }
-.danger { margin-top: 12px; width: 100%; color: var(--rouge); border-color: var(--trait-fort); }
+.danger { margin-top: 6px; width: 100%; color: var(--rouge); border-color: var(--trait-fort); }
 .danger:hover { border-color: var(--rouge); }
 
 /* pièces posées sur la carte */
@@ -73,47 +73,56 @@ button:hover { border-color: var(--accent); }
 .symbole { display: inline-flex; line-height: 0; } .symbole svg { display: block; }
 .pion.choisi { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-details { border-top: 1px solid var(--trait); padding: 4px 0 10px; }
+details { border-top: 1px solid var(--trait); padding: 0 0 6px; }
 details:first-of-type { border-top: 0; }
-summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: var(--t-base); font-weight: 500; color: var(--texte); }
+summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; margin: 5px 0 4px; font-size: var(--t-base); font-weight: 500; color: var(--texte); }
 summary::-webkit-details-marker { display: none; }
 summary::before { content: ''; width: 6px; height: 6px; margin: 0 2px 2px 1px; border-right: 1.5px solid var(--texte-2); border-bottom: 1.5px solid var(--texte-2); transform: rotate(-45deg); transition: transform .12s ease; }
 details[open] > summary::before { transform: rotate(45deg); margin-bottom: 4px; }
-details > :not(summary) { margin-left: 15px; }
-details > select { width: calc(100% - 15px); }
 
 /* horloges, consignes, météo */
-.horloges { margin-left: auto; display: flex; gap: 22px; font-size: var(--t-base); font-variant-numeric: tabular-nums; color: var(--texte); }
+.horloges { margin-left: auto; display: flex; gap: 14px; align-items: center; font-size: var(--t-base); font-variant-numeric: tabular-nums; color: var(--texte); }
 .horloges b { font-weight: 500; margin-right: 4px; color: var(--texte-2); text-transform: uppercase; letter-spacing: .05em; font-size: var(--t-xs); }
 .horloges em { font-style: normal; color: var(--texte-2); font-size: var(--t-sm); }
-.horloges .discret { color: var(--texte-2); } .horloges .etat { min-width: 52px; padding: 2px 8px; font-size: var(--t-sm); font-variant-numeric: tabular-nums; }
+.horloges .discret { color: var(--texte-2); } .horloges .pause { color: var(--rouge); font-size: var(--t-sm); } .horloges .pause:empty { display: none; } .h-paris { cursor: pointer; }
 .primaire { background: var(--accent); color: var(--fond); border-color: var(--accent); }
 .primaire:hover { opacity: .85; } .primaire:disabled { opacity: .35; cursor: default; }
-.avert { margin: 6px 0 0; font-size: var(--t-sm); color: #d9a441; }
+.avert { margin: 3px 0 0; font-size: var(--t-sm); color: #d9a441; }
 :root[data-theme=clair] .avert { color: #a06a00; }
-.consigne { display: flex; justify-content: space-between; align-items: center; gap: 8px; border: 1px solid var(--trait); margin-top: -1px; padding: 6px 8px; font-size: var(--t-base); }
+.consigne { display: flex; justify-content: space-between; align-items: center; gap: 8px; border: 1px solid var(--trait); margin-top: -1px; padding: 4px 8px; font-size: var(--t-base); }
 .consigne small { display: block; color: var(--texte-2); font-size: var(--t-sm); } .consigne b { font-weight: 500; }
 .consigne button { padding: 2px 8px; }
-.evt { padding: 6px 0; border-bottom: 1px solid var(--trait); font-size: var(--t-base); } .evt small { display: block; color: var(--texte-2); font-size: var(--t-xs); }
+.evt { padding: 4px 0; border-bottom: 1px solid var(--trait); font-size: var(--t-base); } .evt small { display: block; color: var(--texte-2); font-size: var(--t-xs); }
 .evt-tir span, .evt-alerte span { color: var(--rouge); } .evt-contact span { color: var(--bleu); }
 .ligne-meteo { margin: 2px 0; color: var(--texte); font-size: var(--t-base); }
-#scenario-panneau { display: grid; gap: 6px; }
-#temps-panneau > * { margin-top: 6px; } #temps-panneau .camps { margin-bottom: 0; }
-#temps-panneau input[type=datetime-local] { width: 100%; padding: 7px 9px; border: 1px solid var(--trait); background: var(--fond); color: var(--texte); font: inherit; color-scheme: dark; }
-:root[data-theme=clair] #temps-panneau input[type=datetime-local] { color-scheme: light; }
+#scenario-panneau { display: grid; gap: 4px; }
+/* commandes du temps de jeu et thème : cellules collées, pleine hauteur de la barre */
+.temps-cmd, .seg { display: flex; align-self: stretch; margin: 0; }
+.temps-cmd { margin-left: 2px; }
+.temps-cmd > button, .temps-cmd > select, .seg > button { height: 100%; border: 0; border-left: 1px solid var(--trait); padding: 0 12px; background: transparent; font-size: var(--t-sm); white-space: nowrap; }
+.temps-cmd > select { width: 64px; appearance: none; -webkit-appearance: none; text-align: center; text-align-last: center; padding: 0 6px; color: var(--texte); }
+.temps-cmd > button:hover, .temps-cmd > select:hover, .seg > button:hover { background: var(--panneau-2); }
+.temps-cmd [data-tip]:hover::after { right: 0; left: auto; }
+.reglage-heure { position: fixed; top: var(--barre-h); right: 0; z-index: 12; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 6px; background: var(--panneau); border: 1px solid var(--trait-fort); border-top: 0; }
+.reglage-heure[hidden] { display: none; }
+.reglage-heure input { width: 190px; padding: 5px 8px; border: 1px solid var(--trait); background: var(--fond); color: var(--texte); font: inherit; color-scheme: dark; }
+:root[data-theme=clair] .reglage-heure input { color-scheme: light; }
+.reglage-heure .note { flex-basis: 100%; margin: 0; }
+.grille2 { display: grid; grid-template-columns: 1fr 1fr; padding-top: 1px; margin-right: -1px; }
+.grille2 .opt { margin: -1px -1px 0 0; padding: 5px 8px; }
 
 /* barre d'outils : toutes les cellules ont la même hauteur et le même repère d'état */
 .barre-outils { position: fixed; top: var(--barre-h); left: 0; right: 0; height: var(--outils-h); z-index: 4; display: flex; align-items: stretch; background: var(--panneau); border-bottom: 1px solid var(--trait); }
 .outils { display: flex; align-items: stretch; }
-.outils > button, .outils > .etiquette { display: flex; align-items: center; height: 100%; padding: 0 14px; border: 0; border-right: 1px solid var(--trait); font-size: var(--t-base); line-height: 1; white-space: nowrap; }
+.outils > button { display: flex; align-items: center; height: 100%; padding: 0 12px; border: 0; border-right: 1px solid var(--trait); font-size: var(--t-base); line-height: 1; white-space: nowrap; }
 .outils > button[aria-pressed=true] { background: var(--panneau-2); box-shadow: inset 0 -2px 0 var(--accent); color: var(--accent); }
 .outils > button:hover { background: var(--panneau-2); }
-.outils .sep { display: none; }
-.outils .etiquette { color: var(--texte-2); font-size: var(--t-sm); background: transparent; border-left: 1px solid var(--trait-fort); }
-.outils .cellule-camp { gap: 8px; padding: 0 12px; }
-.outils .cellule-camp::before { content: ''; width: 9px; height: 9px; background: var(--c); border: 1px solid color-mix(in srgb, var(--c) 55%, var(--texte)); }
+.outils .cellule-camp { padding: 0 12px; color: var(--texte); background: color-mix(in srgb, var(--c) 32%, var(--panneau)); }
+.outils .cellule-camp:hover { background: color-mix(in srgb, var(--c) 55%, var(--panneau)); }
+.outils > .cellule-camp[aria-pressed=true] { background: var(--c); color: var(--sur); box-shadow: inset 0 -2px 0 var(--accent); }
+.outils .cellule-camp:first-of-type { border-left: 1px solid var(--trait-fort); }
 .outils .bord-droit { border-left: 1px solid var(--trait-fort); }
-.aide { flex: 1 1 auto; min-width: 0; align-self: center; padding: 0 14px; font-size: var(--t-sm); color: var(--texte-2); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aide { flex: 1 1 auto; min-width: 0; align-self: center; padding: 0 10px; font-size: var(--t-sm); color: var(--texte-2); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .poignee { width: 12px; height: 12px; background: var(--accent); border: 2px solid var(--fond); cursor: grab; }
 
 /* info-bulle aux couleurs de l'application (remplace celle du navigateur) */
@@ -122,11 +131,8 @@ details > select { width: calc(100% - 15px); }
 .bord-droit[data-tip]:hover::after, .top [data-tip]:hover::after { left: auto; right: 0; }
 
 /* bascule de thème, dans la barre du haut */
-.seg { display: flex; margin-left: 18px; }
-.seg button { padding: 3px 10px; font-size: var(--t-sm); color: var(--texte-2); border-color: var(--trait); margin-left: -1px; }
-.seg button:first-child { margin-left: 0; }
-.seg button[aria-pressed=true] { color: var(--accent); background: var(--panneau-2); border-color: var(--trait-fort); }
-.top .horloges button.etat { color: var(--texte); border-color: var(--trait); }
+.seg > button { color: var(--texte-2); }
+.seg > button[aria-pressed=true] { color: var(--accent); background: var(--panneau-2); box-shadow: inset 0 -2px 0 var(--accent); }
 
 /* partie en ligne : rôles */
 .badge-partie { font-size: var(--t-sm); color: var(--texte-2); }
@@ -145,15 +151,15 @@ html[data-role=joueur] [data-arbitre] { display: none !important; }
 /* panneau de droite : onglets et assistant */
 .droite { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
 .onglets { flex: none; display: flex; border-bottom: 1px solid var(--trait); }
-.onglets button { flex: 1; padding: 10px 4px; border: 0; border-right: 1px solid var(--trait); font-size: var(--t-sm); color: var(--texte-2); }
+.onglets button { flex: 1; padding: 8px 4px; border: 0; border-right: 1px solid var(--trait); font-size: var(--t-sm); color: var(--texte-2); }
 .onglets button:last-child { border-right: 0; }
 .onglets button:hover { background: var(--panneau-2); }
 .onglets button[aria-selected=true] { color: var(--accent); background: var(--panneau-2); box-shadow: inset 0 -2px 0 var(--accent); }
-.volet { flex: 1; min-height: 0; overflow: auto; padding: 12px 14px; }
+.volet { flex: 1; min-height: 0; overflow: auto; padding: 6px 10px 8px; }
 .volet[hidden] { display: none; }
 .volet-ia { padding: 0; display: flex; }
 .ia { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--fond); font-family: var(--mono); font-size: var(--t-sm); }
-.ia-fil { flex: 1; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.ia-fil { flex: 1; overflow: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 .ia-ligne { margin: 0; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .ia-ligne.moi { color: var(--texte); } .ia-ligne.moi::before { content: '› '; color: var(--texte-2); }
 .ia-ligne.assistant { color: var(--texte); padding-left: 14px; border-left: 1px solid var(--trait-fort); }
@@ -162,7 +168,7 @@ html[data-role=joueur] [data-arbitre] { display: none !important; }
 @keyframes points { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75%, 100% { content: '...'; } }
 .ia-exemple { align-self: stretch; text-align: left; padding: 8px 10px; border: 1px dashed var(--trait-fort); color: var(--texte-2); font: inherit; line-height: 1.5; }
 .ia-exemple:hover { color: var(--texte); border-color: var(--texte-2); }
-.ia-plan { border: 1px solid var(--trait-fort); background: var(--panneau); padding: 10px 12px; }
+.ia-plan { border: 1px solid var(--trait-fort); background: var(--panneau); padding: 8px 10px; }
 .ia-plan ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .ia-plan li label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; line-height: 1.5; }
 .ia-plan input { margin: 3px 0 0; accent-color: var(--accent); flex: none; }
@@ -170,13 +176,13 @@ html[data-role=joueur] [data-arbitre] { display: none !important; }
 .ia-plan small { display: block; padding-left: 21px; font-size: var(--t-xs); line-height: 1.45; }
 .ia-plan .probleme { color: var(--rouge); } .ia-plan .avertissement { color: #d9a441; }
 :root[data-theme=clair] .ia-plan .avertissement { color: #a06a00; }
-.ia-actions { display: flex; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--trait); }
+.ia-actions { display: flex; gap: 6px; margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--trait); }
 .ia-actions button { font-family: var(--mono); font-size: var(--t-sm); padding: 5px 12px; }
-.ia-saisie { flex: none; display: flex; gap: 8px; align-items: flex-start; padding: 10px 14px 4px; border-top: 1px solid var(--trait); }
+.ia-saisie { flex: none; display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px 2px; border-top: 1px solid var(--trait); }
 .ia-invite { color: var(--texte-2); line-height: 1.55; }
 .ia-saisie textarea { flex: 1; min-width: 0; resize: none; border: 0; outline: 0; padding: 0; background: transparent; color: var(--texte); font: inherit; line-height: 1.55; max-height: 140px; }
 .ia[data-occupe=oui] .ia-saisie { opacity: .55; }
-.ia-aide { flex: none; padding: 0 14px 10px; font-size: var(--t-xs); color: var(--texte-2); font-family: Inter, system-ui, sans-serif; display: grid; gap: 4px; }
+.ia-aide { flex: none; padding: 0 10px 6px; font-size: var(--t-xs); color: var(--texte-2); font-family: Inter, system-ui, sans-serif; display: grid; gap: 4px; }
 .ia-aide p { margin: 0; } .ia-aide label { display: flex; gap: 6px; align-items: center; cursor: pointer; } .ia-aide input { margin: 0; accent-color: var(--accent); }
 .ia-micro { flex: none; padding: 2px 9px; font-family: Inter, system-ui, sans-serif; font-size: var(--t-xs); color: var(--texte-2); }
 .ia-micro[aria-pressed=true] { color: var(--fond); background: var(--accent); border-color: var(--accent); }
@@ -195,7 +201,8 @@ html[data-role=joueur] [data-arbitre] { display: none !important; }
 </style>
 </head>
 <body>
-<div class="top"><b>Carte</b><a href="/">Journal de partie</a><span id="badge-partie" class="badge-partie"></span><div class="horloges" id="horloges"></div><div class="seg" id="theme" role="group" aria-label="Thème"></div></div>
+<div class="top"><b>Carte</b><a href="/">Journal de partie</a><span id="badge-partie" class="badge-partie"></span><div class="horloges" id="horloges"></div><div class="temps-cmd" id="temps-cmd" data-arbitre></div><div class="seg" id="theme" role="group" aria-label="Thème"></div></div>
+<div class="reglage-heure" id="reglage-heure" hidden></div>
 <div id="map"></div>
 <button type="button" class="onglet" id="onglet-g" aria-label="Replier ou déplier le panneau de gauche" title="Replier / déplier">‹</button>
 <button type="button" class="onglet" id="onglet-d" aria-label="Replier ou déplier le panneau de droite" title="Replier / déplier">›</button>
@@ -203,12 +210,14 @@ html[data-role=joueur] [data-arbitre] { display: none !important; }
 
 <aside class="panneau gauche">
   <details open data-cle="g-partie" data-arbitre><summary>Partie en ligne</summary><div id="partie-panneau"></div></details>
-  <details open data-cle="g-fond"><summary>Fond</summary><div id="fonds"></div></details>
+  <details open data-cle="g-fond"><summary>Fond</summary><div id="fonds" class="grille2"></div><p class="note" id="fond-note"></p></details>
   <details open data-cle="g-sup"><summary>Superpositions</summary>
-    <label class="opt"><input type="checkbox" id="labels" checked><span>Frontières et noms<small>Sur tous les fonds</small></span></label>
-    <label class="opt"><input type="checkbox" id="relief3d"><span>Relief en 3D<small>Inclinaison de la vue, glisser avec Ctrl</small></span></label>
+    <div class="grille2">
+      <label class="opt"><input type="checkbox" id="labels" checked><span>Frontières, noms</span></label>
+      <label class="opt"><input type="checkbox" id="relief3d"><span>Relief 3D</span></label>
+    </div>
+    <p class="note">Relief 3D : inclinaison de la vue, glisser avec Ctrl.</p>
   </details>
-  <details open data-cle="g-temps" data-arbitre><summary>Temps de jeu</summary><div id="temps-panneau"></div></details>
   <details data-cle="g-meteo"><summary>Météo</summary><div id="meteo-panneau"></div></details>
   <details data-cle="g-scenario" data-arbitre><summary>Scénario</summary><div id="scenario-panneau"></div></details>
   <details open data-cle="g-zone"><summary>Zone de jeu</summary><select id="zone"></select><p class="note" id="zoneinfo"></p></details>

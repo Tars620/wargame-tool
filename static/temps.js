@@ -1,7 +1,7 @@
 import { estJoueur } from './role.js';
 import { PARIS, heure, date, etiquetteDecalage, nomZone, ecartAvecParis, parisVersMs, msVersParis } from './fuseaux.js';
 
-const VITESSES = [[1, '×1 (temps réel)'], [10, '×10'], [60, '×60 (1 min par seconde)'], [300, '×300'], [1800, '×1800 (30 min par seconde)']];
+const VITESSES = [[1, '×1', 'Temps réel'], [10, '×10', '10 s de jeu par seconde'], [60, '×60', '1 min de jeu par seconde'], [300, '×300', '5 min de jeu par seconde'], [1800, '×1800', '30 min de jeu par seconde']];
 const ZOOM_LOCAL_MIN = 3;  // en dessous, le « centre de la carte » ne désigne plus un lieu
 const PAS_MS = 250;
 const LAT_MAX = 89.9;
@@ -17,16 +17,17 @@ export function surTick(fn) { state.abonnes.push(fn); }
 
 function figer() { state.ms = maintenant(); state.ancre = performance.now(); }
 export function regler(ms) { state.ms = ms; state.ancre = performance.now(); state.dernier = ms; afficher(); }
-export function demarrer() { figer(); state.enMarche = true; state.dernier = state.ms; panneau(); }
-export function arreter() { figer(); state.enMarche = false; panneau(); }
-export function reglerVitesse(v) { figer(); state.vitesse = v; panneau(); afficher(); }
+export function demarrer() { figer(); state.enMarche = true; state.dernier = state.ms; majCommandes(); }
+export function arreter() { figer(); state.enMarche = false; majCommandes(); }
+export function reglerVitesse(v) { figer(); state.vitesse = v; majCommandes(); afficher(); }
 /** Horloge d'un joueur : elle suit celle de l'arbitre (heure, vitesse, marche ou pause), sans qu'il puisse la régler. */
 export function synchroniserHorloge(h) {
   if (!h) return;
   state.ms = h.ms; state.ancre = performance.now(); state.dernier = h.ms; state.vitesse = h.vitesse; state.enMarche = h.enMarche;
   afficher();
 }
-export function heureReelle() { state.vitesse = 1; state.enMarche = true; regler(Date.now()); panneau(); }
+/** Revient à l'heure réelle : vitesse normale, en marche. */
+export function heureReelle() { state.vitesse = 1; state.enMarche = true; regler(Date.now()); majCommandes(); }
 
 /** Fuseau du point au centre de la carte, ou null si la vue est trop large pour désigner un lieu. */
 export function zoneLocale() {
@@ -46,11 +47,11 @@ function afficher() {
     local = `<b>${nomZone(zone)}</b> ${date(t, zone)} ${heure(t, zone)} <em>${etiquetteDecalage(t, zone)} · ${diff}</em>`;
   }
   const boite = $('horloges');
-  if (!boite.firstChild) boite.innerHTML = '<span id="h-paris"></span><span id="h-local"></span><button type="button" class="etat" id="h-etat"></button>'; // structure fixe : le bouton ne change pas sous la souris
+  if (!boite.firstChild) boite.innerHTML = '<span id="h-paris" class="h-paris"></span><span id="h-local"></span><span id="h-pause" class="pause"></span>'; // structure fixe : rien ne change sous la souris
   $('h-paris').innerHTML = paris; $('h-local').innerHTML = local; // contenu entièrement produit ici (aucune donnée saisie)
-  const etat = $('h-etat');
-  etat.textContent = state.enMarche ? `×${state.vitesse}` : 'Pause';
-  etat.dataset.tip = state.enMarche ? 'Mettre le temps de jeu en pause' : 'Reprendre le temps de jeu';
+  const pause = state.enMarche ? '' : 'En pause';
+  if ($('h-pause').textContent !== pause) $('h-pause').textContent = pause;
+  majCommandes();
 }
 
 function tick() {
@@ -64,23 +65,52 @@ function tick() {
 // ---------- panneau « Temps de jeu » ----------
 function bouton(texte, onclick) { const b = document.createElement('button'); Object.assign(b, { type: 'button', textContent: texte }); b.addEventListener('click', onclick); return b; }
 
-function panneau() {
-  const boite = $('temps-panneau');
+/** Commandes du temps de jeu, dans la barre du haut : pause/lecture, vitesse, retour à l'heure réelle. */
+function commandes() {
+  const boite = $('temps-cmd');
+  if (!boite || boite.dataset.pret) return;
+  boite.dataset.pret = 'oui';
+  const bascule = bouton('Pause', () => (state.enMarche ? arreter() : demarrer()));
+  bascule.id = 'h-etat';
   const vit = document.createElement('select');
-  for (const [v, nom] of VITESSES) vit.append(Object.assign(document.createElement('option'), { value: String(v), textContent: nom, selected: v === state.vitesse }));
+  vit.id = 'h-vitesse'; vit.setAttribute('aria-label', 'Vitesse du temps de jeu');
+  for (const [v, nom, aide] of VITESSES) vit.append(Object.assign(document.createElement('option'), { value: String(v), textContent: nom, title: aide }));
   vit.addEventListener('change', () => reglerVitesse(Number(vit.value)));
-  const saisie = Object.assign(document.createElement('input'), { type: 'datetime-local', value: msVersParis(maintenant()) });
-  const regl = bouton('Régler', () => { const ms = parisVersMs(saisie.value); if (ms !== null) regler(ms); });
-  const ligne = document.createElement('div'); ligne.className = 'camps';
-  ligne.append(bouton(state.enMarche ? 'Pause' : 'Lecture', () => (state.enMarche ? arreter() : demarrer())), bouton('Heure réelle', heureReelle));
-  const note = Object.assign(document.createElement('p'), { className: 'note', textContent: "Heure de Paris. L'heure locale affichée en haut est celle du centre de la carte, dès qu'on zoome sur une zone." });
-  boite.replaceChildren(ligne, vit, saisie, regl, note);
+  const reel = bouton('Maintenant', heureReelle);
+  reel.dataset.tip = 'Revenir à l\'heure réelle, à vitesse normale';
+  boite.replaceChildren(bascule, vit, reel);
+}
+
+function majCommandes() {
+  const b = $('h-etat');
+  if (!b) return;
+  const texte = state.enMarche ? 'Pause' : 'Lecture';
+  if (b.textContent !== texte) b.textContent = texte;
+  b.dataset.tip = state.enMarche ? 'Mettre le temps de jeu en pause' : 'Reprendre le temps de jeu';
+  const v = $('h-vitesse');
+  if (v && v.value !== String(state.vitesse) && document.activeElement !== v) v.value = String(state.vitesse);
+}
+
+/** Réglage d'une date et d'une heure précises (heure de Paris) : s'ouvre en cliquant l'heure de Paris. */
+function reglageHeure() {
+  const fenetre = $('reglage-heure');
+  if (!fenetre) return;
+  const saisie = Object.assign(document.createElement('input'), { type: 'datetime-local' });
+  const fermer = () => { fenetre.hidden = true; };
+  const appliquer = () => { const ms = parisVersMs(saisie.value); if (ms !== null) { regler(ms); fermer(); } };
+  saisie.addEventListener('keydown', (e) => { if (e.key === 'Enter') appliquer(); else if (e.key === 'Escape') fermer(); });
+  fenetre.replaceChildren(saisie, bouton('Régler', appliquer), Object.assign(document.createElement('p'), { className: 'note', textContent: 'Heure de Paris.' }));
+  $('horloges').addEventListener('click', (e) => {
+    if (estJoueur() || !e.target.closest('.h-paris')) return;
+    fenetre.hidden = !fenetre.hidden;
+    if (!fenetre.hidden) { saisie.value = msVersParis(maintenant()); saisie.focus(); }
+  });
+  document.addEventListener('mousedown', (e) => { if (!fenetre.hidden && !fenetre.contains(e.target) && !e.target.closest('.h-paris')) fermer(); });
 }
 
 export function monter(map) {
   const maj = () => { const c = map.getCenter(); state.centre = { lng: c.lng, lat: c.lat, zoom: map.getZoom() }; };
   map.on('move', maj); maj();
-  $('horloges').addEventListener('click', (e) => { if (e.target.closest('.etat') && !estJoueur()) { if (state.enMarche) arreter(); else demarrer(); afficher(); } });
-  panneau(); afficher();
+  commandes(); reglageHeure(); afficher();
   setInterval(tick, PAS_MS);
 }

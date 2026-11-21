@@ -27,10 +27,10 @@ const ZOOM_ABSOLU = 20;
 const THEME_KEY = 'wg.theme';
 
 const FONDS = {
-  plan: { label: 'Plan', note: 'OpenStreetMap' },
-  relief: { label: 'Relief', note: 'Plan avec ombrage du terrain' },
-  s2: { label: 'Satellite haute résolution', note: `Sentinel-2, mosaïque ${S2_YEAR} (usage non commercial)` },
-  nasa: { label: 'Satellite quotidien', note: 'NASA VIIRS, 250 m, dernière journée disponible' },
+  plan: { label: 'Plan', court: 'Plan', note: 'Plan : OpenStreetMap.' },
+  relief: { label: 'Relief', court: 'Relief', note: 'Plan avec ombrage du terrain.' },
+  s2: { label: 'Satellite haute résolution', court: 'Satellite HD', note: `Sentinel-2, mosaïque ${S2_YEAR} (usage non commercial).` },
+  nasa: { label: 'Satellite quotidien', court: 'Satellite jour', note: 'NASA VIIRS, 250 m, dernière journée disponible.' },
 };
 
 // Thèmes : seul le plan et le relief changent de couleur ; les satellites restent des photos.
@@ -224,14 +224,16 @@ function fillTheme() {
 
 function fillFonds() {
   const box = $('fonds');
+  const note = $('fond-note');
+  const noter = () => { note.textContent = FONDS[state.fond].note; };
   for (const [key, f] of Object.entries(FONDS)) {
     const label = document.createElement('label'); label.className = 'opt';
     const input = Object.assign(document.createElement('input'), { type: 'radio', name: 'fond', value: key, checked: key === state.fond });
-    const text = document.createElement('span'); text.textContent = f.label;
-    const small = document.createElement('small'); small.textContent = f.note; text.append(small);
-    input.addEventListener('change', () => { state.fond = key; render(); });
+    const text = document.createElement('span'); text.textContent = f.court;
+    input.addEventListener('change', () => { state.fond = key; noter(); render(); });
     label.append(input, text); box.append(label);
   }
+  noter(); // la note du fond choisi (par exemple l'usage non commercial de Sentinel-2) reste visible sur une ligne
 }
 
 function fillZones() {

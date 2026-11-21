@@ -121,12 +121,12 @@ function aideTexte() {
 
 function dessinerOutils() {
   const boutons = Object.entries(OUTILS).map(([cle, nom]) => h('button', { type: 'button', 'aria-pressed': String(state.outil === cle), onclick: () => setOutil(cle) }, nom));
-  const camps = Object.entries(NOM_CAMP).map(([camp, nom]) => h('button', { type: 'button', class: 'cellule-camp', 'data-tip': `Les prochains tracés seront ${nom.toLowerCase()}`,
-    'aria-pressed': String(state.camp === camp), style: `--c:${camp === 'neutre' ? NEUTRE[state.theme] : COULEURS[camp]}`,
+  const camps = Object.entries(NOM_CAMP).map(([camp, nom]) => h('button', { type: 'button', class: 'cellule-camp', 'data-tip': `Camp des prochains tracés : ${nom.toLowerCase()}`,
+    'aria-pressed': String(state.camp === camp), style: `--c:${camp === 'neutre' ? NEUTRE[state.theme] : COULEURS[camp]};--sur:${camp === 'neutre' && state.theme === 'clair' ? '#fff' : '#000'}`,
     onclick: () => { state.camp = camp; dessinerOutils(); } }, nom));
   const bascule = h('button', { type: 'button', 'aria-pressed': String(state.couloirs), onclick: basculerCouloirs, class: 'bord-droit',
     'data-tip': 'Montre la zone de part et d\'autre des lignes de front et des limites (30 km par défaut, réglable par ligne)' }, 'Couloirs');
-  $('outils').replaceChildren(...boutons, h('span', { class: 'sep' }), h('span', { class: 'etiquette' }, 'Camp du tracé'), ...camps, h('span', { class: 'sep' }), bascule);
+  $('outils').replaceChildren(...boutons, ...camps, bascule);
   $('aide-dessin').textContent = aideTexte();
   $('aide-dessin').style.display = state.outil === 'selection' && !state.selection ? 'none' : '';
 }

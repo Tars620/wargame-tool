@@ -10,7 +10,7 @@ import { maintenant, enMarche, vitesse, arreter, demarrer, reglerVitesse } from 
 
 const DELAI_CLIENT_MS = 100000;
 const ECHANGES_MEMOIRE = 4;
-const PLACEHOLDER = 'Décrivez ce que vous voulez voir sur la carte';
+const PLACEHOLDER = 'Décrivez la situation…';
 const EXEMPLE = "5 drones armés bleus côte à côte autour de 48,50 N 37,50 E, face à l'est. En face, 5 blindés rouges autour de 48,50 N 37,80 E. Les drones attaquent les blindés et les détruisent.";
 
 const REGLAGES_KEY = 'wg.voix';
