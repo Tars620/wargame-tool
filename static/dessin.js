@@ -60,7 +60,7 @@ export function layerSpecs() {
     { id: 'front-trait', type: 'line', source: SOURCE_DESSINS, filter: filtreGenre('front'), layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: { 'line-color': couleurDe(), 'line-width': 4 } },
     { id: 'front-chevrons', type: 'symbol', source: SOURCE_DESSINS, filter: filtreGenre('front'),
-      layout: { 'symbol-placement': 'line', 'symbol-spacing': 40, 'text-field': '>', 'text-font': ['Noto Sans Medium'], 'text-size': 18,
+      layout: { 'symbol-placement': 'line', 'symbol-spacing': 40, 'text-field': '>', 'text-font': ['Noto Sans Regular'], 'text-size': 18,
         'text-keep-upright': false, 'text-allow-overlap': true, 'text-ignore-placement': true, 'text-rotation-alignment': 'map' },
       paint: { 'text-color': state.theme === 'sombre' ? '#000000' : '#ffffff' } },
     { id: 'brouillon-trait', type: 'line', source: SOURCE_BROUILLON, filter: ['==', ['geometry-type'], 'LineString'],

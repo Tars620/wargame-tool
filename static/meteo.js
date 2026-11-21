@@ -112,7 +112,7 @@ function flecheVent() {
 }
 const ajouterImage = () => { if (state.map && !state.map.hasImage('fleche-vent')) state.map.addImage('fleche-vent', flecheVent(), { sdf: true }); };
 
-const texte = { 'text-font': ['Noto Sans Medium'], 'text-size': 11, 'text-allow-overlap': true, 'text-ignore-placement': true };
+const texte = { 'text-font': ['Noto Sans Regular'], 'text-size': 11, 'text-allow-overlap': true, 'text-ignore-placement': true };
 const textePaint = { 'text-color': '#ffffff', 'text-halo-color': '#000000', 'text-halo-width': 1.5 };
 
 /** Sources et couches à ajouter au style selon les calques cochés. */

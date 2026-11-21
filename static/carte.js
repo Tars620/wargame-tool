@@ -63,7 +63,9 @@ function nomsFrancais(couches) {
   return couches.map((l) => (l.layout && l.layout['text-field'] && JSON.stringify(l.layout['text-field']).includes('"name')
     ? { ...l, layout: { ...l.layout, 'text-field': NOM_FRANCAIS } } : l));
 }
-const vecteur = (f) => nomsFrancais(layers('protomaps', f, { lang: 'fr' }));
+// Une seule graisse sur la carte : tous les textes en Noto Sans Regular (le serveur de glyphes ne sert pas Inter ; c'est la sans-serif la plus proche).
+const policeUnique = (couches) => couches.map((l) => (l.layout && l.layout['text-field'] ? { ...l, layout: { ...l.layout, 'text-font': ['Noto Sans Regular'] } } : l));
+const vecteur = (f) => policeUnique(nomsFrancais(layers('protomaps', f, { lang: 'fr' })));
 
 const isOverlay = (layer) => ['boundaries', 'places'].includes(layer['source-layer']) || layer.id.includes('label');
 
