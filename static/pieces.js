@@ -1,6 +1,7 @@
 import * as maplibre from './vendor/maplibre-gl.mjs';
 import { distanceKm, cercle, formatDuree, dureesDeplacement, formatKm } from './geo.js';
 import { symbole } from './symboles.js';
+import { estJoueur, role } from './role.js';
 import { estPoste, exigePoste, etatLiaison, lierAuto, phraseLiaison, porteeLiaison } from './moteur.js';
 import { pieceDepuisModele, migrerPieces } from './catalogue.js';
 import { enVol, enduranceRestante, estDrone, modeFeu, rayonBrouillage, rayonDeSurfaceKm, rayonVision } from './regles.js';
@@ -33,7 +34,7 @@ const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toStrin
 const piece = (id) => state.pieces.find((p) => p.id === id) || null;
 
 // ---------- persistance (navigateur) ----------
-function sauver() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.pieces)); } catch { /* stockage indisponible */ } }
+function sauver() { if (estJoueur()) return; try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.pieces)); } catch { /* stockage indisponible */ } }
 function charger() {
   try { const brut = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); return Array.isArray(brut) ? brut : []; } catch { return []; }
 }
@@ -60,7 +61,7 @@ export function layerSpecs() {
 }
 
 export function collection() {
-  const montrees = state.pieces.filter((p) => estVisible(p) && !p.detruit);
+  const montrees = state.pieces.filter((p) => estVisible(p) && !p.detruit && (!estJoueur() || p.camp === role.camp)); // un joueur ne voit ni portées ni liens de l'adversaire
   const visibles = state.portees === 'toutes' ? montrees : state.portees === 'selection' ? montrees.filter((p) => p.id === state.selection) : [];
   const features = [];
   for (const p of visibles) {
@@ -103,7 +104,7 @@ function ajouterMarqueur(p) {
   const el = h('button', { class: 'pion', type: 'button' });
   styleMarqueur(p, el);
   el.addEventListener('click', (ev) => { ev.stopPropagation(); choisir(p.id); });
-  const marqueur = new maplibre.Marker({ element: el, draggable: true }).setLngLat([p.lng, p.lat]).addTo(state.map);
+  const marqueur = new maplibre.Marker({ element: el, draggable: !estJoueur() }).setLngLat([p.lng, p.lat]).addTo(state.map);
   let depart = null;
   marqueur.on('dragstart', () => { depart = [p.lng, p.lat]; choisir(p.id); });
   marqueur.on('dragend', () => { const { lng, lat } = marqueur.getLngLat(); deplacer(p.id, depart, [lng, lat]); });
@@ -224,6 +225,7 @@ function sectionCommandement(p) {
     })];
     const choix = h('select', { onchange: (e) => { const r = attacherPoste(p.id, e.target.value || null); if (!r.ok) { alert(r.erreur); dessinerFiche(); } } }, ...options);
     const phrase = phraseLiaison(l);
+    if (estJoueur()) return [h('h4', {}, 'Équipe de pilotes'), h('p', { class: phrase ? 'avert' : 'note' }, phrase ? `Liaison coupée : ${phrase}.` : `Liaison établie : ${km(l.distanceKm)} km sur ${km(l.porteeKm)} km au plus.`)]; // le rattachement est une décision de l'arbitre
     return [h('h4', {}, 'Équipe de pilotes'), h('label', { class: 'champ large' }, h('span', {}, 'Équipe'), choix),
       h('p', { class: phrase ? 'avert' : 'note' }, phrase ? `Liaison coupée : ${phrase}.` : `Liaison établie : ${km(l.distanceKm)} km sur ${km(l.porteeKm)} km au plus.`)];
   }
@@ -270,10 +272,23 @@ function boutonsArbitre(p) {
   return [h('button', { type: 'button', onclick: () => detruire(p.id, 'arbitre') }, 'Détruire la pièce')];
 }
 
+/** Fiche d'un joueur : ce qu'il peut savoir de la pièce, sans rien à modifier. */
+function fichePublique(p) {
+  const propre = p.camp === role.camp;
+  const lignes = [h('h4', {}, p.nom), h('p', { class: 'note' }, `${NOM_CAMP[p.camp]}${p.detruit ? ' · détruite' : ''}${propre ? '' : ' · détectée'}`)];
+  if (propre) {
+    lignes.push(h('p', { class: 'note' }, resume(p).join(' · ')));
+    if (estDrone(p)) lignes.push(h('p', { class: 'note' }, enVol(p) ? `En vol · endurance restante ${fr(Math.round(enduranceRestante(p) * 10) / 10)} min.` : 'Au sol auprès de son équipe de pilotes.'));
+    lignes.push(...sectionCommandement(p));
+  } else lignes.push(h('p', { class: 'note' }, `Position : ${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}`));
+  return lignes;
+}
+
 function dessinerFiche() {
   const boite = $('fiche');
   const p = piece(state.selection);
   if (!p) { boite.replaceChildren(h('p', { class: 'note' }, 'Aucune pièce sélectionnée.')); return; }
+  if (estJoueur()) { boite.replaceChildren(...fichePublique(p)); return; }
   const modele = state.catalogue.find((m) => m.id === p.type);
   const deplacement = h('p', { class: 'note' }, phraseDeplacement(p));
   const miseAJour = (patch) => { maj(p.id, patch); const q = piece(p.id); deplacement.textContent = phraseDeplacement(q); rafraichirCarte(); majMarqueurs(); };
@@ -303,7 +318,7 @@ function dessinerOptions() {
   const choix = [['selection', 'Pièce sélectionnée'], ['toutes', 'Toutes les pièces'], ['aucune', 'Aucune']];
   $('portees').replaceChildren(...choix.map(([valeur, libelle]) => h('label', { class: 'opt' },
     h('input', { type: 'radio', name: 'portees', value: valeur, checked: state.portees === valeur, onchange: () => { state.portees = valeur; rafraichirCarte(); } }), h('span', {}, libelle))),
-  h('button', { class: 'danger', type: 'button', onclick: () => { if (state.pieces.length && confirm('Retirer toutes les pièces de la carte ?')) [...state.pieces].forEach((p) => supprimer(p.id)); } }, 'Tout effacer'));
+  h('button', { class: 'danger', type: 'button', 'data-arbitre': '', onclick: () => { if (state.pieces.length && confirm('Retirer toutes les pièces de la carte ?')) [...state.pieces].forEach((p) => supprimer(p.id)); } }, 'Tout effacer'));
 }
 
 // ---------- interface pour les consignes ----------
@@ -341,6 +356,31 @@ export function attacherPoste(id, posteId) {
   maj(id, { poste: posteId || null });
   rafraichirCarte(); dessinerFiche(); signaler();
   return { ok: true, erreur: null };
+}
+
+/**
+ * Vue d'un joueur : remplace les pièces par celles que le serveur lui envoie (les siennes en entier, les adverses détectées en version réduite,
+ * complétées ici avec le catalogue). Les marqueurs sont mis à jour sur place.
+ */
+export function remplacerPieces(liste) {
+  const cle = JSON.stringify(liste);
+  if (cle === state.cleVue) return;
+  state.cleVue = cle;
+  const completes = liste.map((p) => {
+    const m = state.catalogue.find((x) => x.id === p.type);
+    return m ? { ...pieceDepuisModele(m, { id: p.id, nom: p.nom, camp: p.camp, lng: p.lng, lat: p.lat }), ...p } : p;
+  });
+  const ids = new Set(completes.map((p) => p.id));
+  for (const [id, mq] of state.marqueurs) if (!ids.has(id)) { mq.remove(); state.marqueurs.delete(id); }
+  const avant = state.pieces.map((p) => `${p.id}:${p.detruit}`).join();
+  state.pieces = completes;
+  for (const p of completes) {
+    const mq = state.marqueurs.get(p.id);
+    if (mq) { mq.setLngLat([p.lng, p.lat]); styleMarqueur(p, mq.getElement()); } else ajouterMarqueur(p);
+  }
+  if (state.selection && !ids.has(state.selection)) state.selection = null;
+  rafraichirCarte(); dessinerFiche();
+  if (avant !== completes.map((p) => `${p.id}:${p.detruit}`).join()) signaler();
 }
 
 /** Une pièce détruite reste sur la carte (grisée) mais ne voit, ne tire et ne se déplace plus. */
@@ -391,18 +431,18 @@ export async function monter(map) {
   state.map = map;
   const reponse = await fetch('/static/pieces.json');
   state.catalogue = (await reponse.json()).pieces;
-  const migration = migrerPieces(charger(), state.catalogue); // pièces de l'ancien catalogue : reconstruites ou retirées
+  const migration = migrerPieces(estJoueur() ? [] : charger(), state.catalogue); // pièces de l'ancien catalogue : reconstruites ou retirées
   state.pieces = migration.pieces; state.retirees = migration.retirees;
-  if (migration.retirees.length || migration.pieces.some((p, i) => p !== charger()[i])) sauver();
+  if (!estJoueur() && (migration.retirees.length || migration.pieces.some((p, i) => p !== charger()[i]))) sauver();
   for (const p of state.pieces) ajouterMarqueur(p);
   map.on('click', (e) => {
     if (document.body.dataset.pointage === 'oui') return; // une consigne est en cours de pointage sur la carte
-    if (state.arme) creer(state.arme, e.lngLat); else if (state.selection) choisir(null);
+    if (state.arme && !estJoueur()) creer(state.arme, e.lngLat); else if (state.selection) choisir(null);
   });
   document.addEventListener('keydown', (e) => {
     const saisie = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement && document.activeElement.tagName);
     if (e.key === 'Escape' && state.arme) armer(state.arme);
-    else if ((e.key === 'Delete' || e.key === 'Backspace') && state.selection && !saisie) { e.preventDefault(); supprimer(state.selection); }
+    else if ((e.key === 'Delete' || e.key === 'Backspace') && state.selection && !saisie && !estJoueur()) { e.preventDefault(); supprimer(state.selection); }
   });
   document.addEventListener('wg:outil', (e) => { if (e.detail === 'dessin' && state.arme) armer(state.arme); });
   document.addEventListener('wg:selection', (e) => {

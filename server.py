@@ -19,9 +19,11 @@ import threading
 import urllib.error
 import urllib.request
 from collections import OrderedDict
-from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
+
+from carte_partie import CartePartie, MAX_ETAT
+from server_commun import ApiError, MAX_TEXT, clean_text, now_iso  # noqa: F401 (réexportés : les tests les lisent ici)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATIC = os.path.join(HERE, "static")
@@ -35,7 +37,6 @@ _relais_cache = OrderedDict()
 _relais_taille = 0
 _relais_verrou = threading.Lock()
 GENESIS = "0" * 64
-MAX_TEXT = 4000
 MAX_BODY = 64 * 1024
 CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 KINDS = ("player", "adjudicator", "observer")
@@ -60,36 +61,14 @@ CREATE TABLE IF NOT EXISTS events (
 """
 
 
-class ApiError(Exception):
-    def __init__(self, status, message):
-        super().__init__(message)
-        self.status = status
-        self.message = message
-
-
 def canon(obj):
     return json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
-
-
-def now_iso():
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def event_hash(ev):
     body = {k: ev[k] for k in ("code", "seq", "ts", "actor", "role", "side", "type", "turn",
                                "visible_to", "payload", "prev")}
     return hashlib.sha256(canon(body).encode("utf-8")).hexdigest()
-
-
-def clean_text(value, name, required=False, limit=MAX_TEXT):
-    text = (value or "").strip() if isinstance(value, str) or value is None else None
-    if text is None:
-        raise ApiError(400, f"« {name} » doit être du texte")
-    if required and not text:
-        raise ApiError(400, f"« {name} » est obligatoire")
-    if len(text) > limit:
-        raise ApiError(400, f"« {name} » dépasse {limit} caractères")
-    return text
 
 
 def row_event(row):
@@ -122,6 +101,15 @@ class Store:
         self.lock = threading.RLock()
         with self.lock:
             self.conn.executescript(SCHEMA)
+
+    def est_participant(self, code, token):
+        """Jeton valide d'un arbitre ou d'un joueur de cette partie (les observateurs n'ont pas l'assistant)."""
+        try:
+            with self.lock:
+                g = self._game(code)
+                return self._member(g["code"], token)["kind"] in ("adjudicator", "player")
+        except ApiError:
+            return False
 
     # ---------- parties et participants ----------
     def create_game(self, data):
@@ -348,7 +336,8 @@ class Store:
 
 TYPE_LABEL = {"game_created": "Partie créée", "joined": "Arrivée", "turn_start": "Début de tour",
               "move": "Coup", "adjudication": "Arbitrage", "inject": "Événement injecté",
-              "note": "Note d'observation", "lesson": "Leçon identifiée", "game_end": "Fin de partie"}
+              "note": "Note d'observation", "lesson": "Leçon identifiée", "game_end": "Fin de partie",
+              "carte_event": "Événement de la carte", "carte_order": "Ordre donné sur la carte"}
 
 
 def _audience_text(vt):
@@ -378,6 +367,10 @@ def render_event_md(ev):
         lines.append(f"- {p['name']} ({p['kind']}{', ' + p['side'] if p.get('side') else ''})")
     elif ev["type"] == "game_end":
         lines.append(f"- {p.get('summary') or 'Partie terminée'}")
+    elif ev["type"] == "carte_event":
+        lines.append(f"- {p.get('texte', '')}")
+    elif ev["type"] == "carte_order":
+        lines.append(f"- Ordre #{p.get('commande')} : {json.dumps(p.get('ordre'), ensure_ascii=False)}")
     elif ev["type"] != "game_created":
         lines.append(f"- {p.get('text', '')}")
     return "\n".join(lines)
@@ -485,6 +478,8 @@ Règles du jeu, à respecter et à expliquer quand elles bloquent la demande :
   un drone d'attaque non utilisé à temps est perdu. Ne propose pas de mission plus longue que l'endurance restante.
 - Brouilleur : tout drone ennemi en vol qui entre dans sa zone est perdu, sauf le drone filoguidé (insensible_au_brouillage). Évite les trajectoires qui traversent ces zones.
 - Artillerie : route_seule signifie qu'elle ne roule que sur route ; le terrain n'est pas encore géré, ses déplacements sont pour l'instant en ligne droite.
+Si le contexte porte role.genre = "joueur" : l'utilisateur est un joueur et ne commande que les pièces de role.camp. N'utilise alors que les actions consigne et vue ; jamais poser, rattacher, dessin ni temps ;
+refuse poliment le reste en expliquant que c'est réservé à l'arbitre. Il ne connaît que ce que son camp détecte : ne suppose rien sur les pièces adverses absentes du contexte.
 Coordonnées en degrés décimaux, longitude d'abord. Si l'arbitre donne des coordonnées, reprends-les telles quelles. S'il nomme un lieu,
 tu ne le connais que de mémoire : donne des coordonnées plausibles et dis dans "message" qu'elles sont approximatives. N'invente jamais de modèle
 ni de pièce : uniquement ceux du contexte. Si la demande est ambiguë ou impossible, renvoie "actions": [] et pose la question dans "message". Pas d'emoji."""
@@ -565,6 +560,7 @@ def demander_ia(corps, lanceur=None):
 # ---------- HTTP ----------
 class Handler(BaseHTTPRequestHandler):
     store = None
+    carte = None
     lanceur_ia = None  # remplaçable en test
     server_version = "WargameLog/0.1"
 
@@ -586,9 +582,9 @@ class Handler(BaseHTTPRequestHandler):
     def _json(self, status, obj):
         self._send(status, json.dumps(obj, ensure_ascii=False))
 
-    def _body(self):
+    def _body(self, limite=MAX_BODY):
         length = int(self.headers.get("Content-Length") or 0)
-        if length > MAX_BODY:
+        if length > limite:
             raise ApiError(413, "Message trop long")
         try:
             data = json.loads(self.rfile.read(length) or b"{}")
@@ -609,6 +605,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._static(path[len("/static/"):])
         if method == "GET" and path == "/api/version":
             return self._json(200, {"version": code_version()})
+        if method == "GET" and path == "/api/acces":
+            return self._json(200, {"reseau": f"http://{lan_address()}:{self.server.server_address[1]}"})  # adresse à donner aux joueurs d'autres ordinateurs
         if method == "GET" and path == "/api/maps":
             return self._json(200, list_zones())
         if method == "GET" and re.fullmatch(r"/enligne/[a-z0-9-]+", path):
@@ -616,11 +614,15 @@ class Handler(BaseHTTPRequestHandler):
         if method == "GET" and re.fullmatch(r"/maps/[a-z0-9-]+\.pmtiles", path):
             return self._send_file(os.path.join(MAPS_DIR, path[len("/maps/"):]), "application/octet-stream", cache=True)
         if method == "POST" and path == "/api/ia":
-            if self.client_address[0] not in ("127.0.0.1", "::1", "::ffff:127.0.0.1"):
-                raise ApiError(403, "L'assistant n'est disponible que depuis cet ordinateur.")
+            local = self.client_address[0] in ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+            if not local and not self.store.est_participant(self.headers.get("X-Partie") or "", token):
+                raise ApiError(403, "L'assistant est réservé à cet ordinateur et aux participants d'une partie.")
             return self._json(200, demander_ia(self._body(), self.lanceur_ia))
         if method == "POST" and path == "/api/games":
             return self._json(200, self.store.create_game(self._body()))
+        c = re.fullmatch(r"/api/games/([A-Za-z0-9]{5})/carte(?:/(etat|vue|commandes|evenements))?(?:/(\d+))?", path)
+        if c:
+            return self._carte(method, c.group(1), c.group(2), c.group(3), token, query)
         m = re.fullmatch(r"/api/games/([A-Za-z0-9]{5})/(info|join|events|state|verify|export)", path)
         if not m:
             raise ApiError(404, "Introuvable")
@@ -645,6 +647,25 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, json.dumps(self.store.export_json(code, token), ensure_ascii=False, indent=1),
                                   extra=disp)
             return self._send(200, self.store.export_markdown(code, token), "text/markdown; charset=utf-8", disp)
+        raise ApiError(405, "Méthode non autorisée")
+
+    def _carte(self, method, code, action, numero, token, query):
+        """Carte partagée d'une partie : publication par l'arbitre, vues par rôle, ordres des joueurs."""
+        carte = self.carte
+        if action is None and method == "POST":
+            return self._json(200, carte.publier(code, token, self._body(MAX_ETAT)))
+        if action == "etat" and method == "GET":
+            return self._json(200, carte.etat_complet(code, token))
+        if action == "vue" and method == "GET":
+            return self._json(200, carte.vue(code, token, int((query.get("apres") or ["0"])[0] or 0)))
+        if action == "commandes" and method == "POST" and numero is None:
+            return self._json(200, carte.commander(code, token, self._body()))
+        if action == "commandes" and method == "GET" and numero is None:
+            return self._json(200, carte.commandes_en_attente(code, token))
+        if action == "commandes" and method == "POST":
+            return self._json(200, carte.resultat_commande(code, token, int(numero), self._body()))
+        if action == "evenements" and method == "POST":
+            return self._json(200, carte.evenements(code, token, self._body()))
         raise ApiError(405, "Méthode non autorisée")
 
     def _static(self, name):
@@ -764,6 +785,7 @@ def lan_address():
 
 def make_server(host, port, db_path):
     Handler.store = Store(db_path)
+    Handler.carte = CartePartie(Handler.store)
     return ThreadingHTTPServer((host, port), Handler)
 
 

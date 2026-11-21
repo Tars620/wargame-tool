@@ -3,6 +3,8 @@ import { ALLURES, avancer, contacts, estPoste, position, etatLiaison, exigePoste
 import { PARIS, date, heure } from './fuseaux.js';
 import { maintenant, surTick } from './temps.js';
 import { listerPieces, pieceChoisie, choisirPiece, positionner, appliquerVisibilite, detruire, restaurer, rafraichirPortees, modifier } from './pieces.js';
+import { estJoueur, role } from './role.js';
+import { empiler, envoyerOrdre } from './partie.js';
 import { aFeu, brouilleSur, doitRentrer, effets, enVol, enduranceRestante, estDrone, retourPossible } from './regles.js';
 import { conditions } from './meteo.js';
 
@@ -32,22 +34,33 @@ function h(tag, props = {}, ...kids) {
 const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 const lire = (cle, repli) => { try { return JSON.parse(localStorage.getItem(cle)) ?? repli; } catch { return repli; } };
 const ecrire = (cle, valeur) => { try { localStorage.setItem(cle, JSON.stringify(valeur)); } catch { /* stockage indisponible */ } };
-const sauver = () => { ecrire(STORAGE_ORDRES, state.ordres); ecrire(STORAGE_JOURNAL, state.journal); };
+const sauver = () => { if (estJoueur()) return; ecrire(STORAGE_ORDRES, state.ordres); ecrire(STORAGE_JOURNAL, state.journal); };
 const nomDe = (pieces, id) => (pieces.find((p) => p.id === id) || { nom: 'pièce retirée' }).nom;
 const km = (x) => formatKm(x);
 
 // ---------- journal des opérations ----------
-function noter(t, texte, genre = 'info') {
-  state.journal = [{ t, texte, genre }, ...state.journal].slice(0, JOURNAL_MAX);
+/** Camps (bleu, rouge) des pièces désignées : le public naturel d'un événement qui les concerne. */
+const cotes = (pieces, ...ids) => [...new Set(ids.map((id) => (pieces.find((p) => p.id === id) || {}).camp).filter(Boolean))];
+
+/**
+ * Une ligne du journal. `public` dit qui peut la lire : une liste de camps, 'all', ou [] (arbitrage seul, par défaut :
+ * ce qui n'a pas de public explicite ne fuit jamais). Elle est aussi enregistrée dans la chaîne de la partie.
+ */
+function noter(t, texte, genre = 'info', publicVise = []) {
+  state.journal = [{ t, texte, genre, visible_to: publicVise }, ...state.journal].slice(0, JOURNAL_MAX);
   sauver(); dessinerJournal();
+  empiler({ texte, genre, t, visible_to: publicVise });
 }
+
+const enPartieArbitre = () => role.genre === 'arbitre';
+const libellePublic = (v) => (v === 'all' ? 'tous' : Array.isArray(v) && v.length ? v.join(' et ') : 'arbitrage seul');
 
 function dessinerJournal() {
   const liste = $('journal-ops');
   if (!liste) return;
   if (!state.journal.length) { liste.replaceChildren(h('p', { class: 'note' }, 'Aucun événement. Les départs, arrivées, contacts et tirs apparaissent ici, à l\'heure de jeu.')); return; }
   liste.replaceChildren(...state.journal.slice(0, JOURNAL_AFFICHE).map((e) => h('div', { class: `evt evt-${e.genre}` },
-    h('small', {}, `${date(e.t, PARIS)} ${heure(e.t, PARIS)} Paris`), h('span', {}, e.texte))),
+    h('small', {}, `${date(e.t, PARIS)} ${heure(e.t, PARIS)} Paris${enPartieArbitre() ? ` · ${libellePublic(e.visible_to)}` : ''}`), h('span', {}, e.texte))),
   h('button', { type: 'button', class: 'danger', onclick: () => { state.journal = []; sauver(); dessinerJournal(); } }, 'Effacer le journal'));
 }
 
@@ -105,6 +118,7 @@ async function ajouter() {
   const r = await bilan(piece, c, pieces);
   if (!r.ok) return;
   if (c.type === 'aller') c = { ...c, distanceKm: r.distanceKm };
+  if (estJoueur()) { await transmettre(piece, c); return; }
   assurerDepart();
   majFile(piece.id, (file) => [...file, c]);
   if (state.pointage) arreterPointage(false);
@@ -112,7 +126,66 @@ async function ajouter() {
   dessinerConsignes(); rafraichirCarte();
 }
 
-function retirer(pieceId, id) { majFile(pieceId, (file) => file.filter((c) => c.id !== id)); dessinerConsignes(); rafraichirCarte(); }
+function retirer(pieceId, id) {
+  if (estJoueur()) { envoyerOrdre({ type: 'annuler', pieceId, consigneId: id }).then(() => etatOrdre('Annulation transmise à l\'arbitre.')).catch((e) => etatOrdre(e.message, true)); return; }
+  majFile(pieceId, (file) => file.filter((c) => c.id !== id)); dessinerConsignes(); rafraichirCarte();
+}
+
+// ---------- ordres d'un joueur ----------
+/** Retour affiché sous le formulaire : l'ordre est transmis, puis accepté ou refusé par l'arbitre (le motif revient avec la vue). */
+function etatOrdre(texte, erreur = false) { const z = $('o-retour'); if (z) z.replaceChildren(h('p', { class: erreur ? 'err' : 'note' }, texte)); }
+
+async function transmettre(piece, c) {
+  const consigne = { type: c.type, allure: c.allure, ...(c.type === 'aller' ? { points: c.points } : {}), ...(c.type === 'observer' ? { dureeMin: c.dureeMin } : {}), ...(c.type === 'engager' ? { cibleId: c.cibleId } : {}) };
+  try { await envoyerOrdre({ type: 'consigne', pieceId: piece.id, consigne }); etatOrdre('Ordre transmis à l\'arbitre.'); } catch (e) { etatOrdre(e.message, true); return; }
+  if (state.pointage) arreterPointage(false);
+  state.forme = { ...state.forme, points: [] };
+  dessinerConsignes();
+}
+
+/**
+ * Arbitre : exécute l'ordre d'un joueur après l'avoir revérifié avec les VRAIES données (capacités, endurance, liaison, détection de la cible).
+ * Rend { ok, message } : le joueur reçoit ce message.
+ */
+export async function traiterCommande(cmd) {
+  const pieces = listerPieces();
+  const piece = pieces.find((p) => p.id === cmd.corps.pieceId);
+  if (!piece || piece.camp !== cmd.side) return { ok: false, message: 'Pièce introuvable.' };
+  if (piece.detruit) return { ok: false, message: 'Cette pièce est détruite.' };
+  if (cmd.corps.type === 'annuler') {
+    if (!fileDe(piece.id).some((c) => c.id === cmd.corps.consigneId)) return { ok: false, message: 'Cette consigne n\'existe plus.' };
+    retirer(piece.id, cmd.corps.consigneId);
+    noter(maintenant(), `${cmd.auteur} annule une consigne de ${piece.nom}.`, 'op', [cmd.side]);
+    return { ok: true, message: 'Consigne annulée.' };
+  }
+  const c = { id: newId(), statut: 'lance', ...cmd.corps.consigne };
+  if (c.type === 'engager' && !visiblesPour(cmd.side, pieces).has(c.cibleId)) return { ok: false, message: 'Cette cible n\'est pas détectée par votre camp.' };
+  const r = await bilan(piece, c, pieces);
+  if (!r.ok) return { ok: false, message: r.erreurs.join(' ') };
+  ajouterConsignes([{ ref: piece.id, consigne: c.type === 'aller' ? { ...c, distanceKm: r.distanceKm } : c }]);
+  noter(maintenant(), `${cmd.auteur} : ${piece.nom} reçoit « ${libelle(c, pieces)} ».`, 'op', [cmd.side]);
+  return { ok: true, message: r.avertissements.length ? `Ordre accepté. ${r.avertissements.join(' ')}` : 'Ordre accepté.' };
+}
+
+/** Vue d'un joueur : consignes et journal reçus du serveur. */
+export function remplacerOrdres(ordres) {
+  const cle = JSON.stringify(ordres);
+  if (cle === state.cleVue) return;
+  state.cleVue = cle; state.ordres = ordres; listeVue = null;
+  dessinerListe(); rafraichirCarte();
+}
+export function remplacerJournal(entrees) {
+  const connus = new Set(state.journal.map((e) => `${e.t}|${e.texte}`));
+  const neuves = entrees.filter((e) => !connus.has(`${e.t}|${e.texte}`));
+  if (!neuves.length) return;
+  state.journal = [...neuves.reverse(), ...state.journal].slice(0, JOURNAL_MAX);
+  dessinerJournal();
+}
+/** Résultat d'un ordre donné par ce joueur (accepté ou refusé par l'arbitre), à afficher sous le formulaire. */
+export function resultatsOrdres(commandes) {
+  const dernier = commandes.find((c) => c.statut !== 'attente');
+  if (dernier) etatOrdre(dernier.statut === 'traitee' ? `Accepté : ${dernier.reponse || 'ordre exécuté'}` : `Refusé : ${dernier.reponse || 'ordre non exécutable'}`, dernier.statut === 'refusee');
+}
 
 // ---------- pointage sur la carte ----------
 function demarrerPointage() {
@@ -169,22 +242,22 @@ const metres = (km) => `${Math.round(km * 1000)} m`;
 /** Journalise un événement du moteur et applique ses effets : destructions, atterrissage. */
 function evenement(t, e, pieces) {
   const nom = nomDe(pieces, e.pieceId);
-  if (e.type === 'arrivee') noter(t, `${nom} est arrivé à destination.`, 'info');
-  else if (e.type === 'fin_observation') noter(t, `${nom} termine son observation.`, 'info');
-  else if (e.type === 'cible_perdue') noter(t, `${nom} : cible introuvable ou déjà détruite, engagement annulé.`, 'alerte');
-  else if (e.type === 'sans_equipe') noter(t, `${nom} : plus d'équipe de pilotes où se poser.`, 'alerte');
+  if (e.type === 'arrivee') noter(t, `${nom} est arrivé à destination.`, 'info', cotes(pieces, e.pieceId));
+  else if (e.type === 'fin_observation') noter(t, `${nom} termine son observation.`, 'info', cotes(pieces, e.pieceId));
+  else if (e.type === 'cible_perdue') noter(t, `${nom} : cible introuvable ou déjà détruite, engagement annulé.`, 'alerte', cotes(pieces, e.pieceId));
+  else if (e.type === 'sans_equipe') noter(t, `${nom} : plus d'équipe de pilotes où se poser.`, 'alerte', cotes(pieces, e.pieceId));
   else if (e.type === 'atterri') {
     const p = pieces.find((q) => q.id === e.pieceId);
     modifier(e.pieceId, { etat: 'sol', endurance_restante_min: p ? p.endurance_min : undefined });
-    noter(t, `${nom} se pose auprès de ${nomDe(pieces, e.equipeId)} : endurance rechargée.`, 'info');
+    noter(t, `${nom} se pose auprès de ${nomDe(pieces, e.equipeId)} : endurance rechargée.`, 'info', cotes(pieces, e.pieceId));
   } else if (e.type === 'tir' || e.type === 'frappe' || e.type === 'tir_zone') {
     const cible = nomDe(pieces, e.cibleId);
-    if (e.type === 'tir') noter(t, `TIR : ${nom} engage ${cible} à ${metres(e.distanceKm)}.`, 'tir');
-    else if (e.type === 'frappe') noter(t, `FRAPPE : ${nom} explose sur ${cible}.`, 'tir');
-    else noter(t, `TIR DE ZONE : ${nom} tire sur ${cible} (impact à ${metres(distanceKm(e.impact, position(pieces.find((q) => q.id === e.cibleId) || { lng: e.impact[0], lat: e.impact[1] })))} de la cible, rayon ${Math.round(e.rayonM)} m).`, 'tir');
+    if (e.type === 'tir') noter(t, `TIR : ${nom} engage ${cible} à ${metres(e.distanceKm)}.`, 'tir', cotes(pieces, e.pieceId, e.cibleId));
+    else if (e.type === 'frappe') noter(t, `FRAPPE : ${nom} explose sur ${cible}.`, 'tir', cotes(pieces, e.pieceId, e.cibleId));
+    else noter(t, `TIR DE ZONE : ${nom} tire sur ${cible} (impact à ${metres(distanceKm(e.impact, position(pieces.find((q) => q.id === e.cibleId) || { lng: e.impact[0], lat: e.impact[1] })))} de la cible, rayon ${Math.round(e.rayonM)} m).`, 'tir', cotes(pieces, e.pieceId, e.cibleId));
     const touches = effets(e, pieces);
-    for (const { id, cause } of touches) { detruire(id, cause); noter(t, `${nomDe(pieces, id)} est détruit.`, 'tir'); }
-    if (!touches.length) noter(t, 'Aucune pièce touchée.', 'info');
+    for (const { id, cause } of touches) { detruire(id, cause); noter(t, `${nomDe(pieces, id)} est détruit.`, 'tir', cotes(pieces, e.pieceId, id)); }
+    if (!touches.length) noter(t, 'Aucune pièce touchée.', 'info', cotes(pieces, e.pieceId));
   }
 }
 
@@ -206,14 +279,14 @@ function suivreVol(t, dtMin) {
   for (const d of pieces) {
     if (!enVol(d) || d.detruit) continue;
     const reste = enduranceRestante(d) - dtMin;
-    if (reste <= 0) { modifier(d.id, { endurance_restante_min: 0 }); detruire(d.id, 'endurance'); noter(t, `${d.nom} : endurance épuisée, drone perdu.`, 'alerte'); continue; }
+    if (reste <= 0) { modifier(d.id, { endurance_restante_min: 0 }); detruire(d.id, 'endurance'); noter(t, `${d.nom} : endurance épuisée, drone perdu.`, 'alerte', [d.camp]); continue; }
     modifier(d.id, { endurance_restante_min: reste });
     const equipe = pieces.find((q) => q.id === d.poste && estPoste(q));
     const file = fileDe(d.id);
     const actif = file.find((c) => c.statut === 'lance' || c.statut === 'en_cours');
     if (retourPossible(d) && equipe && !equipe.detruit && !(actif && actif.type === 'rentrer') && doitRentrer({ ...d, endurance_restante_min: reste }, equipe, vitesse(d, 'normale'))) {
       state.ordres = { ...state.ordres, [d.id]: [{ id: newId(), type: 'rentrer', allure: 'normale', statut: 'lance', auto: true }, ...file.map((c) => (c.statut === 'en_cours' ? { ...c, statut: 'lance' } : c))] };
-      noter(t, `${d.nom} : il ne reste que le temps de rentrer (${Math.round(reste)} min), retour automatique.`, 'alerte');
+      noter(t, `${d.nom} : il ne reste que le temps de rentrer (${Math.round(reste)} min), retour automatique.`, 'alerte', [d.camp]);
       change = true;
     }
   }
@@ -225,11 +298,12 @@ function suivreBrouillage(t) {
   const pieces = listerPieces();
   for (const d of pieces) {
     const brouilleur = brouilleSur(d, pieces);
-    if (brouilleur) { detruire(d.id, 'brouillage'); noter(t, `BROUILLAGE : ${d.nom} entre dans la zone de ${brouilleur.nom}, liaison perdue : drone détruit.`, 'alerte'); }
+    if (brouilleur) { detruire(d.id, 'brouillage'); noter(t, `BROUILLAGE : ${d.nom} entre dans la zone de ${brouilleur.nom}, liaison perdue : drone détruit.`, 'alerte', [...new Set([d.camp, brouilleur.camp])]); }
   }
 }
 
 function pas(t, dtMs) {
+  if (estJoueur()) return; // la simulation tourne chez l'arbitre ; un joueur reçoit son état
   const dtMin = dtMs / 60000;
   const pieces = listerPieces();
   suivreEquipes(pieces);
@@ -244,14 +318,14 @@ function pas(t, dtMs) {
     let pc = piece;
     if (c.statut === 'lance') {
       c = { ...c, statut: 'en_cours', debutMs: t, depart: [piece.lng, piece.lat] };
-      noter(t, `${piece.nom} : début « ${libelle(c, pieces)} ».`, 'info');
-      if (estDrone(piece) && !enVol(piece)) { modifier(piece.id, { etat: 'vol' }); pc = { ...piece, etat: 'vol' }; noter(t, `${piece.nom} décolle.`, 'info'); }
+      noter(t, `${piece.nom} : début « ${libelle(c, pieces)} ».`, 'info', [piece.camp]);
+      if (estDrone(piece) && !enVol(piece)) { modifier(piece.id, { etat: 'vol' }); pc = { ...piece, etat: 'vol' }; noter(t, `${piece.nom} décolle.`, 'info', [piece.camp]); }
     }
     const r = avancer(pc, c, dtMin, pieces, String(Math.floor(t / 1000)));
     if (exigePoste(piece) && r.position && c.type !== 'rentrer') { // l'équipe a pu bouger : jamais plus loin que la portée du drone
       const l = etatLiaison({ ...piece, lng: r.position[0], lat: r.position[1] }, pieces);
       if (!l.ok && l.raison === 'hors_portee') {
-        noter(t, `LIAISON : ${piece.nom} s'arrête, la suite de « ${libelle(c, pieces)} » sortirait de la portée de son équipe (${l.poste.nom}).`, 'alerte');
+        noter(t, `LIAISON : ${piece.nom} s'arrête, la suite de « ${libelle(c, pieces)} » sortirait de la portée de son équipe (${l.poste.nom}).`, 'alerte', [piece.camp]);
         state.ordres = { ...state.ordres, [piece.id]: file.map((x, j) => (j === i ? { ...c, statut: 'terminee', finMs: t } : x)) };
         change = true; continue;
       }
@@ -277,8 +351,8 @@ function suivreLiaisons(t) {
   for (const p of pieces) if (exigePoste(p) && !p.detruit && !etatLiaison(p, pieces).ok) coupees.add(p.id);
   if (state.liaisons) {
     for (const p of pieces) {
-      if (coupees.has(p.id) && !state.liaisons.has(p.id)) noter(t, `LIAISON COUPÉE : ${p.nom} ${phraseLiaison(etatLiaison(p, pieces))}.`, 'alerte');
-      else if (!coupees.has(p.id) && state.liaisons.has(p.id) && exigePoste(p) && !p.detruit) noter(t, `Liaison rétablie : ${p.nom} avec ${etatLiaison(p, pieces).poste.nom}.`, 'info');
+      if (coupees.has(p.id) && !state.liaisons.has(p.id)) noter(t, `LIAISON COUPÉE : ${p.nom} ${phraseLiaison(etatLiaison(p, pieces))}.`, 'alerte', [p.camp]);
+      else if (!coupees.has(p.id) && state.liaisons.has(p.id) && exigePoste(p) && !p.detruit) noter(t, `Liaison rétablie : ${p.nom} avec ${etatLiaison(p, pieces).poste.nom}.`, 'info', [p.camp]);
     }
     if (coupees.size !== state.liaisons.size || [...coupees].some((id) => !state.liaisons.has(id))) rafraichirPortees();
   }
@@ -291,7 +365,7 @@ function suivreContacts(t) {
   for (const cle of maintenantVus) if (!state.contactsVus.has(cle)) {
     const [o, c] = cle.split('>');
     const d = distanceKm([pieces.find((p) => p.id === o).lng, pieces.find((p) => p.id === o).lat], [pieces.find((p) => p.id === c).lng, pieces.find((p) => p.id === c).lat]);
-    noter(t, `CONTACT : ${nomDe(pieces, o)} repère ${nomDe(pieces, c)} à ${km(d)}.`, 'contact');
+    noter(t, `CONTACT : ${nomDe(pieces, o)} repère ${nomDe(pieces, c)} à ${km(d)}.`, 'contact', cotes(pieces, o)); // seul l'observateur apprend qu'il a repéré
   }
   state.contactsVus = maintenantVus;
 }
@@ -358,9 +432,10 @@ function dessinerConsignes() {
   if (!boite) return;
   const pieces = listerPieces();
   const piece = pieceCourante();
+  const commandables = estJoueur() ? pieces.filter((p) => p.camp === role.camp && !p.detruit) : pieces;
   const choixPiece = h('select', { onchange: (e) => choisirPiece(e.target.value || null) }, h('option', { value: '' }, '— choisir une pièce —'),
-    ...pieces.map((p) => h('option', { value: p.id, selected: piece && p.id === piece.id }, `${p.nom} (${p.camp})`)));
-  if (!piece) { boite.replaceChildren(h('label', { class: 'champ large' }, h('span', {}, 'Pièce'), choixPiece), h('p', { class: 'note' }, 'Posez une pièce sur la carte, puis sélectionnez-la pour lui donner des consignes.')); return; }
+    ...commandables.map((p) => h('option', { value: p.id, selected: piece && p.id === piece.id }, `${p.nom} (${p.camp})`)));
+  if (!piece || (estJoueur() && piece.camp !== role.camp)) { boite.replaceChildren(h('label', { class: 'champ large' }, h('span', {}, 'Pièce'), choixPiece), h('p', { class: 'note' }, 'Posez une pièce sur la carte, puis sélectionnez-la pour lui donner des consignes.')); return; }
 
   const peutBouger = piece.mouvement.max > 0, peutTirer = aFeu(piece);
   const types = Object.entries(TYPES).filter(([t]) => (t === 'aller' ? peutBouger : t === 'engager' ? peutTirer : t === 'rentrer' ? retourPossible(piece) : true));
@@ -391,7 +466,7 @@ function dessinerConsignes() {
       ...adverses.map((p) => h('option', { value: p.id, selected: p.id === state.forme.cibleId }, `${p.nom} (${p.camp})`)))),
     h('label', { class: 'champ large' }, h('span', {}, 'Allure'), allureSel));
   }
-  lignes.push(h('div', { id: 'o-bilan' }), h('button', { type: 'button', id: 'o-ajouter', class: 'primaire', onclick: ajouter }, 'Donner la consigne'));
+  lignes.push(h('div', { id: 'o-bilan' }), h('button', { type: 'button', id: 'o-ajouter', class: 'primaire', onclick: ajouter }, estJoueur() ? 'Transmettre l\'ordre' : 'Donner la consigne'), h('div', { id: 'o-retour' }));
 
   boite.replaceChildren(...lignes, h('div', { id: 'o-liste' }));
   listeVue = null;
@@ -427,8 +502,8 @@ function dessinerConsignesSiLibre() {
 // ---------- montage ----------
 export function monter(map) {
   state.map = map;
-  state.ordres = Object.fromEntries(Object.entries(lire(STORAGE_ORDRES, {})).map(([id, file]) => [id, file.map((c) => (c.statut === 'attente' ? { ...c, statut: 'lance' } : c))]));
-  state.journal = lire(STORAGE_JOURNAL, []);
+  state.ordres = estJoueur() ? {} : Object.fromEntries(Object.entries(lire(STORAGE_ORDRES, {})).map(([id, file]) => [id, file.map((c) => (c.statut === 'attente' ? { ...c, statut: 'lance' } : c))]));
+  state.journal = estJoueur() ? [] : lire(STORAGE_JOURNAL, []);
   map.on('click', (e) => { if (state.pointage) pointer(e.lngLat); });
   document.addEventListener('wg:piece', () => dessinerConsignes());
   document.addEventListener('wg:pieces', () => {

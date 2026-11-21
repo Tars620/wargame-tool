@@ -1,3 +1,4 @@
+import { estJoueur } from './role.js';
 import { PARIS, heure, date, etiquetteDecalage, nomZone, ecartAvecParis, parisVersMs, msVersParis } from './fuseaux.js';
 
 const VITESSES = [[1, '×1 (temps réel)'], [10, '×10'], [60, '×60 (1 min par seconde)'], [300, '×300'], [1800, '×1800 (30 min par seconde)']];
@@ -19,6 +20,12 @@ export function regler(ms) { state.ms = ms; state.ancre = performance.now(); sta
 export function demarrer() { figer(); state.enMarche = true; state.dernier = state.ms; panneau(); }
 export function arreter() { figer(); state.enMarche = false; panneau(); }
 export function reglerVitesse(v) { figer(); state.vitesse = v; panneau(); afficher(); }
+/** Horloge d'un joueur : elle suit celle de l'arbitre (heure, vitesse, marche ou pause), sans qu'il puisse la régler. */
+export function synchroniserHorloge(h) {
+  if (!h) return;
+  state.ms = h.ms; state.ancre = performance.now(); state.dernier = h.ms; state.vitesse = h.vitesse; state.enMarche = h.enMarche;
+  afficher();
+}
 export function heureReelle() { state.vitesse = 1; state.enMarche = true; regler(Date.now()); panneau(); }
 
 /** Fuseau du point au centre de la carte, ou null si la vue est trop large pour désigner un lieu. */
@@ -73,7 +80,7 @@ function panneau() {
 export function monter(map) {
   const maj = () => { const c = map.getCenter(); state.centre = { lng: c.lng, lat: c.lat, zoom: map.getZoom() }; };
   map.on('move', maj); maj();
-  $('horloges').addEventListener('click', (e) => { if (e.target.closest('.etat')) { if (state.enMarche) arreter(); else demarrer(); afficher(); } });
+  $('horloges').addEventListener('click', (e) => { if (e.target.closest('.etat') && !estJoueur()) { if (state.enMarche) arreter(); else demarrer(); afficher(); } });
   panneau(); afficher();
   setInterval(tick, PAS_MS);
 }

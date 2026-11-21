@@ -128,6 +128,20 @@ details > select { width: calc(100% - 15px); }
 .seg button[aria-pressed=true] { color: var(--accent); background: var(--panneau-2); border-color: var(--trait-fort); }
 .top .horloges button.etat { color: var(--texte); border-color: var(--trait); }
 
+/* partie en ligne : rôles */
+.badge-partie { font-size: var(--t-sm); color: var(--texte-2); }
+.badge-partie:not(:empty)::before { content: ''; display: inline-block; width: 8px; height: 8px; margin-right: 8px; background: var(--texte-2); }
+.badge-partie[data-camp=bleu]::before { background: var(--bleu); } .badge-partie[data-camp=rouge]::before { background: var(--rouge); }
+html[data-role=joueur] { --outils-h: 0px; }
+html[data-role=joueur] [data-arbitre] { display: none !important; }
+.lien-partie { display: grid; grid-template-columns: 52px 1fr auto; gap: 6px; align-items: center; margin: 4px 0; font-size: var(--t-sm); }
+.lien-partie input { font-size: var(--t-xs); padding: 4px 6px; }
+.lien-partie button { padding: 3px 8px; font-size: var(--t-xs); }
+.banniere { position: fixed; top: calc(var(--haut) + 10px); left: 50%; transform: translateX(-50%); z-index: 6; padding: 8px 14px; background: var(--panneau-2); color: var(--texte); border: 1px solid var(--trait-fort); font-size: var(--t-sm); }
+.entree { position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: color-mix(in srgb, var(--fond) 92%, transparent); }
+.entree[hidden] { display: none; }
+.entree h2 { margin: 0; font-size: 18px; font-weight: 500; } .entree input { width: 280px; } .entree .note { max-width: 340px; text-align: center; }
+
 /* panneau de droite : onglets et assistant */
 .droite { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
 .onglets { flex: none; display: flex; border-bottom: 1px solid var(--trait); }
@@ -181,21 +195,22 @@ details > select { width: calc(100% - 15px); }
 </style>
 </head>
 <body>
-<div class="top"><b>Carte</b><a href="/">Journal de partie</a><div class="horloges" id="horloges"></div><div class="seg" id="theme" role="group" aria-label="Thème"></div></div>
+<div class="top"><b>Carte</b><a href="/">Journal de partie</a><span id="badge-partie" class="badge-partie"></span><div class="horloges" id="horloges"></div><div class="seg" id="theme" role="group" aria-label="Thème"></div></div>
 <div id="map"></div>
 <button type="button" class="onglet" id="onglet-g" aria-label="Replier ou déplier le panneau de gauche" title="Replier / déplier">‹</button>
 <button type="button" class="onglet" id="onglet-d" aria-label="Replier ou déplier le panneau de droite" title="Replier / déplier">›</button>
-<div class="barre-outils"><div class="outils" id="outils"></div><div class="aide" id="aide-dessin"></div></div>
+<div class="barre-outils" data-arbitre><div class="outils" id="outils"></div><div class="aide" id="aide-dessin"></div></div>
 
 <aside class="panneau gauche">
+  <details open data-cle="g-partie" data-arbitre><summary>Partie en ligne</summary><div id="partie-panneau"></div></details>
   <details open data-cle="g-fond"><summary>Fond</summary><div id="fonds"></div></details>
   <details open data-cle="g-sup"><summary>Superpositions</summary>
     <label class="opt"><input type="checkbox" id="labels" checked><span>Frontières et noms<small>Sur tous les fonds</small></span></label>
     <label class="opt"><input type="checkbox" id="relief3d"><span>Relief en 3D<small>Inclinaison de la vue, glisser avec Ctrl</small></span></label>
   </details>
-  <details open data-cle="g-temps"><summary>Temps de jeu</summary><div id="temps-panneau"></div></details>
+  <details open data-cle="g-temps" data-arbitre><summary>Temps de jeu</summary><div id="temps-panneau"></div></details>
   <details data-cle="g-meteo"><summary>Météo</summary><div id="meteo-panneau"></div></details>
-  <details data-cle="g-scenario"><summary>Scénario</summary><div id="scenario-panneau"></div></details>
+  <details data-cle="g-scenario" data-arbitre><summary>Scénario</summary><div id="scenario-panneau"></div></details>
   <details open data-cle="g-zone"><summary>Zone de jeu</summary><select id="zone"></select><p class="note" id="zoneinfo"></p></details>
   <div class="err" id="err"></div>
 </aside>
@@ -205,17 +220,17 @@ details > select { width: calc(100% - 15px); }
     <button type="button" role="tab" data-onglet="ia">Assistant</button>
     <button type="button" role="tab" data-onglet="pieces">Pièces</button>
     <button type="button" role="tab" data-onglet="consignes">Consignes</button>
-    <button type="button" role="tab" data-onglet="dessins">Dessins</button>
+    <button type="button" role="tab" data-onglet="dessins" data-arbitre>Dessins</button>
     <button type="button" role="tab" data-onglet="journal">Journal</button>
   </div>
   <section class="volet volet-ia" data-volet="ia"><div class="ia" id="ia"></div></section>
   <section class="volet" data-volet="pieces" hidden>
     <details open data-cle="d-fiche"><summary>Pièce sélectionnée</summary><div id="fiche"></div></details>
-    <details open data-cle="d-banque"><summary>Banque de pièces</summary><div id="banque"></div></details>
+    <details open data-cle="d-banque" data-arbitre><summary>Banque de pièces</summary><div id="banque"></div></details>
     <details data-cle="d-portees"><summary>Portées affichées</summary><div id="portees"></div></details>
   </section>
   <section class="volet" data-volet="consignes" hidden>
-    <details open data-cle="d-ops"><summary>Situation</summary><div id="operation"></div></details>
+    <details open data-cle="d-ops" data-arbitre><summary>Situation</summary><div id="operation"></div></details>
     <details open data-cle="d-consignes"><summary>Consignes</summary><div id="consignes"></div></details>
   </section>
   <section class="volet" data-volet="dessins" hidden>
@@ -228,6 +243,8 @@ details > select { width: calc(100% - 15px); }
 </aside>
 
 <div class="lecture" id="lecture">—</div>
+<div class="banniere" id="banniere" role="status" hidden></div>
+<div class="entree" id="entree" hidden></div>
 <script src="/static/vendor/pmtiles.js"></script>
 <script src="/static/vendor/tz.js"></script>
 <script src="/static/vendor/turf.min.js"></script>

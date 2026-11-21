@@ -1,6 +1,7 @@
 import * as maplibre from './vendor/maplibre-gl.mjs';
 import { distanceKm, longueurKm, aireKm2, formatKm, formatSurface } from './geo.js';
 import { couloir, COULOIR_DEFAUT_KM } from './couloir.js';
+import { estJoueur } from './role.js';
 
 export const SOURCE_DESSINS = 'dessins';
 export const SOURCE_BROUILLON = 'brouillon';
@@ -34,7 +35,7 @@ function h(tag, props = {}, ...kids) {
 function lireCouloirs() { try { return localStorage.getItem(STORAGE_COULOIRS) === 'oui'; } catch { return false; } }
 const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 const dessin = (id) => state.dessins.find((d) => d.id === id) || null;
-const sauver = () => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.dessins)); } catch { /* stockage indisponible */ } };
+const sauver = () => { if (estJoueur()) return; try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.dessins)); } catch { /* stockage indisponible */ } };
 function charger() {
   try { const brut = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); return Array.isArray(brut) ? brut : []; } catch { return []; }
 }
@@ -173,6 +174,13 @@ export function ajouterDessin({ genre, camp, points, nom }) {
   dessinerListe(); rafraichir();
   return d.id;
 }
+/** Vue d'un joueur : les tracés de son camp et les tracés neutres, tels que le serveur les a filtrés. */
+export function remplacerDessins(liste) {
+  const cle = JSON.stringify(liste);
+  if (cle === state.cleVue) return;
+  state.cleVue = cle; state.dessins = liste; state.selection = null;
+  dessinerListe(); rafraichir();
+}
 export const listerDessins = () => state.dessins.map((d) => ({ ...d }));
 
 function annulerDernierPoint() {
@@ -256,8 +264,9 @@ function dessinerListe() {
 // ---------- montage ----------
 export function monter(map) {
   state.map = map;
-  state.dessins = charger();
+  state.dessins = estJoueur() ? [] : charger(); // un joueur ne lit ni n'écrit jamais l'état local : il reçoit ses tracés du serveur
   map.on('click', (e) => {
+    if (estJoueur()) return;
     if (state.outil !== 'selection') { ajouterPoint(e.lngLat); return; }
     if (document.body.dataset.pieceArmee === 'oui' || document.body.dataset.pointage === 'oui') return;
     const { x, y } = e.point;
@@ -266,6 +275,7 @@ export function monter(map) {
     if (id !== state.selection) choisir(id);
   });
   map.on('dblclick', (e) => {
+    if (estJoueur()) return;
     if (state.outil === 'selection') return;
     e.preventDefault();
     if (state.brouillon.length > 1) state.brouillon = state.brouillon.slice(0, -1); // le 2e clic du double-clic a posé un point en double

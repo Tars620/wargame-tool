@@ -1,7 +1,8 @@
 import * as maplibre from './vendor/maplibre-gl.mjs';
 import { layers, namedFlavor } from './vendor/protomaps-basemaps.mjs';
 import { monter as monterPieces, collection as piecesGeojson, layerSpecs as piecesCouches, SOURCE_ID as PIECES_SOURCE, piecesRetirees } from './pieces.js';
-import { assembler, valider, versGeoJSON, TAILLE_MAX_OCTETS } from './scenario.js';
+import { assembler, valider, versGeoJSON, TAILLE_MAX_OCTETS, CLES_STOCK } from './scenario.js';
+import { preparerRole, remplirPanneau, demarrerSynchronisation } from './partie-ui.js';
 import { monter as monterTemps } from './temps.js';
 import { monter as monterIa } from './ia.js';
 import { monter as monterMeteo, pourStyle as meteoPourStyle } from './meteo.js';
@@ -171,6 +172,7 @@ function createMap() {
     monterDessin(map);
     monterPieces(map).then(() => {
       monterOrdres(map); monterIa(map);
+      remplirPanneau(); demarrerSynchronisation();
       const retirees = piecesRetirees();
       if (retirees.length) noterOperation(`Nouveau catalogue : ${retirees.length} pièce${retirees.length > 1 ? 's' : ''} sans équivalent retirée${retirees.length > 1 ? 's' : ''} (${retirees.join(', ')}).`);
     }).catch((e) => showError(`Pièces ou consignes indisponibles : ${e.message}`));
@@ -257,7 +259,6 @@ function majInfoZone() {
 }
 
 // ---------- scénario : enregistrer, ouvrir, exporter ----------
-const CLES_STOCK = { pieces: 'wg.pieces.v1', dessins: 'wg.dessins.v1', ordres: 'wg.ordres.v1', journal: 'wg.journal.v1' };
 const lireStock = (cle, repli) => { try { return JSON.parse(localStorage.getItem(cle)) ?? repli; } catch { return repli; } };
 const stockActuel = () => ({ pieces: lireStock(CLES_STOCK.pieces, []), dessins: lireStock(CLES_STOCK.dessins, []), ordres: lireStock(CLES_STOCK.ordres, {}), journal: lireStock(CLES_STOCK.journal, []) });
 const horodatage = () => new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
@@ -376,6 +377,7 @@ async function start() {
   voletsDroite();
   panneauxRepliables();
   surveillerVersion();
+  await preparerRole(); // le rôle (local, arbitre, joueur) conditionne tout ce qui est monté ensuite
   const res = await fetch('/api/maps');
   state.zones = await res.json();
   if (!state.zones.length) { showError('Aucune zone : placez un fichier .pmtiles dans data/maps et déclarez-le dans zones.json.'); return; }

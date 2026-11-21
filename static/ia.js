@@ -4,6 +4,8 @@ import { listerPieces, catalogue, creerPieces, attacherPoste } from './pieces.js
 import { ajouterConsignes, etatOrdres, libelleConsigne, noterOperation } from './ordres.js';
 import { ajouterDessin, listerDessins } from './dessin.js';
 import { dicteeDisponible, lectureDisponible, ecouter, parler, taire } from './voix.js';
+import { estJoueur, role } from './role.js';
+import { envoyerOrdre } from './partie.js';
 import { maintenant, enMarche, vitesse, arreter, demarrer, reglerVitesse } from './temps.js';
 
 const DELAI_CLIENT_MS = 100000;
@@ -43,6 +45,7 @@ const ligne = (classe, texte) => ajouter(h('p', { class: `ia-ligne ${classe}` },
 function situation() {
   const c = state.map.getCenter();
   return {
+    role: estJoueur() ? { genre: 'joueur', camp: role.camp, consigne: 'Ne commande que les pièces de ce camp ; seules les actions consigne et vue sont permises.' } : { genre: 'arbitre' },
     ...contexte({ catalogue: catalogue(), pieces: listerPieces(), ordres: etatOrdres(), dessins: listerDessins(), libelleConsigne,
       vue: { lng: Math.round(c.lng * 1e4) / 1e4, lat: Math.round(c.lat * 1e4) / 1e4, zoom: Math.round(state.map.getZoom() * 10) / 10 },
       horloge: { heure_utc: new Date(maintenant()).toISOString(), vitesse: vitesse(), enMarche: enMarche() } }),
@@ -51,20 +54,41 @@ function situation() {
 }
 
 // ---------- application du plan ----------
+const OPS_JOUEUR = ['consigne', 'vue'];
+
+/** Un joueur ne peut que commander les pièces de son camp (et déplacer sa vue) : le reste du plan est refusé avec la raison. */
+function restreindre(plan) {
+  if (!estJoueur()) return plan;
+  const propres = new Set(listerPieces().filter((p) => p.camp === role.camp).map((p) => p.id));
+  return plan.map((it) => {
+    if (!it.op) return it;
+    if (!OPS_JOUEUR.includes(it.op.kind)) return { ...it, op: null, problemes: [...it.problemes, 'Réservé à l\'arbitre.'] };
+    if (it.op.kind !== 'consigne') return it;
+    const cibles = it.op.cibles.filter((c) => propres.has(c.ref));
+    const refus = it.op.cibles.length - cibles.length;
+    return { ...it, problemes: refus ? [...it.problemes, `${refus} pièce${refus > 1 ? 's' : ''} ne sont pas de votre camp.`] : it.problemes, op: cibles.length ? { ...it.op, cibles } : null };
+  });
+}
+
+const consigneTransmise = (c) => ({ type: c.type, allure: c.allure, ...(c.type === 'aller' ? { points: c.points } : {}), ...(c.type === 'observer' ? { dureeMin: c.dureeMin } : {}), ...(c.type === 'engager' ? { cibleId: c.cibleId } : {}) });
 function appliquer(items) {
   const ids = {};
   let n = 0;
   for (const { libelle, op } of items) {
     if (op.kind === 'poser') Object.assign(ids, creerPieces(op.specs));
     else if (op.kind === 'rattacher') for (const l of op.liens) attacherPoste(ids[l.ref] || l.ref, ids[l.poste] || l.poste);
-    else if (op.kind === 'consigne') ajouterConsignes(op.cibles.map((c) => avecIdsReels(c, ids)));
+    else if (op.kind === 'consigne' && estJoueur()) {
+      Promise.all(op.cibles.map((c) => envoyerOrdre({ type: 'consigne', pieceId: c.ref, consigne: consigneTransmise(c.consigne) })))
+        .then(() => ligne('systeme', 'Ordres transmis à l\'arbitre : leur résultat arrive dans l\'onglet Consignes.')).catch((e) => ligne('erreur', e.message));
+      n += 1; continue;
+    } else if (op.kind === 'consigne') ajouterConsignes(op.cibles.map((c) => avecIdsReels(c, ids)));
     else if (op.kind === 'dessin') ajouterDessin({ genre: op.genre, camp: op.camp, points: op.points, nom: op.nom });
     else if (op.kind === 'vue') state.map.flyTo({ center: [op.lng, op.lat], zoom: op.zoom, duration: 800 });
     else if (op.kind === 'temps') {
       if (op.vitesse !== null) reglerVitesse(op.vitesse);
       if (op.pause !== null) { if (op.pause) arreter(); else demarrer(); }
     }
-    noterOperation(`Assistant : ${libelle}.`);
+    if (!estJoueur()) noterOperation(`Assistant : ${libelle}.`);
     n += 1;
   }
   return n;
@@ -99,7 +123,7 @@ async function demander(prompt) {
   const ctrl = new AbortController();
   const minuteur = setTimeout(() => ctrl.abort(), DELAI_CLIENT_MS);
   try {
-    const r = await fetch('/api/ia', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, contexte: situation() }), signal: ctrl.signal });
+    const r = await fetch('/api/ia', { method: 'POST', body: JSON.stringify({ prompt, contexte: situation() }), signal: ctrl.signal, headers: { 'Content-Type': 'application/json', ...(role.jeton ? { 'X-Token': role.jeton, 'X-Partie': role.code } : {}) } });
     const corps = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(corps.error || `Erreur ${r.status}`);
     return corps;
@@ -120,7 +144,7 @@ async function envoyer() {
     const rep = await demander(prompt);
     attente.remove();
     if (rep.message) { ligne('assistant', rep.message); if (state.reglages.lecture) parler(rep.message); }
-    const plan = planifier(rep.actions, { pieces: listerPieces(), catalogue: catalogue() });
+    const plan = restreindre(planifier(rep.actions, { pieces: listerPieces(), catalogue: catalogue() }));
     if (plan.length) afficherPlan(plan);
     state.echanges = [...state.echanges, { arbitre: prompt, assistant: rep.message || '', actions: plan.filter((p) => p.op).map((p) => p.libelle) }].slice(-ECHANGES_MEMOIRE);
   } catch (e) {

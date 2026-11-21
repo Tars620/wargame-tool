@@ -23,6 +23,9 @@ const brut = (o) => o !== null && typeof o === 'object' && !Array.isArray(o);
 class Refus extends Error {}
 function exiger(condition, message) { if (!condition) throw new Refus(message); }
 
+/** Clés de stockage local de l'état courant (pièces, dessins, consignes, journal). */
+export const CLES_STOCK = { pieces: 'wg.pieces.v1', dessins: 'wg.dessins.v1', ordres: 'wg.ordres.v1', journal: 'wg.journal.v1' };
+
 const MODES_FEU = ['aucun', 'direct', 'explosion', 'zone'];
 const CHAMPS_FEU = ['zone_m2', 'rayon_m', 'dispersion_m'];
 
