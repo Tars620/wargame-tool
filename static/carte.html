@@ -117,10 +117,10 @@ details[open] > summary::before { transform: rotate(45deg); margin-bottom: 4px; 
 /* barre d'outils : toutes les cellules ont la même hauteur et le même repère d'état */
 .barre-outils { position: fixed; top: var(--barre-h); left: 0; right: 0; height: var(--outils-h); z-index: 4; display: flex; align-items: stretch; background: var(--panneau); border-bottom: 1px solid var(--trait); }
 .outils { display: flex; align-items: stretch; }
-.outils > button { display: flex; align-items: center; height: 100%; padding: 0 12px; border: 0; border-right: 1px solid var(--trait); font-size: var(--t-base); line-height: 1; white-space: nowrap; }
+.outils > button { display: flex; align-items: center; height: 100%; padding: 0 14px; border: 0; font-size: var(--t-base); line-height: 1; white-space: nowrap; }
 .outils > button[aria-pressed=true] { background: var(--panneau-2); box-shadow: inset 0 -2px 0 var(--accent); color: var(--accent); }
 .outils > button:hover { background: var(--panneau-2); }
-.camp-sel { position: relative; display: flex; border-left: 1px solid var(--trait-fort); border-right: 1px solid var(--trait); }
+.camp-sel { position: relative; display: flex; margin: 0 6px; }
 .outils .camp-courant { width: 44px; height: 100%; border: 0; padding: 0; background: var(--c); position: relative; }
 .outils .camp-courant::after { content: ''; position: absolute; right: 5px; bottom: 5px; border: 4px solid transparent; border-top-color: #000; border-right-color: #000; opacity: .55; }
 .outils .camp-courant:hover { filter: brightness(1.12); }
@@ -128,7 +128,7 @@ details[open] > summary::before { transform: rotate(45deg); margin-bottom: 4px; 
 .camp-menu .camp-choix { width: 44px; height: 32px; border: 0; padding: 0; background: var(--c); border-top: 1px solid var(--trait); }
 .camp-menu .camp-choix:hover { filter: brightness(1.15); }
 .camp-menu .camp-choix[aria-pressed=true] { box-shadow: inset 0 0 0 3px var(--accent); }
-.outils .bord-droit { border-left: 1px solid var(--trait-fort); }
+
 .aide { flex: 1 1 auto; min-width: 0; align-self: center; padding: 0 10px; font-size: var(--t-sm); color: var(--texte-2); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .poignee { width: 12px; height: 12px; background: var(--accent); border: 2px solid var(--fond); cursor: grab; }
 
