@@ -39,6 +39,15 @@ class GestionDuTunnel(unittest.TestCase):
         self.assertEqual(t.arreter()["etat"], "arret")
         self.assertIsNone(t.statut()["url"])
 
+    def test_la_banniere_de_localhost_run_ne_donne_pas_de_fausse_adresse(self):
+        banniere = ("print('Welcome to localhost.run! see https://admin.localhost.run/ and https://localhost.run/docs/', flush=True)\n"
+                    "import time\nprint('a879693d6d882d.app.lhr.life tunneled with tls termination, https://a879693d6d882d.app.lhr.life', flush=True)\ntime.sleep(30)")
+        t = server.Tunnel(8080, faux(banniere))
+        self.addCleanup(t.arreter)
+        t.demarrer()
+        self.assertTrue(attendre(t, "actif"))
+        self.assertEqual(t.statut()["url"], "https://a879693d6d882d.app.lhr.life")
+
     def test_un_programme_qui_s_arrete_sans_adresse_donne_une_erreur_lisible(self):
         t = server.Tunnel(8080, faux("print('connexion refusée')"))
         self.addCleanup(t.arreter)

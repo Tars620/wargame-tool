@@ -875,7 +875,7 @@ def adresses_reseau():
     return sorted(trouvees, key=lambda a: a["ip"] != principale)
 
 
-URL_TUNNEL = re.compile(r"https://[a-z0-9][a-z0-9-]*\.(?:trycloudflare\.com|lhr\.life|localhost\.run)")
+URL_TUNNEL = re.compile(r"https://[a-z0-9][a-z0-9.-]*\.(?:trycloudflare\.com|lhr\.life)\b")  # pas localhost.run : sa bannière cite des pages d'aide
 TUNNEL_DELAI_S = 30
 EN_TETES_RELAIS = ("Cf-Connecting-Ip", "X-Forwarded-For", "Forwarded", "X-Real-Ip", "Cf-Ray")
 
