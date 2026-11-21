@@ -1,5 +1,7 @@
 // Briques d'interface partagées : fabrique d'éléments, stockage du navigateur, menu déroulant.
 
+export const $ = (id) => document.getElementById(id);
+
 /** Fabrique un élément : h('button', { class: 'x', onclick: f }, 'texte', enfant). Les enfants null ou false sont ignorés. */
 export function h(tag, props = {}, ...kids) {
   const n = document.createElement(tag);
