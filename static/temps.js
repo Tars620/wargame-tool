@@ -131,7 +131,14 @@ export function decouperPas(debut, fin, pasMax = PAS_SIMULATION_MS, nMax = PAS_P
 
 function tick() {
   const t = maintenant();
-  for (const { t: tp, dt } of decouperPas(state.dernier, t)) for (const fn of state.abonnes) fn(tp, dt);
+  for (const { t: tp, dt } of decouperPas(state.dernier, t))
+    for (const fn of state.abonnes) {
+      try {
+        fn(tp, dt);
+      } catch (e) {
+        console.error('Simulation :', e); // une consigne invalide ne doit pas figer l'horloge ni les autres abonnés
+      }
+    }
   state.dernier = t;
   afficher();
 }

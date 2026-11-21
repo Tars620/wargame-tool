@@ -90,6 +90,16 @@ class VueFiltree(Base):
             v = self.carte.vue(self.code, jeton)
             self.assertEqual((v["pieces"], v["impacts"], v["coupures"]), ([], [], []))
 
+    def test_la_position_du_canon_adverse_n_est_pas_envoyee_au_joueur(self):
+        tir = {"lng": 37.5, "lat": 48.5, "rayonM": 40, "genre": "zone", "t": 1, "de": [37.4, 48.4], "camp": "bleu"}
+        self.publier({**ETAT, "impacts": [tir]})
+        self.assertEqual(self.carte.vue(self.code, self.bleu)["impacts"][0]["de"], [37.4, 48.4])  # le camp qui tire connaît son trajet
+        self.assertEqual(self.carte.vue(self.code, self.arb)["impacts"][0]["de"], [37.4, 48.4])
+        vu_rouge = self.carte.vue(self.code, self.rouge)["impacts"][0]
+        self.assertNotIn("de", vu_rouge)
+        self.assertNotIn("37.4", json.dumps(vu_rouge))
+        self.assertEqual((vu_rouge["lng"], vu_rouge["lat"]), (37.5, 48.5))  # l'impact lui-même reste visible
+
     def test_la_liste_des_detections_n_est_pas_envoyee_au_joueur(self):
         self.publier()
         v = self.carte.vue(self.code, self.bleu)

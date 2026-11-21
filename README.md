@@ -71,6 +71,8 @@ JavaScript natif en modules (aucun framework ni étape de build) : `static/carte
 - **Briques d'interface** : `ui.js` (fabrique d'éléments `h`, `$`, stockage du navigateur, menu déroulant), `role.js` (rôle de l'onglet), `temps.js` (horloge de jeu et son menu).
 - **Pièces** : `pieces-etat` (état partagé), `pieces-carte` (couches et pions), `pieces-actions` (créer, déplacer, détruire, rattacher), `pieces-fiche` (banque et fiche), `pieces` (point d'entrée et montage).
 - **Consignes et simulation** : `ordres-etat`, `journal`, `simulation` (avance les consignes avec l'horloge), `ordres-carte` (trajets sur la carte), `ordres` (panneau, ordres des joueurs, montage).
+- **Effets et situation** : `impacts` (flash, obus, fumée et cratères des tirs ; publiés aux deux camps, sans révéler d'où l'adversaire tire), `drones` (une silhouette par type de drone), `controle` (zones tenues, contestées, gagnées et perdues depuis une référence ; un joueur ne voit que son camp).
+- **Partie** : « Réinitialiser » garde le code et les liens et vide la carte pour tout le monde ; « Nouvelle partie » crée un nouveau code. Dans les deux cas l'horloge repart en pause : « Lancer l'opération » (barre d'outils) la démarre.
 - **Autres** : `dessin`, `meteo`, `terrain-carte` (tuiles et surcouche), `ia`, `ia-actions`, `voix`, `partie`, `partie-ui`, et `app.js` pour la page « Journal de partie ».
 - Les modules d'un même ensemble ne s'importent pas en cercle : l'état partagé porte de petits liens (`state.surChoix`, `state.redessiner`, `state.redessinerListe`) que le module propriétaire fixe à son chargement.
 - Contrôle de mise en page : `scripts/audit_mise_en_page.js` (à passer dans la console de la carte).

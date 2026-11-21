@@ -54,6 +54,13 @@ def etat_nettoye(brut):
     }
 
 
+def _impact_pour(impact, side):
+    """Un impact se voit des deux camps ; d'où l'on a tiré (`de`) n'est connu que du camp qui tire."""
+    if impact.get("camp") == side:
+        return impact
+    return {k: v for k, v in impact.items() if k not in ("de", "camp")}
+
+
 def vue_pour(etat, kind, side):
     """La vue d'un participant. L'arbitre reçoit tout (sauf rien) ; un joueur : ses pièces, les adverses détectées, ses ordres, ses tracés."""
     if kind == "adjudicator":
@@ -67,7 +74,7 @@ def vue_pour(etat, kind, side):
     return {"horloge": etat.get("horloge"), "pieces": propres + adverses,
             "ordres": {pid: file for pid, file in (etat.get("ordres") or {}).items() if pid in ids},
             "dessins": [d for d in etat.get("dessins", []) if d.get("camp") in (side, "neutre")],
-            "coupures": etat.get("coupures", []), "impacts": etat.get("impacts", [])}  # un cratère sur une route se voit des deux camps
+            "coupures": etat.get("coupures", []), "impacts": [_impact_pour(i, side) for i in etat.get("impacts", [])]}  # un cratère sur une route se voit des deux camps
 
 
 def _nombre(x, mini, maxi):

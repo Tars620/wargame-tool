@@ -150,8 +150,17 @@ export function detruire(id, cause = 'arbitre') {
 }
 
 /** Modifie des champs d'une pièce par programme (état de vol, endurance...) sans toucher à la fiche. */
+/** Remet le pion à jour (vol, cap, mouvement) : sans cela un drone qui décolle ou avance garde son apparence de drone posé. */
+function restyler(id) {
+  const m = state.marqueurs.get(id);
+  const p = piece(id);
+  if (m && p) styleMarqueur(p, m.getElement());
+}
+
 export function modifier(id, patch) {
-  if (piece(id)) maj(id, patch);
+  if (!piece(id)) return;
+  maj(id, patch);
+  restyler(id);
 }
 export const piecesRetirees = () => [...state.retirees];
 
@@ -177,6 +186,7 @@ export function positionner(id, [lng, lat], trace = null) {
   maj(id, { lng, lat, dernier_deplacement: trace ? { km: distanceKm(depart, [lng, lat]), trace: [depart, [lng, lat]] } : p.dernier_deplacement });
   const m = state.marqueurs.get(id);
   if (m) m.setLngLat([lng, lat]);
+  restyler(id);
 }
 
 /** Limite l'affichage aux pièces dont l'identifiant est dans `ids` (point de vue d'un camp). null = tout voir. */
