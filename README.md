@@ -58,14 +58,14 @@ La page se recharge seule quand le code du serveur change (`/api/version`), en g
   n'a pas été essayé dans orbat-mapper. *terra-draw* (dessin) fait double emploi avec nos outils de dessin.
 
 ## Pièces (`/carte`, panneau de droite)
-Banque de six pièces (UAV de reconnaissance, UAV armé, fantassin, véhicule blindé, artillerie, guerre électronique),
+Banque de six pièces (UAV de reconnaissance, UAV armé, fantassin, véhicule blindé, artillerie, brouilleur),
 définies dans `static/pieces.json`. Choisir un camp et une pièce, puis cliquer sur la carte pour la poser.
 Chaque pièce a trois propriétés, modifiables après la pose : **mouvement** (vitesse min/max en km/h),
 **feu** (portée en km, puissance de 0 à 10), **vision** (rayon en km). Les portées sont tracées sur la carte
 (vision en trait plein, feu en pointillés). Un déplacement (glisser la pièce) donne la distance et le temps
 de trajet aux vitesses min et max. Les pièces sont gardées dans le navigateur (pas encore dans le journal de partie).
 Les valeurs du catalogue sont des paramètres de jeu de départ, pas des données officielles.
-La guerre électronique n'a pas encore d'effet de brouillage.
+Le brouilleur n'a pas encore d'effet de brouillage.
 
 ## Limites connues
 - Pièces, consignes et journal des opérations sont gardés dans le navigateur : ni partagés entre postes, ni encore

@@ -33,7 +33,11 @@ const piece = (id) => state.pieces.find((p) => p.id === id) || null;
 // ---------- persistance (navigateur) ----------
 function sauver() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.pieces)); } catch { /* stockage indisponible */ } }
 function charger() {
-  try { const brut = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); return Array.isArray(brut) ? brut : []; } catch { return []; }
+  try {
+    const brut = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    // L'ancien nom du modèle « brouilleur » (id inchangé pour ne pas perdre les pièces déjà posées).
+    return Array.isArray(brut) ? brut.map((p) => (p.type === 'guerre-electronique' && /^Guerre .lectronique/.test(p.nom) ? { ...p, nom: p.nom.replace(/^Guerre .lectronique/, 'Brouilleur') } : p)) : [];
+  } catch { return []; }
 }
 
 // ---------- état : jamais de modification en place ----------

@@ -109,7 +109,7 @@
     },
     {
       "id": "guerre-electronique",
-      "nom": "Guerre électronique",
+      "nom": "Brouilleur",
       "icone": "guerre-electronique",
       "mouvement": {
         "min": 30,
