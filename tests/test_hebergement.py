@@ -176,3 +176,53 @@ class AssistantParApi(unittest.TestCase):
         with self.assertRaises(server.ApiError) as c:
             server.demander_ia({"prompt": "x", "contexte": {}})
         self.assertEqual(c.exception.status, 502)
+
+
+class RelaisIA(unittest.TestCase):
+    """L'IA d'un serveur en ligne peut tourner sur un ordinateur relais, avec une clé et une heure limite."""
+
+    def setUp(self):
+        self.sauve = {k: getattr(server, k) for k in ("RELAIS_CLE", "RELAIS_JUSQUA", "IA_RELAIS_URL", "IA_RELAIS_CLE", "IA_CLE_ANTHROPIC", "lancer_claude", "_post_json")}
+        self.db = tempfile.mktemp(suffix=".db")
+        self.srv = server.make_server("127.0.0.1", 0, self.db)
+        self.base = f"http://127.0.0.1:{self.srv.server_address[1]}"
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+
+    def tearDown(self):
+        for k, v in self.sauve.items():
+            setattr(server, k, v)
+        self.srv.shutdown(); self.srv.server_close(); os.unlink(self.db)
+
+    def relais(self, cle):
+        req = urllib.request.Request(self.base + "/api/ia-relais", method="POST", data=json.dumps({"entree": "bonjour"}).encode(),
+                                     headers={"Content-Type": "application/json", "X-Relais-Cle": cle})
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status, json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read())
+
+    def test_le_relais_exige_la_cle_et_s_arrete_a_l_heure_limite(self):
+        import time
+        server.lancer_claude = lambda entree: "réponse de " + entree
+        server.RELAIS_CLE, server.RELAIS_JUSQUA = "k", time.time() + 60
+        self.assertEqual(self.relais("k"), (200, {"texte": "réponse de bonjour"}))
+        self.assertEqual(self.relais("autre")[0], 403)
+        server.RELAIS_JUSQUA = time.time() - 1
+        self.assertEqual(self.relais("k")[0], 403)  # heure limite passée : fermé même avec la bonne clé
+
+    def test_sans_configuration_le_relais_est_ferme(self):
+        server.RELAIS_CLE = ""
+        self.assertEqual(self.relais("")[0], 403)
+
+    def test_le_serveur_en_ligne_envoie_la_demande_au_relais(self):
+        server.IA_CLE_ANTHROPIC = ""
+        server.IA_RELAIS_URL, server.IA_RELAIS_CLE = "https://mon-mac.test", "k"
+        vu = {}
+        def faux(url, en_tetes, corps):
+            vu.update(url=url, cle=en_tetes.get("X-Relais-Cle"))
+            return {"texte": '{"message": "depuis le Mac", "actions": []}'}
+        server._post_json = faux
+        self.assertTrue(server.ia_par_api())
+        self.assertEqual(server.demander_ia({"prompt": "x", "contexte": {}})["message"], "depuis le Mac")
+        self.assertEqual(vu, {"url": "https://mon-mac.test/api/ia-relais", "cle": "k"})

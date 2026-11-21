@@ -620,6 +620,13 @@ IA_CLE_ANTHROPIC = os.environ.get("ANTHROPIC_API_KEY", "")
 IA_MODELE_API = os.environ.get("WG_IA_MODELE_API", "claude-sonnet-5-5")
 IA_URL_COMPATIBLE = os.environ.get("WG_IA_URL", "")  # ex. https://api.deepseek.com/chat/completions (format « OpenAI »)
 IA_CLE_COMPATIBLE = os.environ.get("WG_IA_CLE", "")
+# Relais : l'IA d'un serveur en ligne peut tourner sur un ordinateur qui a le programme « claude » (le temps d'une démonstration).
+#  - côté ordinateur : WG_RELAIS_CLE=<clé> et WG_RELAIS_JUSQUA=<heure limite en secondes Unix> ouvrent POST /api/ia-relais, qui refuse tout après l'heure limite ;
+#  - côté serveur en ligne : WG_IA_RELAIS_URL=<adresse de l'ordinateur> et WG_IA_RELAIS_CLE=<la même clé> envoient les demandes de l'assistant à cet ordinateur.
+RELAIS_CLE = os.environ.get("WG_RELAIS_CLE", "")
+RELAIS_JUSQUA = float(os.environ.get("WG_RELAIS_JUSQUA", "0") or 0)
+IA_RELAIS_URL = os.environ.get("WG_IA_RELAIS_URL", "").rstrip("/")
+IA_RELAIS_CLE = os.environ.get("WG_IA_RELAIS_CLE", "")
 IA_PAR_HEURE_ET_VISITEUR = int(os.environ.get("WG_IA_PAR_HEURE", "30"))
 IA_PAR_JOUR = int(os.environ.get("WG_IA_PAR_JOUR", "400"))
 _IA_JOURNAL = {"visiteurs": {}, "jour": (None, 0)}
@@ -627,7 +634,8 @@ _IA_JOURNAL_VERROU = threading.Lock()
 
 
 def ia_par_api():
-    return bool(IA_CLE_ANTHROPIC or (IA_URL_COMPATIBLE and IA_CLE_COMPATIBLE))
+    """Vrai quand l'assistant est payé ou prêté par un tiers (API, ou ordinateur relais) : les demandes sont alors plafonnées."""
+    return bool(IA_CLE_ANTHROPIC or (IA_URL_COMPATIBLE and IA_CLE_COMPATIBLE) or (IA_RELAIS_URL and IA_RELAIS_CLE))
 
 
 def limiter_ia(visiteur, maintenant=None):
@@ -659,8 +667,16 @@ def _post_json(url, en_tetes, corps):
         raise ApiError(504, "L'assistant n'a pas répondu à temps.")
 
 
+def lancer_relais(entree):
+    """Envoie la demande à l'ordinateur relais (voir RELAIS_CLE) ; rend le texte de sa réponse."""
+    r = _post_json(f"{IA_RELAIS_URL}/api/ia-relais", {"X-Relais-Cle": IA_RELAIS_CLE}, {"entree": entree})
+    return str(r.get("texte") or "")
+
+
 def lancer_api(entree):
     """Appelle l'API d'un fournisseur (Anthropic, ou compatible « OpenAI » comme DeepSeek) ; rend le texte de la réponse."""
+    if IA_RELAIS_URL and IA_RELAIS_CLE and not IA_CLE_ANTHROPIC:
+        return lancer_relais(entree)
     if IA_CLE_ANTHROPIC:
         r = _post_json("https://api.anthropic.com/v1/messages", {"x-api-key": IA_CLE_ANTHROPIC, "anthropic-version": "2023-06-01"},
                        {"model": IA_MODELE_API, "max_tokens": 2500, "system": IA_CONSIGNES, "messages": [{"role": "user", "content": entree}]})
@@ -778,6 +794,17 @@ class Handler(BaseHTTPRequestHandler):
             return self._relay_online(path[len("/enligne/"):])
         if method == "GET" and re.fullmatch(r"/maps/[a-z0-9-]+\.pmtiles", path):
             return self._send_file(os.path.join(MAPS_DIR, path[len("/maps/"):]), "application/octet-stream", cache=True)
+        if method == "POST" and path == "/api/ia-relais":
+            fournie = (self.headers.get("X-Relais-Cle") or "").encode()
+            if not RELAIS_CLE or time.time() > RELAIS_JUSQUA or not hmac.compare_digest(fournie, RELAIS_CLE.encode()):
+                raise ApiError(403, "Relais fermé")
+            entree = str(self._body(IA_PROMPT_MAX + IA_CONTEXTE_MAX + 2000).get("entree") or "")
+            if not IA_VERROU.acquire(blocking=False):
+                raise ApiError(429, "Une demande est déjà en cours.")
+            try:
+                return self._json(200, {"texte": lancer_claude(entree)})
+            finally:
+                IA_VERROU.release()
         if method == "POST" and path == "/api/ia":
             local = self._est_local()
             if not local and not self.store.est_participant(self.headers.get("X-Partie") or "", token):
