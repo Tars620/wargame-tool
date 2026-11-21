@@ -6,10 +6,23 @@ export const SOURCE_ID = 'portees';
 export const STORAGE_KEY = 'wg.pieces.v1';
 export const COULEURS = { bleu: '#4c8dff', rouge: '#e5484d' };
 export const NOM_CAMP = { bleu: 'Bleu', rouge: 'Rouge' };
-export const state = { retirees: [], catalogue: [], pieces: [], camp: 'bleu', arme: null, selection: null, portees: 'selection', map: null,
-  marqueurs: new Map(), racine: null, visibles: null,
+export const state = {
+  retirees: [],
+  catalogue: [],
+  pieces: [],
+  camp: 'bleu',
+  arme: null,
+  selection: null,
+  portees: 'selection',
+  map: null,
+  marqueurs: new Map(),
+  racine: null,
+  visibles: null,
   // Liens entre modules, fixés par les modules qui les possèdent (évite les imports circulaires) :
-  surChoix: () => {}, surDeplacement: () => {}, redessiner: { fiche: () => {}, banque: () => {} } };
+  surChoix: () => {},
+  surDeplacement: () => {},
+  redessiner: { fiche: () => {}, banque: () => {} }
+};
 
 export function nombre(valeur, min, max, repli) {
   const n = Number(String(valeur).replace(',', '.'));
@@ -20,7 +33,9 @@ export const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().
 export const piece = (id) => state.pieces.find((p) => p.id === id) || null;
 
 // ---------- persistance (navigateur) ----------
-export function sauver() { if (!estJoueur()) ecrireJson(STORAGE_KEY, state.pieces); }
+export function sauver() {
+  if (!estJoueur()) ecrireJson(STORAGE_KEY, state.pieces);
+}
 export function charger() {
   const brut = lireJson(STORAGE_KEY, []);
   return Array.isArray(brut) ? brut : [];
@@ -33,4 +48,6 @@ export function maj(id, patch) {
 }
 
 export const estVisible = (p) => !state.visibles || state.visibles.has(p.id);
-export function signaler() { document.dispatchEvent(new CustomEvent('wg:pieces')); }
+export function signaler() {
+  document.dispatchEvent(new CustomEvent('wg:pieces'));
+}

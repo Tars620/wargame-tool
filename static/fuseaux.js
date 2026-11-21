@@ -10,8 +10,12 @@ function formateur(zone, options) {
 
 /** Décalage de `zone` par rapport à UTC à l'instant `ms`, en minutes (Paris : 60 l'hiver, 120 l'été). */
 export function decalageMin(ms, zone) {
-  const p = Object.fromEntries(formateur(zone, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    .formatToParts(new Date(ms)).filter((x) => x.type !== 'literal').map((x) => [x.type, Number(x.value)]));
+  const p = Object.fromEntries(
+    formateur(zone, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      .formatToParts(new Date(ms))
+      .filter((x) => x.type !== 'literal')
+      .map((x) => [x.type, Number(x.value)])
+  );
   const vu = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
   return Math.round((vu - Math.floor(ms / 1000) * 1000) / 60000);
 }
@@ -57,7 +61,11 @@ export function parisVersMs(saisie) {
 
 /** « 2026-11-21T14:00 » : l'instant `ms` exprimé en heure de Paris (pour un champ datetime-local). */
 export function msVersParis(ms) {
-  const p = Object.fromEntries(formateur(PARIS, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
-    .formatToParts(new Date(ms)).filter((x) => x.type !== 'literal').map((x) => [x.type, x.value]));
+  const p = Object.fromEntries(
+    formateur(PARIS, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+      .formatToParts(new Date(ms))
+      .filter((x) => x.type !== 'literal')
+      .map((x) => [x.type, x.value])
+  );
   return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
 }

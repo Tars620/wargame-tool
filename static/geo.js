@@ -42,7 +42,7 @@ export function formatDuree(minutes) {
 export function dureesDeplacement(km, vitesseMin, vitesseMax) {
   return {
     rapide: vitesseMax > 0 ? (km / vitesseMax) * 60 : Infinity,
-    lent: vitesseMin > 0 ? (km / vitesseMin) * 60 : Infinity,
+    lent: vitesseMin > 0 ? (km / vitesseMin) * 60 : Infinity
   };
 }
 

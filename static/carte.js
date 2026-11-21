@@ -7,9 +7,24 @@ import { monter as monterTemps } from './temps.js';
 import { monter as monterTerrain, configurer as configurerTerrain } from './terrain-carte.js';
 import { monter as monterIa } from './ia.js';
 import { monter as monterMeteo, pourStyle as meteoPourStyle } from './meteo.js';
-import { monter as monterOrdres, noterOperation, collection as consignesGeojson, layerSpecs as consignesCouches, setTheme as themeOrdres, SOURCE_CONSIGNES } from './ordres.js';
-import { monter as monterDessin, collection as dessinsGeojson, collectionBrouillon, layerSpecs as dessinsCouches,
-  setTheme as themeDessin, majTheme as majThemeDessin, SOURCE_DESSINS, SOURCE_BROUILLON } from './dessin.js';
+import {
+  monter as monterOrdres,
+  noterOperation,
+  collection as consignesGeojson,
+  layerSpecs as consignesCouches,
+  setTheme as themeOrdres,
+  SOURCE_CONSIGNES
+} from './ordres.js';
+import {
+  monter as monterDessin,
+  collection as dessinsGeojson,
+  collectionBrouillon,
+  layerSpecs as dessinsCouches,
+  setTheme as themeDessin,
+  majTheme as majThemeDessin,
+  SOURCE_DESSINS,
+  SOURCE_BROUILLON
+} from './dessin.js';
 import { ecrireJson, ecrireTexte, lireJson, lireTexte, menuDeroulant } from './ui.js';
 
 // Polices des noms de lieux : encore chargées depuis Internet (voir la note de la page).
@@ -26,8 +41,11 @@ const PITCH_MAX = 85;
 const EXAGERATION = { min: 1, max: 6, pas: 0.5, defaut: 3 };
 const EXAGERATION_CLE = 'wg.exageration';
 let exageration = EXAGERATION.defaut;
-{ const v = Number(lireTexte(EXAGERATION_CLE)); if (v >= EXAGERATION.min && v <= EXAGERATION.max) exageration = v; }
-const SURZOOM = 2;        // niveaux d'agrandissement au-delà des données d'une zone locale
+{
+  const v = Number(lireTexte(EXAGERATION_CLE));
+  if (v >= EXAGERATION.min && v <= EXAGERATION.max) exageration = v;
+}
+const SURZOOM = 2; // niveaux d'agrandissement au-delà des données d'une zone locale
 const SURZOOM_DETAIL = 5; // une zone détaillée (zoom 14 ou plus) peut aller bien plus loin : le vecteur reste net
 const ZOOM_ABSOLU = 20;
 const THEME_KEY = 'wg.theme';
@@ -36,23 +54,40 @@ const FONDS = {
   plan: { label: 'Plan', court: 'Plan', note: 'Plan : OpenStreetMap.' },
   relief: { label: 'Relief', court: 'Relief', note: 'Plan avec ombrage du terrain.' },
   s2: { label: 'Satellite haute résolution', court: 'Satellite HD', note: `Sentinel-2, mosaïque ${S2_YEAR} (usage non commercial).` },
-  nasa: { label: 'Satellite quotidien', court: 'Satellite jour', note: 'NASA VIIRS, 250 m, dernière journée disponible.' },
+  nasa: { label: 'Satellite quotidien', court: 'Satellite jour', note: 'NASA VIIRS, 250 m, dernière journée disponible.' }
 };
 
 // Thèmes : seul le plan et le relief changent de couleur ; les satellites restent des photos.
 const THEMES = {
-  sombre: { nom: 'Sombre', base: 'black', reglages: { background: '#050506', water: '#050506', earth: '#1a1b1f' }, frontPlan: '#a3a6b0',
-    relief: { shadow: '#000000', highlight: '#5a5d66', accent: '#1d1e22' } },
-  clair: { nom: 'Clair', base: 'light', reglages: { background: '#eceef2', water: '#c8d4e2', earth: '#f7f7f5' }, frontPlan: '#5f6168',
-    relief: { shadow: '#3a3c42', highlight: '#ffffff', accent: '#a0a3ab' } },
+  sombre: {
+    nom: 'Sombre',
+    base: 'black',
+    reglages: { background: '#050506', water: '#050506', earth: '#1a1b1f' },
+    frontPlan: '#a3a6b0',
+    relief: { shadow: '#000000', highlight: '#5a5d66', accent: '#1d1e22' }
+  },
+  clair: {
+    nom: 'Clair',
+    base: 'light',
+    reglages: { background: '#eceef2', water: '#c8d4e2', earth: '#f7f7f5' },
+    frontPlan: '#5f6168',
+    relief: { shadow: '#3a3c42', highlight: '#ffffff', accent: '#a0a3ab' }
+  }
 };
 
 const { Protocol } = window.pmtiles; // chargé par carte.html (version autonome : elle embarque fflate)
 const $ = (id) => document.getElementById(id);
 const state = { zones: [], zone: null, fond: 'plan', labels: true, relief3d: false, nasaDate: null, map: null, theme: lireTheme() };
 
-function lireTheme() { const t = lireTexte(THEME_KEY); return THEMES[t] ? t : 'sombre'; }
-function appliquerTheme() { document.documentElement.dataset.theme = state.theme; themeDessin(state.theme); themeOrdres(state.theme); }
+function lireTheme() {
+  const t = lireTexte(THEME_KEY);
+  return THEMES[t] ? t : 'sombre';
+}
+function appliquerTheme() {
+  document.documentElement.dataset.theme = state.theme;
+  themeDessin(state.theme);
+  themeOrdres(state.theme);
+}
 
 // ---------- construction du style ----------
 function flavor() {
@@ -65,11 +100,15 @@ function flavor() {
 // Une seule langue : le nom français, sinon anglais, sinon le nom local (jamais plusieurs écritures empilées).
 const NOM_FRANCAIS = ['coalesce', ['get', 'name:fr'], ['get', 'name:en'], ['get', 'name']];
 function nomsFrancais(couches) {
-  return couches.map((l) => (l.layout && l.layout['text-field'] && JSON.stringify(l.layout['text-field']).includes('"name')
-    ? { ...l, layout: { ...l.layout, 'text-field': NOM_FRANCAIS } } : l));
+  return couches.map((l) =>
+    l.layout && l.layout['text-field'] && JSON.stringify(l.layout['text-field']).includes('"name')
+      ? { ...l, layout: { ...l.layout, 'text-field': NOM_FRANCAIS } }
+      : l
+  );
 }
 // Une seule graisse sur la carte : tous les textes en Noto Sans Regular (le serveur de glyphes ne sert pas Inter ; c'est la sans-serif la plus proche).
-const policeUnique = (couches) => couches.map((l) => (l.layout && l.layout['text-field'] ? { ...l, layout: { ...l.layout, 'text-font': ['Noto Sans Regular'] } } : l));
+const policeUnique = (couches) =>
+  couches.map((l) => (l.layout && l.layout['text-field'] ? { ...l, layout: { ...l.layout, 'text-font': ['Noto Sans Regular'] } } : l));
 const vecteur = (f) => policeUnique(nomsFrancais(layers('protomaps', f, { lang: 'fr' })));
 
 const isOverlay = (layer) => ['boundaries', 'places'].includes(layer['source-layer']) || layer.id.includes('label');
@@ -86,8 +125,9 @@ function frontieres(couches, couleur) {
 
 // Noms blancs cerclés de noir : lisibles sur une photo.
 function textesLisibles(couches) {
-  return couches.map((l) => (l.type === 'symbol'
-    ? { ...l, paint: { ...l.paint, 'text-color': '#ffffff', 'text-halo-color': '#000000', 'text-halo-width': 1.6 } } : l));
+  return couches.map((l) =>
+    l.type === 'symbol' ? { ...l, paint: { ...l.paint, 'text-color': '#ffffff', 'text-halo-color': '#000000', 'text-halo-width': 1.6 } } : l
+  );
 }
 
 // Le plan avec (ou sans) ses frontières et ses noms : la case s'applique à tous les fonds.
@@ -98,15 +138,28 @@ function plan(labels) {
 
 function hillshade() {
   const r = THEMES[state.theme].relief;
-  return { id: 'hillshade', type: 'hillshade', source: 'dem', paint: {
-    'hillshade-exaggeration': state.relief3d ? 0.8 : 0.5, 'hillshade-shadow-color': r.shadow, 'hillshade-highlight-color': r.highlight, 'hillshade-accent-color': r.accent } };
+  return {
+    id: 'hillshade',
+    type: 'hillshade',
+    source: 'dem',
+    paint: {
+      'hillshade-exaggeration': state.relief3d ? 0.8 : 0.5,
+      'hillshade-shadow-color': r.shadow,
+      'hillshade-highlight-color': r.highlight,
+      'hillshade-accent-color': r.accent
+    }
+  };
 }
 
 function layersFor(fond, labels) {
   if (fond === 'plan' && !state.relief3d) return plan(labels);
-  if (fond === 'relief' || fond === 'plan') { // en 3D, le plan reçoit aussi l'ombrage : sans lui le relief ne se lit pas
+  if (fond === 'relief' || fond === 'plan') {
+    // en 3D, le plan reçoit aussi l'ombrage : sans lui le relief ne se lit pas
     const vec = plan(labels);
-    const at = Math.max(vec.findIndex((l) => l.id === 'water'), 0);
+    const at = Math.max(
+      vec.findIndex((l) => l.id === 'water'),
+      0
+    );
     return [...vec.slice(0, at), hillshade(), ...vec.slice(at)];
   }
   const imagery = { id: 'imagerie', type: 'raster', source: 'imagerie' };
@@ -122,13 +175,25 @@ function sourcesFor(fond, labels, zone) {
   const vector = { type: 'vector', url: urlZone(zone), attribution: '© OpenStreetMap' };
   if (fond === 'plan' || fond === 'relief' || labels) sources.protomaps = vector;
   if (fond === 'relief' || state.relief3d) {
-    sources.dem = { type: 'raster-dem', tiles: [DEM_TILES], encoding: 'terrarium', tileSize: 256, maxzoom: 15,
-      attribution: 'Relief : Mapzen / AWS Terrain Tiles' };
+    sources.dem = {
+      type: 'raster-dem',
+      tiles: [DEM_TILES],
+      encoding: 'terrarium',
+      tileSize: 256,
+      maxzoom: 15,
+      attribution: 'Relief : Mapzen / AWS Terrain Tiles'
+    };
   }
-  if (fond === 's2') sources.imagerie = { type: 'raster', tiles: [S2_TILES], tileSize: 256, maxzoom: 14,
-    attribution: `Sentinel-2 cloudless © EOX IT Services GmbH (contient des données Copernicus Sentinel ${S2_YEAR}), CC BY-NC-SA 4.0` };
-  if (fond === 'nasa' && state.nasaDate) sources.imagerie = { type: 'raster', tiles: [nasaTiles(state.nasaDate)], tileSize: 256,
-    maxzoom: 9, attribution: `NASA GIBS, VIIRS du ${state.nasaDate}` };
+  if (fond === 's2')
+    sources.imagerie = {
+      type: 'raster',
+      tiles: [S2_TILES],
+      tileSize: 256,
+      maxzoom: 14,
+      attribution: `Sentinel-2 cloudless © EOX IT Services GmbH (contient des données Copernicus Sentinel ${S2_YEAR}), CC BY-NC-SA 4.0`
+    };
+  if (fond === 'nasa' && state.nasaDate)
+    sources.imagerie = { type: 'raster', tiles: [nasaTiles(state.nasaDate)], tileSize: 256, maxzoom: 9, attribution: `NASA GIBS, VIIRS du ${state.nasaDate}` };
   return sources;
 }
 
@@ -151,24 +216,43 @@ function buildStyle() {
 async function latestNasaDate() {
   const day = (offset) => new Date(Date.now() - offset * 86400000).toISOString().slice(0, 10);
   const dates = Array.from({ length: NASA_MAX_DAYS }, (_, i) => day(i));
-  const found = await Promise.all(dates.map(async (d) => {
-    try { return (await fetch(nasaTiles(d).replace('{z}/{y}/{x}', NASA_PROBE))).ok ? d : null; } catch { return null; }
-  }));
+  const found = await Promise.all(
+    dates.map(async (d) => {
+      try {
+        return (await fetch(nasaTiles(d).replace('{z}/{y}/{x}', NASA_PROBE))).ok ? d : null;
+      } catch {
+        return null;
+      }
+    })
+  );
   return found.find(Boolean) || null; // dates triées de la plus récente à la plus ancienne
 }
 
 // ---------- carte ----------
-function showError(message) { $('err').textContent = message || ''; }
+function showError(message) {
+  $('err').textContent = message || '';
+}
 const zoomMax = (zone) => Math.min(zone.maxzoom + (zone.maxzoom >= 14 ? SURZOOM_DETAIL : SURZOOM), ZOOM_ABSOLU);
 
 function createMap() {
   maplibre.addProtocol('pmtiles', new Protocol().tile);
   const zone = state.zone;
-  const map = new maplibre.Map({ container: 'map', style: buildStyle(), center: zone.center, zoom: zone.zoom,
-    maxZoom: zoomMax(zone), maxPitch: PITCH_MAX, maxBounds: boundsFor(zone), attributionControl: { compact: false }, hash: true });
+  const map = new maplibre.Map({
+    container: 'map',
+    style: buildStyle(),
+    center: zone.center,
+    zoom: zone.zoom,
+    maxZoom: zoomMax(zone),
+    maxPitch: PITCH_MAX,
+    maxBounds: boundsFor(zone),
+    attributionControl: { compact: false },
+    hash: true
+  });
   map.addControl(new maplibre.NavigationControl({ visualizePitch: true }), 'bottom-right');
   map.addControl(new maplibre.ScaleControl({ unit: 'metric' }), 'bottom-right');
-  map.on('mousemove', (e) => { $('lecture').textContent = `${e.lngLat.lat.toFixed(4)}, ${e.lngLat.lng.toFixed(4)}  ·  zoom ${map.getZoom().toFixed(1)}`; });
+  map.on('mousemove', (e) => {
+    $('lecture').textContent = `${e.lngLat.lat.toFixed(4)}, ${e.lngLat.lng.toFixed(4)}  ·  zoom ${map.getZoom().toFixed(1)}`;
+  });
   map.on('error', (e) => showError(`Chargement impossible : ${(e.error && e.error.message) || 'source indisponible'}`));
   map.on('styledata', () => showError(''));
   map.on('zoomend', majInfoZone);
@@ -180,37 +264,53 @@ function createMap() {
     monterDessin(map);
     configurerTerrain(state.zone, urlZone(state.zone));
     monterTerrain(map, 'portee-vision-fond');
-    monterPieces(map).then(() => {
-      monterOrdres(map); monterIa(map);
-      remplirPanneau(); demarrerSynchronisation();
-      const retirees = piecesRetirees();
-      if (retirees.length) noterOperation(`Nouveau catalogue : ${retirees.length} pièce${retirees.length > 1 ? 's' : ''} sans équivalent retirée${retirees.length > 1 ? 's' : ''} (${retirees.join(', ')}).`);
-    }).catch((e) => showError(`Pièces ou consignes indisponibles : ${e.message}`));
+    monterPieces(map)
+      .then(() => {
+        monterOrdres(map);
+        monterIa(map);
+        remplirPanneau();
+        demarrerSynchronisation();
+        const retirees = piecesRetirees();
+        if (retirees.length)
+          noterOperation(
+            `Nouveau catalogue : ${retirees.length} pièce${retirees.length > 1 ? 's' : ''} sans équivalent retirée${retirees.length > 1 ? 's' : ''} (${retirees.join(', ')}).`
+          );
+      })
+      .catch((e) => showError(`Pièces ou consignes indisponibles : ${e.message}`));
   });
   return map;
 }
 
 function boundsFor(zone) {
   if (!zone.bounds) return undefined;
-  const [w, s, e, n] = zone.bounds, pad = 2;
-  return [[w - pad, s - pad], [e + pad, n + pad]];
+  const [w, s, e, n] = zone.bounds,
+    pad = 2;
+  return [
+    [w - pad, s - pad],
+    [e + pad, n + pad]
+  ];
 }
 
 async function render() {
   if (state.fond === 'nasa' && !state.nasaDate) {
     $('err').textContent = 'Recherche de la dernière image NASA…';
     state.nasaDate = await latestNasaDate();
-    if (!state.nasaDate) showError("Aucune image NASA trouvée sur les 45 derniers jours.");
+    if (!state.nasaDate) showError('Aucune image NASA trouvée sur les 45 derniers jours.');
   }
   appliquerTheme();
   const style = buildStyle();
-  if (!state.map) { state.map = createMap(); return; }
+  if (!state.map) {
+    state.map = createMap();
+    return;
+  }
   state.map.setStyle(style, { diff: true });
   state.map.setMaxZoom(zoomMax(state.zone));
   state.map.setMaxBounds(boundsFor(state.zone) || null);
 }
 
-function setPitch() { state.map && state.map.easeTo({ pitch: state.relief3d ? PITCH_3D : 0, duration: 600 }); }
+function setPitch() {
+  state.map && state.map.easeTo({ pitch: state.relief3d ? PITCH_3D : 0, duration: 600 });
+}
 
 function flyToZone() {
   state.map.jumpTo({ center: state.zone.center, zoom: state.zone.zoom, pitch: state.relief3d ? PITCH_3D : 0 });
@@ -219,26 +319,31 @@ function flyToZone() {
 // ---------- panneau ----------
 function fillTheme() {
   const box = $('theme');
-  if (box.firstChild) { // déjà monté : on ne met à jour que la coche
-    for (const [cle, b] of Object.entries(THEMES).map(([c], k) => [c, box.querySelectorAll('[role=menuitemradio]')[k]])) b.setAttribute('aria-checked', String(state.theme === cle));
+  if (box.firstChild) {
+    // déjà monté : on ne met à jour que la coche
+    for (const [cle, b] of Object.entries(THEMES).map(([c], k) => [c, box.querySelectorAll('[role=menuitemradio]')[k]]))
+      b.setAttribute('aria-checked', String(state.theme === cle));
     return;
   }
   const principal = document.createElement('button');
   Object.assign(principal, { type: 'button', textContent: 'Thème', id: 'h-theme' });
-  principal.setAttribute('aria-haspopup', 'menu'); principal.setAttribute('aria-expanded', 'false');
+  principal.setAttribute('aria-haspopup', 'menu');
+  principal.setAttribute('aria-expanded', 'false');
   const menu = document.createElement('div');
   Object.assign(menu, { className: 'menu-temps', hidden: true });
   menu.setAttribute('role', 'menu');
   for (const [cle, t] of Object.entries(THEMES)) {
     const b = document.createElement('button');
     Object.assign(b, { type: 'button', textContent: t.nom });
-    b.setAttribute('role', 'menuitemradio'); b.setAttribute('aria-checked', String(state.theme === cle));
+    b.setAttribute('role', 'menuitemradio');
+    b.setAttribute('aria-checked', String(state.theme === cle));
     b.addEventListener('click', () => {
       ouvrir(false);
       if (state.theme === cle) return;
       state.theme = cle;
       ecrireTexte(THEME_KEY, cle);
-      fillTheme(); render().then(majThemeDessin);
+      fillTheme();
+      render().then(majThemeDessin);
     });
     menu.append(b);
   }
@@ -249,13 +354,22 @@ function fillTheme() {
 function fillFonds() {
   const box = $('fonds');
   const note = $('fond-note');
-  const noter = () => { note.textContent = FONDS[state.fond].note; };
+  const noter = () => {
+    note.textContent = FONDS[state.fond].note;
+  };
   for (const [key, f] of Object.entries(FONDS)) {
-    const label = document.createElement('label'); label.className = 'opt';
+    const label = document.createElement('label');
+    label.className = 'opt';
     const input = Object.assign(document.createElement('input'), { type: 'radio', name: 'fond', value: key, checked: key === state.fond });
-    const text = document.createElement('span'); text.textContent = f.court;
-    input.addEventListener('change', () => { state.fond = key; noter(); render(); });
-    label.append(input, text); box.append(label);
+    const text = document.createElement('span');
+    text.textContent = f.court;
+    input.addEventListener('change', () => {
+      state.fond = key;
+      noter();
+      render();
+    });
+    label.append(input, text);
+    box.append(label);
   }
   noter(); // la note du fond choisi (par exemple l'usage non commercial de Sentinel-2) reste visible sur une ligne
 }
@@ -268,7 +382,12 @@ function fillZones() {
     select.append(Object.assign(document.createElement('option'), { value: z.key, textContent: `${z.label} · ${taille}` }));
   }
   select.value = state.zone.key;
-  select.addEventListener('change', () => { state.zone = state.zones.find((z) => z.key === select.value); configurerTerrain(state.zone, urlZone(state.zone)); majInfoZone(); render().then(flyToZone); });
+  select.addEventListener('change', () => {
+    state.zone = state.zones.find((z) => z.key === select.value);
+    configurerTerrain(state.zone, urlZone(state.zone));
+    majInfoZone();
+    render().then(flyToZone);
+  });
 }
 
 function infoZone() {
@@ -280,52 +399,104 @@ function infoZone() {
 function majInfoZone() {
   const plusFin = [...state.zones].sort((a, b) => b.maxzoom - a.maxzoom)[0];
   const limite = state.map && state.map.getZoom() >= zoomMax(state.zone) - 0.05;
-  $('zoneinfo').textContent = limite && plusFin.maxzoom > state.zone.maxzoom
-    ? `Zoom maximal de cette zone atteint. Pour zoomer plus loin, choisissez « ${plusFin.label} ».` : infoZone();
+  $('zoneinfo').textContent =
+    limite && plusFin.maxzoom > state.zone.maxzoom ? `Zoom maximal de cette zone atteint. Pour zoomer plus loin, choisissez « ${plusFin.label} ».` : infoZone();
 }
 
 // ---------- scénario : enregistrer, ouvrir, exporter ----------
 const lireStock = lireJson;
-const stockActuel = () => ({ pieces: lireStock(CLES_STOCK.pieces, []), dessins: lireStock(CLES_STOCK.dessins, []), ordres: lireStock(CLES_STOCK.ordres, {}), journal: lireStock(CLES_STOCK.journal, []) });
+const stockActuel = () => ({
+  pieces: lireStock(CLES_STOCK.pieces, []),
+  dessins: lireStock(CLES_STOCK.dessins, []),
+  ordres: lireStock(CLES_STOCK.ordres, {}),
+  journal: lireStock(CLES_STOCK.journal, [])
+});
 const horodatage = () => new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
 
 function telecharger(nom, contenu, type) {
   const lien = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([contenu], { type })), download: nom });
-  document.body.append(lien); lien.click(); lien.remove();
+  document.body.append(lien);
+  lien.click();
+  lien.remove();
   setTimeout(() => URL.revokeObjectURL(lien.href), 1000);
 }
 
 function fillScenario() {
   const message = Object.assign(document.createElement('p'), { className: 'note' });
-  const dire = (texte, erreur = false) => { message.textContent = texte; message.className = erreur ? 'err' : 'note'; };
-  const bouton = (texte, onclick) => { const b = document.createElement('button'); Object.assign(b, { type: 'button', textContent: texte }); b.addEventListener('click', onclick); return b; };
-  const courant = () => { const v = valider(assembler(stockActuel())); if (!v.ok) dire(`Le scénario actuel contient une valeur invalide : ${v.erreur}`, true); return v.ok ? v.scenario : null; };
+  const dire = (texte, erreur = false) => {
+    message.textContent = texte;
+    message.className = erreur ? 'err' : 'note';
+  };
+  const bouton = (texte, onclick) => {
+    const b = document.createElement('button');
+    Object.assign(b, { type: 'button', textContent: texte });
+    b.addEventListener('click', onclick);
+    return b;
+  };
+  const courant = () => {
+    const v = valider(assembler(stockActuel()));
+    if (!v.ok) dire(`Le scénario actuel contient une valeur invalide : ${v.erreur}`, true);
+    return v.ok ? v.scenario : null;
+  };
 
   const fichier = Object.assign(document.createElement('input'), { type: 'file', accept: '.json,application/json', hidden: true });
   fichier.addEventListener('change', async () => {
-    const f = fichier.files[0]; fichier.value = '';
+    const f = fichier.files[0];
+    fichier.value = '';
     if (!f) return;
-    if (f.size > TAILLE_MAX_OCTETS) { dire('Fichier trop volumineux (5 Mo au plus).', true); return; }
+    if (f.size > TAILLE_MAX_OCTETS) {
+      dire('Fichier trop volumineux (5 Mo au plus).', true);
+      return;
+    }
     let objet;
-    try { objet = JSON.parse(await f.text()); } catch { dire("Ce fichier n'est pas du JSON valide.", true); return; }
+    try {
+      objet = JSON.parse(await f.text());
+    } catch {
+      dire("Ce fichier n'est pas du JSON valide.", true);
+      return;
+    }
     const v = valider(objet);
-    if (!v.ok) { dire(`Scénario refusé : ${v.erreur}`, true); return; }
+    if (!v.ok) {
+      dire(`Scénario refusé : ${v.erreur}`, true);
+      return;
+    }
     const sc = v.scenario;
     if (!confirm(`Ouvrir ce scénario ? Il remplace le scénario actuel (${sc.pieces.length} pièce(s), ${sc.dessins.length} dessin(s)).`)) return;
-    if (!['pieces', 'dessins', 'ordres', 'journal'].every((cle) => ecrireJson(CLES_STOCK[cle], sc[cle]))) { dire('Impossible d\'enregistrer le scénario dans le navigateur (stockage plein ou bloqué).', true); return; }
+    if (!['pieces', 'dessins', 'ordres', 'journal'].every((cle) => ecrireJson(CLES_STOCK[cle], sc[cle]))) {
+      dire("Impossible d'enregistrer le scénario dans le navigateur (stockage plein ou bloqué).", true);
+      return;
+    }
     location.reload();
   });
 
   $('scenario-panneau').replaceChildren(
-    bouton('Enregistrer (.json)', () => { const sc = courant(); if (sc) { telecharger(`scenario-${horodatage()}.json`, JSON.stringify(sc, null, 1), 'application/json'); dire('Scénario enregistré.'); } }),
+    bouton('Enregistrer (.json)', () => {
+      const sc = courant();
+      if (sc) {
+        telecharger(`scenario-${horodatage()}.json`, JSON.stringify(sc, null, 1), 'application/json');
+        dire('Scénario enregistré.');
+      }
+    }),
     bouton('Ouvrir un scénario…', () => fichier.click()),
     bouton('Exporter en GeoJSON', async () => {
-      const sc = courant(); if (!sc) return;
-      try { const { pieces } = await (await fetch('/static/pieces.json')).json(); telecharger(`scenario-${horodatage()}.geojson`, JSON.stringify(versGeoJSON(sc, pieces), null, 1), 'application/geo+json'); dire('Export GeoJSON prêt.'); }
-      catch (e) { dire(`Export impossible : ${e.message}`, true); }
+      const sc = courant();
+      if (!sc) return;
+      try {
+        const { pieces } = await (await fetch('/static/pieces.json')).json();
+        telecharger(`scenario-${horodatage()}.geojson`, JSON.stringify(versGeoJSON(sc, pieces), null, 1), 'application/geo+json');
+        dire('Export GeoJSON prêt.');
+      } catch (e) {
+        dire(`Export impossible : ${e.message}`, true);
+      }
     }),
-    fichier, message,
-    Object.assign(document.createElement('p'), { className: 'note', textContent: 'Le scénario contient les pièces, dessins, consignes et le journal. Le GeoJSON se lit dans les autres outils de cartographie (les pièces portent leur code APP-6D).' }));
+    fichier,
+    message,
+    Object.assign(document.createElement('p'), {
+      className: 'note',
+      textContent:
+        'Le scénario contient les pièces, dessins, consignes et le journal. Le GeoJSON se lit dans les autres outils de cartographie (les pièces portent leur code APP-6D).'
+    })
+  );
 }
 
 // Chaque section des panneaux se plie et se déplie ; l'état est mémorisé.
@@ -335,7 +506,10 @@ const ONGLET_KEY = 'wg.onglet';
 const ONGLETS = ['ia', 'pieces', 'consignes', 'dessins', 'journal'];
 function voletsDroite() {
   let courant = 'ia';
-  { const v = lireTexte(ONGLET_KEY); if (ONGLETS.includes(v)) courant = v; }
+  {
+    const v = lireTexte(ONGLET_KEY);
+    if (ONGLETS.includes(v)) courant = v;
+  }
   const montrer = (nom) => {
     courant = nom;
     ecrireTexte(ONGLET_KEY, nom);
@@ -354,7 +528,10 @@ function sectionsRepliables() {
   let etat = lireJson(SECTIONS_KEY, {});
   for (const d of document.querySelectorAll('details[data-cle]')) {
     if (d.dataset.cle in etat) d.open = etat[d.dataset.cle];
-    d.addEventListener('toggle', () => { etat = { ...etat, [d.dataset.cle]: d.open }; ecrireJson(SECTIONS_KEY, etat); });
+    d.addEventListener('toggle', () => {
+      etat = { ...etat, [d.dataset.cle]: d.open };
+      ecrireJson(SECTIONS_KEY, etat);
+    });
   }
 }
 
@@ -383,13 +560,16 @@ function panneauxRepliables() {
 const VERSION_PAS_MS = 4000;
 function surveillerVersion() {
   let courante = null;
-  const occupe = () => ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement && document.activeElement.tagName) || document.body.dataset.pointage === 'oui';
+  const occupe = () =>
+    ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement && document.activeElement.tagName) || document.body.dataset.pointage === 'oui';
   setInterval(async () => {
     try {
       const { version } = await (await fetch('/api/version')).json();
       if (courante === null) courante = version;
       else if (version !== courante && !occupe()) location.reload();
-    } catch { /* serveur momentanément injoignable : on réessaiera */ }
+    } catch {
+      /* serveur momentanément injoignable : on réessaiera */
+    }
   }, VERSION_PAS_MS);
 }
 
@@ -401,27 +581,56 @@ async function start() {
   await preparerRole(); // le rôle (local, arbitre, joueur) conditionne tout ce qui est monté ensuite
   const res = await fetch('/api/maps');
   state.zones = await res.json();
-  if (!state.zones.length) { showError('Aucune zone : placez un fichier .pmtiles dans data/maps et déclarez-le dans zones.json.'); return; }
+  if (!state.zones.length) {
+    showError('Aucune zone : placez un fichier .pmtiles dans data/maps et déclarez-le dans zones.json.');
+    return;
+  }
   state.zone = [...state.zones].sort((x, y) => y.maxzoom - x.maxzoom)[0]; // la plus détaillée : on peut zoomer à fond
   appliquerTheme();
-  fillTheme(); fillFonds(); fillZones(); fillScenario(); majInfoZone();
-  $('labels').addEventListener('change', (e) => { state.labels = e.target.checked; render(); });
+  fillTheme();
+  fillFonds();
+  fillZones();
+  fillScenario();
+  majInfoZone();
+  $('labels').addEventListener('change', (e) => {
+    state.labels = e.target.checked;
+    render();
+  });
   // L'adresse garde l'inclinaison de la vue (#zoom/lat/lng/cap/inclinaison) : un lien ou un rechargement inclinés rouvrent donc avec le relief.
   const inclinaison = Number(location.hash.replace('#', '').split('/')[4]);
-  if (inclinaison > 0) { state.relief3d = true; $('relief3d').checked = true; }
-  const ligneRelief = $('relief-ligne'), curseur = $('relief-ex');
-  curseur.min = EXAGERATION.min; curseur.max = EXAGERATION.max; curseur.step = EXAGERATION.pas; curseur.value = exageration;
+  if (inclinaison > 0) {
+    state.relief3d = true;
+    $('relief3d').checked = true;
+  }
+  const ligneRelief = $('relief-ligne'),
+    curseur = $('relief-ex');
+  curseur.min = EXAGERATION.min;
+  curseur.max = EXAGERATION.max;
+  curseur.step = EXAGERATION.pas;
+  curseur.value = exageration;
   let enAttente = false;
-  const majRelief = () => { ligneRelief.hidden = !state.relief3d; $('relief-val').textContent = `×${String(exageration).replace('.', ',')}`; };
+  const majRelief = () => {
+    ligneRelief.hidden = !state.relief3d;
+    $('relief-val').textContent = `×${String(exageration).replace('.', ',')}`;
+  };
   curseur.addEventListener('input', () => {
-    exageration = Number(curseur.value); majRelief();
+    exageration = Number(curseur.value);
+    majRelief();
     ecrireTexte(EXAGERATION_CLE, exageration);
-    if (!enAttente) { // une mise à jour du relief par image au plus : le curseur ne bloque plus la carte
+    if (!enAttente) {
+      // une mise à jour du relief par image au plus : le curseur ne bloque plus la carte
       enAttente = true;
-      requestAnimationFrame(() => { enAttente = false; if (state.map && state.relief3d && state.map.getSource('dem')) state.map.setTerrain({ source: 'dem', exaggeration: exageration }); });
+      requestAnimationFrame(() => {
+        enAttente = false;
+        if (state.map && state.relief3d && state.map.getSource('dem')) state.map.setTerrain({ source: 'dem', exaggeration: exageration });
+      });
     }
   });
-  $('relief3d').addEventListener('change', (e) => { state.relief3d = e.target.checked; majRelief(); render().then(setPitch); });
+  $('relief3d').addEventListener('change', (e) => {
+    state.relief3d = e.target.checked;
+    majRelief();
+    render().then(setPitch);
+  });
   majRelief();
   await render();
   window.__carteOk = true; // lu par le filet de sécurité de carte.html

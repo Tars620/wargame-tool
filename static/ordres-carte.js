@@ -7,17 +7,29 @@ const COULEURS = { bleu: '#4c8dff', rouge: '#e5484d' };
 export function layerSpecs() {
   const couleur = ['match', ['get', 'camp'], 'rouge', COULEURS.rouge, 'bleu', COULEURS.bleu, '#c9ccd4'];
   return [
-    { id: 'consigne-route', type: 'line', source: SOURCE_CONSIGNES, filter: ['==', ['geometry-type'], 'LineString'],
-      paint: { 'line-color': couleur, 'line-width': 1.6, 'line-dasharray': [1, 2], 'line-opacity': 0.9 } },
-    { id: 'consigne-points', type: 'circle', source: SOURCE_CONSIGNES, filter: ['==', ['geometry-type'], 'Point'],
-      paint: { 'circle-radius': 4, 'circle-color': couleur, 'circle-stroke-color': state.theme === 'sombre' ? '#000' : '#fff', 'circle-stroke-width': 1.2 } },
+    {
+      id: 'consigne-route',
+      type: 'line',
+      source: SOURCE_CONSIGNES,
+      filter: ['==', ['geometry-type'], 'LineString'],
+      paint: { 'line-color': couleur, 'line-width': 1.6, 'line-dasharray': [1, 2], 'line-opacity': 0.9 }
+    },
+    {
+      id: 'consigne-points',
+      type: 'circle',
+      source: SOURCE_CONSIGNES,
+      filter: ['==', ['geometry-type'], 'Point'],
+      paint: { 'circle-radius': 4, 'circle-color': couleur, 'circle-stroke-color': state.theme === 'sombre' ? '#000' : '#fff', 'circle-stroke-width': 1.2 }
+    }
   ];
 }
 
 export function collection() {
   const pieces = listerPieces();
   const features = [];
-  const tracer = (camp, coords) => { if (coords.length > 1) features.push({ type: 'Feature', properties: { camp }, geometry: { type: 'LineString', coordinates: coords } }); };
+  const tracer = (camp, coords) => {
+    if (coords.length > 1) features.push({ type: 'Feature', properties: { camp }, geometry: { type: 'LineString', coordinates: coords } });
+  };
   for (const p of pieces) {
     const attente = fileDe(p.id).filter((c) => c.statut !== 'terminee');
     let courant = [p.lng, p.lat];
@@ -41,5 +53,10 @@ export function collection() {
   return { type: 'FeatureCollection', features };
 }
 
-export function rafraichirCarte() { const s = state.map && state.map.getSource(SOURCE_CONSIGNES); if (s) s.setData(collection()); }
-export function setTheme(t) { state.theme = t; }
+export function rafraichirCarte() {
+  const s = state.map && state.map.getSource(SOURCE_CONSIGNES);
+  if (s) s.setData(collection());
+}
+export function setTheme(t) {
+  state.theme = t;
+}

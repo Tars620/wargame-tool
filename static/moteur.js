@@ -2,8 +2,22 @@
 // Une pièce : { id, camp, categorie, lng, lat, mouvement:{min,max}, feu:{mode,portee_km,...}, vision:{rayon_km|surface_km2}, meteo_max?, endurance_min?, ... } (voir catalogue.js)
 // Une consigne : { type: 'aller'|'observer'|'engager'|'rentrer', ... }
 import { distanceKm, longueurKm, pointVers } from './geo.js';
-import { aFeu, brouilleursContre, categorie, distanceMinTrajet, enduranceRestante, estDrone, impactZone, minutesRetour, modeFeu, peutDetruire, rayonBrouillage,
-  rayonDeSurfaceM, rayonVision, retourPossible } from './regles.js';
+import {
+  aFeu,
+  brouilleursContre,
+  categorie,
+  distanceMinTrajet,
+  enduranceRestante,
+  estDrone,
+  impactZone,
+  minutesRetour,
+  modeFeu,
+  peutDetruire,
+  rayonBrouillage,
+  rayonDeSurfaceM,
+  rayonVision,
+  retourPossible
+} from './regles.js';
 import { ROUTE, eauInterdite, partHorsRoute, premiereEau, routeSeule, voit } from './terrain.js';
 
 export const ALLURES = { prudente: 'Prudente', normale: 'Normale', maximale: 'Maximale' };
@@ -17,9 +31,17 @@ export const position = (p) => [p.lng, p.lat];
 const LIAISON_KM = 30; // portée par défaut d'un drone qui n'en déclare pas
 export const exigePoste = (p) => Boolean(p.liaison);
 export const estPoste = (p) => Boolean(p.commande);
-export const porteeLiaison = (drone, poste) => (drone.portee_op_km > 0 ? drone.portee_op_km : (poste && poste.commande && poste.commande.portee_km > 0 ? poste.commande.portee_km : LIAISON_KM));
+export const porteeLiaison = (drone, poste) =>
+  drone.portee_op_km > 0 ? drone.portee_op_km : poste && poste.commande && poste.commande.portee_km > 0 ? poste.commande.portee_km : LIAISON_KM;
 const km1 = (x) => x.toFixed(1).replace('.', ',');
-const LIBELLE_CIBLE = { fantassin: 'un fantassin', vehicule: 'un véhicule', artillerie: 'une artillerie', brouilleur: 'un brouilleur', pilotes: 'une équipe de pilotes', drone: 'un drone' };
+const LIBELLE_CIBLE = {
+  fantassin: 'un fantassin',
+  vehicule: 'un véhicule',
+  artillerie: 'une artillerie',
+  brouilleur: 'un brouilleur',
+  pilotes: 'une équipe de pilotes',
+  drone: 'un drone'
+};
 
 /** Pièces vivantes rattachées à ce poste (drones qui l'ont pour équipe). Détruire le poste les détruit toutes. */
 export const affilies = (poste, pieces) => pieces.filter((q) => q.poste === poste.id && exigePoste(q) && !q.detruit);
@@ -56,8 +78,11 @@ export function lierAuto(pieces) {
     if (!exigePoste(p) || p.detruit) continue;
     const actuel = etatLiaison(p, pieces);
     if (actuel.poste && actuel.poste.camp === p.camp) continue; // lien existant (même coupé) : on ne le défait pas
-    const choix = pieces.filter((q) => estPoste(q) && !q.detruit && q.camp === p.camp)
-      .map((q) => ({ q, d: distanceKm(position(p), position(q)) })).filter(({ q, d }) => d <= porteeLiaison(p, q)).sort((a, b) => a.d - b.d || (a.q.id < b.q.id ? -1 : 1));
+    const choix = pieces
+      .filter((q) => estPoste(q) && !q.detruit && q.camp === p.camp)
+      .map((q) => ({ q, d: distanceKm(position(p), position(q)) }))
+      .filter(({ q, d }) => d <= porteeLiaison(p, q))
+      .sort((a, b) => a.d - b.d || (a.q.id < b.q.id ? -1 : 1));
     if (choix.length) liens[p.id] = choix[0].q.id;
   }
   return liens;
@@ -81,7 +106,8 @@ function erreursLiaison(piece, pieces, consigne) {
       const portee = piece.feu.portee_km || 0;
       const d = distanceKm(position(piece), position(cible));
       const arret = d > portee ? pointVers(position(piece), position(cible), d - portee * MARGE_PORTEE) : position(piece);
-      if (hors(arret) > l.porteeKm + 1e-9) return [`Pour atteindre cette cible, le drone devrait s'éloigner à ${km1(hors(arret))} km de son équipe de pilotes (${km1(l.porteeKm)} km au plus).`];
+      if (hors(arret) > l.porteeKm + 1e-9)
+        return [`Pour atteindre cette cible, le drone devrait s'éloigner à ${km1(hors(arret))} km de son équipe de pilotes (${km1(l.porteeKm)} km au plus).`];
     }
   }
   return [];
@@ -107,16 +133,22 @@ function erreursEndurance(piece, pieces, consigne, dureeMin, v) {
   const dernier = consigne.type === 'aller' ? consigne.points[consigne.points.length - 1] : position(piece);
   const retour = retourPossible(piece) && equipe ? minutesRetour({ lng: dernier[0], lat: dernier[1] }, equipe, v) : 0;
   if (dureeMin + retour <= reste + 1e-9) return [];
-  return [`Endurance insuffisante : ${minutesTexte(dureeMin)} min de vol${retour > 0 ? ` + ${minutesTexte(retour)} min pour rentrer` : ''}, pour ${minutesTexte(reste)} min restantes.`];
+  return [
+    `Endurance insuffisante : ${minutesTexte(dureeMin)} min de vol${retour > 0 ? ` + ${minutesTexte(retour)} min pour rentrer` : ''}, pour ${minutesTexte(reste)} min restantes.`
+  ];
 }
 
 /** Zones de brouillage ennemies que la trajectoire d'un drone traverserait. */
 function avertissementsBrouillage(piece, pieces, consigne) {
   let trajet = null;
   if (consigne.type === 'aller' && consigne.points) trajet = [position(piece), ...consigne.points];
-  else if (consigne.type === 'engager') { const cible = pieces.find((q) => q.id === consigne.cibleId); if (cible) trajet = [position(piece), position(cible)]; }
+  else if (consigne.type === 'engager') {
+    const cible = pieces.find((q) => q.id === consigne.cibleId);
+    if (cible) trajet = [position(piece), position(cible)];
+  }
   if (!trajet) return [];
-  return brouilleursContre(piece.camp, pieces).filter((q) => distanceMinTrajet(trajet, position(q)) <= rayonBrouillage(q))
+  return brouilleursContre(piece.camp, pieces)
+    .filter((q) => distanceMinTrajet(trajet, position(q)) <= rayonBrouillage(q))
     .map((q) => `La trajectoire traverse la zone de brouillage de ${q.nom} (${km1(rayonBrouillage(q))} km) : le drone y serait perdu.`);
 }
 
@@ -126,7 +158,8 @@ export function trajetPrevu(piece, pieces, consigne) {
   if (consigne.type === 'engager' && aFeu(piece)) {
     const cible = pieces.find((q) => q.id === consigne.cibleId);
     if (!cible || cible.detruit) return null;
-    const portee = piece.feu.portee_km || 0, d = distanceKm(position(piece), position(cible));
+    const portee = piece.feu.portee_km || 0,
+      d = distanceKm(position(piece), position(cible));
     return d > portee ? [position(piece), pointVers(position(piece), position(cible), d - portee * MARGE_PORTEE)] : null;
   }
   return null;
@@ -134,7 +167,8 @@ export function trajetPrevu(piece, pieces, consigne) {
 
 /** Terrain : l'eau arrête véhicules et artillerie ; l'artillerie ne va que sur route. Les cellules dont la tuile manque sont signalées, jamais devinées. */
 function controleTerrain(piece, pieces, consigne, terrain) {
-  const erreurs = [], avertissements = [];
+  const erreurs = [],
+    avertissements = [];
   const trajet = trajetPrevu(piece, pieces, consigne);
   if (!trajet) return { erreurs, avertissements };
   if (eauInterdite(piece)) {
@@ -146,7 +180,8 @@ function controleTerrain(piece, pieces, consigne, terrain) {
     const surRoute = terrain.classe(but[0], but[1]);
     if (surRoute !== null && !(surRoute & ROUTE)) erreurs.push("Cette pièce ne se déplace que sur route : la destination n'est pas sur une route reconnue.");
     const h = partHorsRoute(trajet, terrain);
-    if (!erreurs.length && h.part > 0.1) avertissements.push(`${Math.round(h.part * 100)} % du trajet (tracé en ligne droite) n'est pas sur une route : ajoutez des points le long de la route.`);
+    if (!erreurs.length && h.part > 0.1)
+      avertissements.push(`${Math.round(h.part * 100)} % du trajet (tracé en ligne droite) n'est pas sur une route : ajoutez des points le long de la route.`);
   }
   const m = partHorsRoute(trajet, terrain).inconnues;
   if (m > 0) avertissements.push('Terrain pas encore chargé sur une partie du trajet : la vérification est incomplète.');
@@ -168,7 +203,10 @@ export function verifier(piece, consigne, { pieces = [], meteo = null, terrain =
   if (consigne.type === 'aller') {
     if (!(v > 0)) erreurs.push('Cette pièce ne peut pas se déplacer.');
     if (!consigne.points || !consigne.points.length) erreurs.push('Aucune destination.');
-    else { distance = longueurKm([position(piece), ...consigne.points]); duree = minutes(distance, v); }
+    else {
+      distance = longueurKm([position(piece), ...consigne.points]);
+      duree = minutes(distance, v);
+    }
   } else if (consigne.type === 'observer') {
     duree = Number(consigne.dureeMin) || 0;
     if (!(duree > 0)) erreurs.push("Indiquez une durée d'observation.");
@@ -186,22 +224,34 @@ export function verifier(piece, consigne, { pieces = [], meteo = null, terrain =
       const aRejoindre = Math.max(distance - portee, 0);
       if (aRejoindre > 0 && !(v > 0)) erreurs.push('Cible hors de portée et pièce immobile.');
       else duree = minutes(aRejoindre, v);
-      if (aRejoindre > 0 && portee > 0) avertissements.push(`Cible hors de portée (${km1(distance)} km pour ${km1(portee)} km) : la pièce devra d'abord s'approcher.`);
+      if (aRejoindre > 0 && portee > 0)
+        avertissements.push(`Cible hors de portée (${km1(distance)} km pour ${km1(portee)} km) : la pièce devra d'abord s'approcher.`);
     }
   } else if (consigne.type === 'rentrer') {
     const equipe = pieces.find((q) => q.id === piece.poste && estPoste(q));
-    if (!retourPossible(piece)) erreurs.push(estDrone(piece) ? 'Ce drone est à sens unique : il ne rentre pas.' : 'Seul un drone d\'observation peut rentrer se poser.');
-    else if (equipe && !equipe.detruit) { distance = distanceKm(position(piece), position(equipe)); duree = minutes(distance, v); }
+    if (!retourPossible(piece))
+      erreurs.push(estDrone(piece) ? 'Ce drone est à sens unique : il ne rentre pas.' : "Seul un drone d'observation peut rentrer se poser.");
+    else if (equipe && !equipe.detruit) {
+      distance = distanceKm(position(piece), position(equipe));
+      duree = minutes(distance, v);
+    }
   } else erreurs.push('Consigne inconnue.');
 
   if (!erreurs.length) erreurs.push(...erreursLiaison(piece, pieces, consigne));
-  if (!erreurs.length && terrain && terrain.actif && !estDrone(piece)) { const t = controleTerrain(piece, pieces, consigne, terrain); erreurs.push(...t.erreurs); avertissements.push(...t.avertissements); }
+  if (!erreurs.length && terrain && terrain.actif && !estDrone(piece)) {
+    const t = controleTerrain(piece, pieces, consigne, terrain);
+    erreurs.push(...t.erreurs);
+    avertissements.push(...t.avertissements);
+  }
   if (!erreurs.length && estDrone(piece)) erreurs.push(...erreursEndurance(piece, pieces, consigne, duree, v));
   if (!erreurs.length && estDrone(piece) && !piece.immunise_brouillage) avertissements.push(...avertissementsBrouillage(piece, pieces, consigne));
   if (estPoste(piece) && consigne.type === 'aller' && consigne.points && consigne.points.length) {
     const but = consigne.points[consigne.points.length - 1];
     const perdus = pieces.filter((q) => q.poste === piece.id && exigePoste(q) && !q.detruit && distanceKm(position(q), but) > porteeLiaison(q, piece) + 1e-9);
-    if (perdus.length) avertissements.push(`${perdus.length} drone${perdus.length > 1 ? 's' : ''} rattaché${perdus.length > 1 ? 's' : ''} à cette équipe ser${perdus.length > 1 ? 'ont' : 'a'} hors de portée à l'arrivée : liaison perdue.`);
+    if (perdus.length)
+      avertissements.push(
+        `${perdus.length} drone${perdus.length > 1 ? 's' : ''} rattaché${perdus.length > 1 ? 's' : ''} à cette équipe ser${perdus.length > 1 ? 'ont' : 'a'} hors de portée à l'arrivée : liaison perdue.`
+      );
   }
 
   const vent = meteo && meteo.vent_kmh;
@@ -228,10 +278,20 @@ export function avancer(piece, consigne, dtMin, pieces = [], graine = '', terrai
     while (reste > 0 && etape < consigne.points.length) {
       const but = consigne.points[etape];
       const d = distanceKm(pos, but);
-      if (reste >= d) { pos = [but[0], but[1]]; reste -= d; etape += 1; } else { pos = pointVers(pos, but, reste); reste = 0; }
+      if (reste >= d) {
+        pos = [but[0], but[1]];
+        reste -= d;
+        etape += 1;
+      } else {
+        pos = pointVers(pos, but, reste);
+        reste = 0;
+      }
     }
     const arret = arretEau(piece, depart, pos, terrain);
-    if (arret) { evenements.push({ type: 'bloque', cause: 'eau', pieceId: piece.id, position: arret }); return { position: arret, consigne: { ...consigne, etape }, termine: true, evenements }; }
+    if (arret) {
+      evenements.push({ type: 'bloque', cause: 'eau', pieceId: piece.id, position: arret });
+      return { position: arret, consigne: { ...consigne, etape }, termine: true, evenements };
+    }
     const termine = etape >= consigne.points.length;
     if (termine) evenements.push({ type: 'arrivee', pieceId: piece.id, position: pos });
     return { position: pos, consigne: { ...consigne, etape }, termine, evenements };
@@ -246,15 +306,24 @@ export function avancer(piece, consigne, dtMin, pieces = [], graine = '', terrai
 
   if (consigne.type === 'rentrer') {
     const equipe = pieces.find((p) => p.id === piece.poste && estPoste(p));
-    if (!equipe || equipe.detruit) { evenements.push({ type: 'sans_equipe', pieceId: piece.id }); return { position: pos, consigne, termine: true, evenements }; }
+    if (!equipe || equipe.detruit) {
+      evenements.push({ type: 'sans_equipe', pieceId: piece.id });
+      return { position: pos, consigne, termine: true, evenements };
+    }
     const d = distanceKm(pos, position(equipe));
-    if (pas >= d) { evenements.push({ type: 'atterri', pieceId: piece.id, equipeId: equipe.id }); return { position: position(equipe), consigne, termine: true, evenements }; }
+    if (pas >= d) {
+      evenements.push({ type: 'atterri', pieceId: piece.id, equipeId: equipe.id });
+      return { position: position(equipe), consigne, termine: true, evenements };
+    }
     return { position: pointVers(pos, position(equipe), pas), consigne, termine: false, evenements };
   }
 
   // engager : selon le feu de la pièce, se détruire sur la cible (explosion), tirer sur la cible (direct) ou sur sa zone (zone)
   const cible = pieces.find((p) => p.id === consigne.cibleId);
-  if (!cible || cible.detruit) { evenements.push({ type: 'cible_perdue', pieceId: piece.id, cibleId: consigne.cibleId }); return { position: pos, consigne, termine: true, evenements }; }
+  if (!cible || cible.detruit) {
+    evenements.push({ type: 'cible_perdue', pieceId: piece.id, cibleId: consigne.cibleId });
+    return { position: pos, consigne, termine: true, evenements };
+  }
   const d = distanceKm(pos, position(cible));
   const mode = modeFeu(piece);
   const portee = piece.feu.portee_km || 0;
@@ -267,15 +336,24 @@ export function avancer(piece, consigne, dtMin, pieces = [], graine = '', terrai
   }
   if (d <= portee) {
     if (mode === 'zone') {
-      evenements.push({ type: 'tir_zone', pieceId: piece.id, cibleId: cible.id, distanceKm: d, rayonM: piece.feu.rayon_m || 0,
-        impact: impactZone(position(cible), piece.feu.dispersion_m, `${graine}|${piece.id}|${cible.id}`) });
+      evenements.push({
+        type: 'tir_zone',
+        pieceId: piece.id,
+        cibleId: cible.id,
+        distanceKm: d,
+        rayonM: piece.feu.rayon_m || 0,
+        impact: impactZone(position(cible), piece.feu.dispersion_m, `${graine}|${piece.id}|${cible.id}`)
+      });
     } else evenements.push({ type: 'tir', pieceId: piece.id, cibleId: cible.id, distanceKm: d });
     return { position: pos, consigne, termine: true, evenements };
   }
   const avance = Math.min(pas, d - portee * MARGE_PORTEE);
   const nouvelle = pointVers(pos, position(cible), avance);
   const arret = arretEau(piece, pos, nouvelle, terrain);
-  if (arret) { evenements.push({ type: 'bloque', cause: 'eau', pieceId: piece.id, position: arret }); return { position: arret, consigne, termine: true, evenements }; }
+  if (arret) {
+    evenements.push({ type: 'bloque', cause: 'eau', pieceId: piece.id, position: arret });
+    return { position: arret, consigne, termine: true, evenements };
+  }
   return { position: nouvelle, consigne, termine: false, evenements };
 }
 

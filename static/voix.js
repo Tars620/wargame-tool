@@ -1,7 +1,7 @@
 // Voix : dictée (reconnaissance vocale du navigateur) et lecture des réponses. Rien n'est enregistré par l'application.
 // ⚠ La reconnaissance est faite par le fournisseur du navigateur (Apple pour Safari, Google pour Chrome) : le son quitte l'ordinateur.
 const LANGUE = 'fr-FR';
-const Reconnaissance = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+const Reconnaissance = typeof window !== 'undefined' ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
 
 export const dicteeDisponible = () => Boolean(Reconnaissance);
 export const lectureDisponible = () => typeof window !== 'undefined' && 'speechSynthesis' in window;
@@ -18,7 +18,7 @@ const MESSAGES = {
   'service-not-allowed': 'La reconnaissance vocale est désactivée sur cet ordinateur (réglages système, dictée).',
   'audio-capture': 'Aucun micro détecté.',
   network: 'La reconnaissance vocale demande une connexion à Internet.',
-  'language-not-supported': 'Le français n\'est pas disponible pour la reconnaissance vocale ici.',
+  'language-not-supported': "Le français n'est pas disponible pour la reconnaissance vocale ici."
 };
 export const messageErreur = (code) => MESSAGES[code] || null; // « no-speech » et « aborted » ne sont pas des erreurs à montrer
 
@@ -28,17 +28,24 @@ export const messageErreur = (code) => MESSAGES[code] || null; // « no-speech �
  */
 export function ecouter({ surTexte, surFin, surErreur }) {
   const rec = new Reconnaissance();
-  rec.lang = LANGUE; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+  rec.lang = LANGUE;
+  rec.interimResults = true;
+  rec.continuous = false;
+  rec.maxAlternatives = 1;
   let final = '';
   rec.onresult = (e) => {
     let provisoire = '';
     for (let i = e.resultIndex; i < e.results.length; i += 1) {
       const t = e.results[i][0].transcript;
-      if (e.results[i].isFinal) final = assembler(final, t); else provisoire = assembler(provisoire, t);
+      if (e.results[i].isFinal) final = assembler(final, t);
+      else provisoire = assembler(provisoire, t);
     }
     surTexte(assembler(final, provisoire), provisoire === '');
   };
-  rec.onerror = (e) => { const m = messageErreur(e.error); if (m) surErreur(m); };
+  rec.onerror = (e) => {
+    const m = messageErreur(e.error);
+    if (m) surErreur(m);
+  };
   rec.onend = () => surFin(final);
   rec.start();
   return () => rec.stop();
@@ -50,10 +57,16 @@ export function parler(texte) {
   if (!lectureDisponible() || !texte) return;
   taire();
   const u = new SpeechSynthesisUtterance(texte);
-  u.lang = LANGUE; u.rate = 1.05;
+  u.lang = LANGUE;
+  u.rate = 1.05;
   const voix = window.speechSynthesis.getVoices().find((v) => v.lang && v.lang.toLowerCase().startsWith('fr'));
   if (voix) u.voice = voix;
   enCours = u;
   window.speechSynthesis.speak(u);
 }
-export function taire() { if (lectureDisponible()) { window.speechSynthesis.cancel(); enCours = null; } }
+export function taire() {
+  if (lectureDisponible()) {
+    window.speechSynthesis.cancel();
+    enCours = null;
+  }
+}

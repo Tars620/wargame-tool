@@ -18,21 +18,42 @@ const POINTS_MIN = { front: 2, limite: 2, zone: 3, mesure: 2 };
 const SELECTABLES = ['zone-fond', 'zone-trait', 'limite-trait', 'front-trait'];
 const MARGE_CLIC_PX = 7;
 
-const state = { dessins: [], outil: 'selection', camp: 'bleu', brouillon: [], curseur: null, fige: false, selection: null,
-  theme: 'sombre', map: null, poignees: [], couloirs: lireCouloirs(), cacheCouloirs: new Map() };
+const state = {
+  dessins: [],
+  outil: 'selection',
+  camp: 'bleu',
+  brouillon: [],
+  curseur: null,
+  fige: false,
+  selection: null,
+  theme: 'sombre',
+  map: null,
+  poignees: [],
+  couloirs: lireCouloirs(),
+  cacheCouloirs: new Map()
+};
 
 const $ = (id) => document.getElementById(id);
-function lireCouloirs() { return lireTexte(STORAGE_COULOIRS) === 'oui'; }
+function lireCouloirs() {
+  return lireTexte(STORAGE_COULOIRS) === 'oui';
+}
 const newId = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 const dessin = (id) => state.dessins.find((d) => d.id === id) || null;
-const sauver = () => { if (!estJoueur()) ecrireJson(STORAGE_KEY, state.dessins); };
+const sauver = () => {
+  if (!estJoueur()) ecrireJson(STORAGE_KEY, state.dessins);
+};
 function charger() {
   const brut = lireJson(STORAGE_KEY, []);
   return Array.isArray(brut) ? brut : [];
 }
-function maj(id, patch) { state.dessins = state.dessins.map((d) => (d.id === id ? { ...d, ...patch } : d)); sauver(); }
+function maj(id, patch) {
+  state.dessins = state.dessins.map((d) => (d.id === id ? { ...d, ...patch } : d));
+  sauver();
+}
 
-export function setTheme(theme) { state.theme = theme; }
+export function setTheme(theme) {
+  state.theme = theme;
+}
 
 // ---------- couches ----------
 const couleurDe = () => ['match', ['get', 'camp'], 'rouge', COULEURS.rouge, 'bleu', COULEURS.bleu, NEUTRE[state.theme]];
@@ -42,22 +63,70 @@ export function layerSpecs() {
   const accent = state.theme === 'sombre' ? '#ffffff' : '#000000';
   return [
     { id: 'couloir-fond', type: 'fill', source: SOURCE_DESSINS, filter: filtreGenre('couloir'), paint: { 'fill-color': couleurDe(), 'fill-opacity': 0.1 } },
-    { id: 'couloir-trait', type: 'line', source: SOURCE_DESSINS, filter: filtreGenre('couloir'), paint: { 'line-color': couleurDe(), 'line-width': 1.2, 'line-dasharray': [5, 3], 'line-opacity': 0.8 } },
-    { id: 'dessin-choisi', type: 'line', source: SOURCE_DESSINS, filter: ['==', ['get', 'choisi'], true],
-      paint: { 'line-color': accent, 'line-width': 9, 'line-opacity': 0.22 }, layout: { 'line-cap': 'round', 'line-join': 'round' } },
+    {
+      id: 'couloir-trait',
+      type: 'line',
+      source: SOURCE_DESSINS,
+      filter: filtreGenre('couloir'),
+      paint: { 'line-color': couleurDe(), 'line-width': 1.2, 'line-dasharray': [5, 3], 'line-opacity': 0.8 }
+    },
+    {
+      id: 'dessin-choisi',
+      type: 'line',
+      source: SOURCE_DESSINS,
+      filter: ['==', ['get', 'choisi'], true],
+      paint: { 'line-color': accent, 'line-width': 9, 'line-opacity': 0.22 },
+      layout: { 'line-cap': 'round', 'line-join': 'round' }
+    },
     { id: 'zone-fond', type: 'fill', source: SOURCE_DESSINS, filter: filtreGenre('zone'), paint: { 'fill-color': couleurDe(), 'fill-opacity': 0.13 } },
     { id: 'zone-trait', type: 'line', source: SOURCE_DESSINS, filter: filtreGenre('zone'), paint: { 'line-color': couleurDe(), 'line-width': 2 } },
-    { id: 'limite-trait', type: 'line', source: SOURCE_DESSINS, filter: filtreGenre('limite'), paint: { 'line-color': couleurDe(), 'line-width': 2.2, 'line-dasharray': [4, 3] } },
-    { id: 'front-trait', type: 'line', source: SOURCE_DESSINS, filter: filtreGenre('front'), layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': couleurDe(), 'line-width': 4 } },
-    { id: 'front-chevrons', type: 'symbol', source: SOURCE_DESSINS, filter: filtreGenre('front'),
-      layout: { 'symbol-placement': 'line', 'symbol-spacing': 40, 'text-field': '>', 'text-font': ['Noto Sans Regular'], 'text-size': 18,
-        'text-keep-upright': false, 'text-allow-overlap': true, 'text-ignore-placement': true, 'text-rotation-alignment': 'map' },
-      paint: { 'text-color': state.theme === 'sombre' ? '#000000' : '#ffffff' } },
-    { id: 'brouillon-trait', type: 'line', source: SOURCE_BROUILLON, filter: ['==', ['geometry-type'], 'LineString'],
-      paint: { 'line-color': accent, 'line-width': 2, 'line-dasharray': [2, 2] } },
-    { id: 'brouillon-sommets', type: 'circle', source: SOURCE_BROUILLON, filter: ['==', ['geometry-type'], 'Point'],
-      paint: { 'circle-radius': 4, 'circle-color': accent, 'circle-stroke-color': state.theme === 'sombre' ? '#000' : '#fff', 'circle-stroke-width': 1 } },
+    {
+      id: 'limite-trait',
+      type: 'line',
+      source: SOURCE_DESSINS,
+      filter: filtreGenre('limite'),
+      paint: { 'line-color': couleurDe(), 'line-width': 2.2, 'line-dasharray': [4, 3] }
+    },
+    {
+      id: 'front-trait',
+      type: 'line',
+      source: SOURCE_DESSINS,
+      filter: filtreGenre('front'),
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': couleurDe(), 'line-width': 4 }
+    },
+    {
+      id: 'front-chevrons',
+      type: 'symbol',
+      source: SOURCE_DESSINS,
+      filter: filtreGenre('front'),
+      layout: {
+        'symbol-placement': 'line',
+        'symbol-spacing': 40,
+        'text-field': '>',
+        'text-font': ['Noto Sans Regular'],
+        'text-size': 18,
+        'text-keep-upright': false,
+        'text-allow-overlap': true,
+        'text-ignore-placement': true,
+        'text-rotation-alignment': 'map'
+      },
+      paint: { 'text-color': state.theme === 'sombre' ? '#000000' : '#ffffff' }
+    },
+    {
+      id: 'brouillon-trait',
+      type: 'line',
+      source: SOURCE_BROUILLON,
+      filter: ['==', ['geometry-type'], 'LineString'],
+      paint: { 'line-color': accent, 'line-width': 2, 'line-dasharray': [2, 2] }
+    },
+    {
+      id: 'brouillon-sommets',
+      type: 'circle',
+      source: SOURCE_BROUILLON,
+      filter: ['==', ['geometry-type'], 'Point'],
+      paint: { 'circle-radius': 4, 'circle-color': accent, 'circle-stroke-color': state.theme === 'sombre' ? '#000' : '#fff', 'circle-stroke-width': 1 }
+    }
   ];
 }
 
@@ -75,11 +144,18 @@ function couloirDe(d) {
 }
 
 export function collection() {
-  const traces = state.dessins.map((d) => ({ type: 'Feature',
+  const traces = state.dessins.map((d) => ({
+    type: 'Feature',
     properties: { id: d.id, genre: d.genre, camp: d.camp, choisi: d.id === state.selection },
-    geometry: d.genre === 'zone' ? { type: 'Polygon', coordinates: [[...d.points, d.points[0]]] } : { type: 'LineString', coordinates: d.points } }));
-  const couloirs = !state.couloirs ? [] : state.dessins.filter((d) => d.genre !== 'zone').map((d) => [d, couloirDe(d)]).filter(([, c]) => c)
-    .map(([d, c]) => ({ type: 'Feature', properties: { id: d.id, genre: 'couloir', camp: d.camp }, geometry: c.geometry }));
+    geometry: d.genre === 'zone' ? { type: 'Polygon', coordinates: [[...d.points, d.points[0]]] } : { type: 'LineString', coordinates: d.points }
+  }));
+  const couloirs = !state.couloirs
+    ? []
+    : state.dessins
+        .filter((d) => d.genre !== 'zone')
+        .map((d) => [d, couloirDe(d)])
+        .filter(([, c]) => c)
+        .map(([d, c]) => ({ type: 'Feature', properties: { id: d.id, genre: 'couloir', camp: d.camp }, geometry: c.geometry }));
   return { type: 'FeatureCollection', features: [...couloirs, ...traces] };
 }
 
@@ -92,8 +168,10 @@ export function collectionBrouillon() {
 
 function rafraichir() {
   if (!state.map) return;
-  const a = state.map.getSource(SOURCE_DESSINS); if (a) a.setData(collection());
-  const b = state.map.getSource(SOURCE_BROUILLON); if (b) b.setData(collectionBrouillon());
+  const a = state.map.getSource(SOURCE_DESSINS);
+  if (a) a.setData(collection());
+  const b = state.map.getSource(SOURCE_BROUILLON);
+  if (b) b.setData(collectionBrouillon());
 }
 
 // ---------- outils ----------
@@ -103,7 +181,8 @@ function aideTexte() {
   if (state.outil === 'mesure') {
     const total = longueurKm(state.curseur && !state.fige ? [...state.brouillon, state.curseur] : state.brouillon);
     if (!n) return 'Cliquez pour poser le premier point de la mesure.';
-    return state.fige ? `Mesure : ${formatKm(total)} · cliquez pour en commencer une autre · Échap pour effacer`
+    return state.fige
+      ? `Mesure : ${formatKm(total)} · cliquez pour en commencer une autre · Échap pour effacer`
       : `Distance : ${formatKm(total)} · double-clic ou Entrée pour figer · Échap pour effacer`;
   }
   const detail = n ? ` · ${n} point${n > 1 ? 's' : ''}, ${formatKm(longueurKm(state.brouillon))}` : '';
@@ -111,54 +190,112 @@ function aideTexte() {
 }
 
 function dessinerOutils() {
-  const boutons = Object.entries(OUTILS).map(([cle, nom]) => h('button', { type: 'button', 'aria-pressed': String(state.outil === cle), onclick: () => setOutil(cle) }, nom));
+  const boutons = Object.entries(OUTILS).map(([cle, nom]) =>
+    h('button', { type: 'button', 'aria-pressed': String(state.outil === cle), onclick: () => setOutil(cle) }, nom)
+  );
   const couleur = (camp) => (camp === 'neutre' ? NEUTRE[state.theme] : COULEURS[camp]);
   // Un seul bouton : la couleur du camp en cours ; il déroule les trois couleurs, sans leur nom (l'infobulle le donne).
-  const choix = Object.keys(NOM_CAMP).map((camp) => h('button', { type: 'button', class: 'camp-choix', 'aria-pressed': String(state.camp === camp), style: `--c:${couleur(camp)}`,
-    'data-tip': NOM_CAMP[camp], 'aria-label': NOM_CAMP[camp], onclick: () => { state.camp = camp; state.menuCamp = false; dessinerOutils(); } }));
-  const camps = h('div', { class: 'camp-sel' },
-    h('button', { type: 'button', class: 'camp-courant', style: `--c:${couleur(state.camp)}`, 'aria-expanded': String(Boolean(state.menuCamp)), 'aria-label': `Camp des prochains tracés : ${NOM_CAMP[state.camp]}`,
-      'data-tip': `Camp des prochains tracés : ${NOM_CAMP[state.camp].toLowerCase()}`, onclick: () => { state.menuCamp = !state.menuCamp; dessinerOutils(); } }),
-    state.menuCamp ? h('div', { class: 'camp-menu' }, ...choix) : null);
-  const bascule = h('button', { type: 'button', 'aria-pressed': String(state.couloirs), onclick: basculerCouloirs, class: 'bord-droit',
-    'data-tip': 'Montre la zone de part et d\'autre des lignes de front et des limites (30 km par défaut, réglable par ligne)' }, 'Couloirs');
+  const choix = Object.keys(NOM_CAMP).map((camp) =>
+    h('button', {
+      type: 'button',
+      class: 'camp-choix',
+      'aria-pressed': String(state.camp === camp),
+      style: `--c:${couleur(camp)}`,
+      'data-tip': NOM_CAMP[camp],
+      'aria-label': NOM_CAMP[camp],
+      onclick: () => {
+        state.camp = camp;
+        state.menuCamp = false;
+        dessinerOutils();
+      }
+    })
+  );
+  const camps = h(
+    'div',
+    { class: 'camp-sel' },
+    h('button', {
+      type: 'button',
+      class: 'camp-courant',
+      style: `--c:${couleur(state.camp)}`,
+      'aria-expanded': String(Boolean(state.menuCamp)),
+      'aria-label': `Camp des prochains tracés : ${NOM_CAMP[state.camp]}`,
+      'data-tip': `Camp des prochains tracés : ${NOM_CAMP[state.camp].toLowerCase()}`,
+      onclick: () => {
+        state.menuCamp = !state.menuCamp;
+        dessinerOutils();
+      }
+    }),
+    state.menuCamp ? h('div', { class: 'camp-menu' }, ...choix) : null
+  );
+  const bascule = h(
+    'button',
+    {
+      type: 'button',
+      'aria-pressed': String(state.couloirs),
+      onclick: basculerCouloirs,
+      class: 'bord-droit',
+      'data-tip': "Montre la zone de part et d'autre des lignes de front et des limites (30 km par défaut, réglable par ligne)"
+    },
+    'Couloirs'
+  );
   $('outils').replaceChildren(...boutons, camps, bascule);
   $('aide-dessin').textContent = aideTexte();
   $('aide-dessin').style.display = state.outil === 'selection' && !state.selection ? 'none' : '';
 }
 
 function setOutil(outil) {
-  state.outil = outil; state.brouillon = []; state.curseur = null; state.fige = false;
+  state.outil = outil;
+  state.brouillon = [];
+  state.curseur = null;
+  state.fige = false;
   const dessine = outil !== 'selection';
   if (state.map) {
     state.map.getCanvas().style.cursor = dessine ? 'crosshair' : '';
-    if (dessine) state.map.doubleClickZoom.disable(); else state.map.doubleClickZoom.enable();
+    if (dessine) state.map.doubleClickZoom.disable();
+    else state.map.doubleClickZoom.enable();
   }
-  if (dessine) { choisir(null); document.dispatchEvent(new CustomEvent('wg:outil', { detail: 'dessin' })); }
-  dessinerOutils(); rafraichir();
+  if (dessine) {
+    choisir(null);
+    document.dispatchEvent(new CustomEvent('wg:outil', { detail: 'dessin' }));
+  }
+  dessinerOutils();
+  rafraichir();
 }
 
 function basculerCouloirs() {
   state.couloirs = !state.couloirs;
   ecrireTexte(STORAGE_COULOIRS, state.couloirs ? 'oui' : 'non');
-  dessinerOutils(); rafraichir();
+  dessinerOutils();
+  rafraichir();
 }
 
 function ajouterPoint(lngLat) {
-  if (state.fige) { state.brouillon = []; state.fige = false; }
+  if (state.fige) {
+    state.brouillon = [];
+    state.fige = false;
+  }
   state.brouillon = [...state.brouillon, [lngLat.lng, lngLat.lat]];
-  dessinerOutils(); rafraichir();
+  dessinerOutils();
+  rafraichir();
 }
 
 function terminer() {
   const n = state.brouillon.length;
   if (n < POINTS_MIN[state.outil]) return;
-  if (state.outil === 'mesure') { state.fige = true; state.curseur = null; dessinerOutils(); rafraichir(); return; }
+  if (state.outil === 'mesure') {
+    state.fige = true;
+    state.curseur = null;
+    dessinerOutils();
+    rafraichir();
+    return;
+  }
   const genre = state.outil;
   const numero = state.dessins.filter((d) => d.genre === genre).length + 1;
   const d = { id: newId(), genre, nom: `${NOM_GENRE[genre]} ${numero}`, camp: state.camp, points: state.brouillon };
-  state.dessins = [...state.dessins, d]; sauver();
-  state.brouillon = []; state.curseur = null;
+  state.dessins = [...state.dessins, d];
+  sauver();
+  state.brouillon = [];
+  state.curseur = null;
   choisir(d.id, { garderOutil: true });
 }
 
@@ -166,22 +303,28 @@ function terminer() {
 export function ajouterDessin({ genre, camp, points, nom }) {
   const numero = state.dessins.filter((d) => d.genre === genre).length + 1;
   const d = { id: newId(), genre, nom: nom || `${NOM_GENRE[genre]} ${numero}`, camp, points };
-  state.dessins = [...state.dessins, d]; sauver();
-  dessinerListe(); rafraichir();
+  state.dessins = [...state.dessins, d];
+  sauver();
+  dessinerListe();
+  rafraichir();
   return d.id;
 }
 /** Vue d'un joueur : les tracés de son camp et les tracés neutres, tels que le serveur les a filtrés. */
 export function remplacerDessins(liste) {
   const cle = JSON.stringify(liste);
   if (cle === state.cleVue) return;
-  state.cleVue = cle; state.dessins = liste; state.selection = null;
-  dessinerListe(); rafraichir();
+  state.cleVue = cle;
+  state.dessins = liste;
+  state.selection = null;
+  dessinerListe();
+  rafraichir();
 }
 export const listerDessins = () => state.dessins.map((d) => ({ ...d }));
 
 function annulerDernierPoint() {
   state.brouillon = state.brouillon.slice(0, -1);
-  dessinerOutils(); rafraichir();
+  dessinerOutils();
+  rafraichir();
 }
 
 // ---------- sélection et édition ----------
@@ -189,7 +332,11 @@ export function choisir(id, { garderOutil = false } = {}) {
   state.selection = id;
   if (id) document.dispatchEvent(new CustomEvent('wg:selection', { detail: 'dessin' }));
   if (id && state.outil !== 'selection' && !garderOutil) state.outil = 'selection';
-  majPoignees(); dessinerFiche(); dessinerListe(); dessinerOutils(); rafraichir();
+  majPoignees();
+  dessinerFiche();
+  dessinerListe();
+  dessinerOutils();
+  rafraichir();
 }
 
 function majPoignees() {
@@ -200,10 +347,22 @@ function majPoignees() {
   d.points.forEach((p, i) => {
     const el = h('div', { class: 'poignee', title: 'Glisser pour déplacer · clic droit pour supprimer ce point' });
     el.addEventListener('click', (ev) => ev.stopPropagation());
-    el.addEventListener('contextmenu', (ev) => { ev.preventDefault(); ev.stopPropagation(); supprimerPoint(d.id, i); });
+    el.addEventListener('contextmenu', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      supprimerPoint(d.id, i);
+    });
     const m = new maplibre.Marker({ element: el, draggable: true }).setLngLat(p).addTo(state.map);
-    m.on('drag', () => { const { lng, lat } = m.getLngLat(); state.dessins = state.dessins.map((x) => (x.id === d.id ? { ...x, points: x.points.map((q, j) => (j === i ? [lng, lat] : q)) } : x)); rafraichir(); });
-    m.on('dragend', () => { sauver(); dessinerFiche(); dessinerListe(); });
+    m.on('drag', () => {
+      const { lng, lat } = m.getLngLat();
+      state.dessins = state.dessins.map((x) => (x.id === d.id ? { ...x, points: x.points.map((q, j) => (j === i ? [lng, lat] : q)) } : x));
+      rafraichir();
+    });
+    m.on('dragend', () => {
+      sauver();
+      dessinerFiche();
+      dessinerListe();
+    });
     state.poignees.push(m);
   });
 }
@@ -212,49 +371,109 @@ function supprimerPoint(id, index) {
   const d = dessin(id);
   if (!d || d.points.length <= POINTS_MIN[d.genre]) return;
   maj(id, { points: d.points.filter((_, i) => i !== index) });
-  majPoignees(); dessinerFiche(); dessinerListe(); rafraichir();
+  majPoignees();
+  dessinerFiche();
+  dessinerListe();
+  rafraichir();
 }
 
 function supprimer(id) {
-  state.dessins = state.dessins.filter((d) => d.id !== id); sauver();
-  if (state.selection === id) { state.selection = null; majPoignees(); }
-  dessinerFiche(); dessinerListe(); dessinerOutils(); rafraichir();
+  state.dessins = state.dessins.filter((d) => d.id !== id);
+  sauver();
+  if (state.selection === id) {
+    state.selection = null;
+    majPoignees();
+  }
+  dessinerFiche();
+  dessinerListe();
+  dessinerOutils();
+  rafraichir();
 }
 
 function mesures(d) {
-  return d.genre === 'zone' ? `Périmètre ${formatKm(longueurKm([...d.points, d.points[0]]))} · surface ${formatSurface(aireKm2(d.points))}` : `Longueur ${formatKm(longueurKm(d.points))}`;
+  return d.genre === 'zone'
+    ? `Périmètre ${formatKm(longueurKm([...d.points, d.points[0]]))} · surface ${formatSurface(aireKm2(d.points))}`
+    : `Longueur ${formatKm(longueurKm(d.points))}`;
 }
 
 function dessinerFiche() {
   const d = dessin(state.selection);
   const boite = $('dessin-fiche');
-  if (!d) { boite.replaceChildren(h('p', { class: 'note' }, 'Aucun dessin sélectionné.')); return; }
+  if (!d) {
+    boite.replaceChildren(h('p', { class: 'note' }, 'Aucun dessin sélectionné.'));
+    return;
+  }
   const nom = h('input', { type: 'text', value: d.nom, maxlength: 60 });
-  nom.addEventListener('input', () => { maj(d.id, { nom: nom.value.slice(0, 60) }); dessinerListe(); });
-  const camps = h('div', { class: 'camps' }, ...Object.entries(NOM_CAMP).map(([camp, libelle]) => h('button', { type: 'button', class: 'camp', 'aria-pressed': String(d.camp === camp),
-    style: `--c:${camp === 'neutre' ? NEUTRE[state.theme] : COULEURS[camp]}`, onclick: () => { maj(d.id, { camp }); dessinerFiche(); rafraichir(); } }, libelle)));
-  boite.replaceChildren(...[h('label', { class: 'champ large' }, h('span', {}, 'Nom'), nom), camps,
-    h('p', { class: 'note' }, `${NOM_GENRE[d.genre]} · ${d.points.length} points`), h('p', { class: 'note' }, mesures(d)),
-    d.genre === 'zone' ? null : h('label', { class: 'champ' }, h('span', {}, 'Couloir'), reglageCouloir(d), h('em', {}, 'km de chaque côté')),
-    h('p', { class: 'note' }, 'Glissez les carrés pour déplacer un point, clic droit pour en retirer un.'),
-    h('button', { class: 'danger', type: 'button', onclick: () => supprimer(d.id) }, 'Supprimer le dessin')].filter(Boolean));
+  nom.addEventListener('input', () => {
+    maj(d.id, { nom: nom.value.slice(0, 60) });
+    dessinerListe();
+  });
+  const camps = h(
+    'div',
+    { class: 'camps' },
+    ...Object.entries(NOM_CAMP).map(([camp, libelle]) =>
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'camp',
+          'aria-pressed': String(d.camp === camp),
+          style: `--c:${camp === 'neutre' ? NEUTRE[state.theme] : COULEURS[camp]}`,
+          onclick: () => {
+            maj(d.id, { camp });
+            dessinerFiche();
+            rafraichir();
+          }
+        },
+        libelle
+      )
+    )
+  );
+  boite.replaceChildren(
+    ...[
+      h('label', { class: 'champ large' }, h('span', {}, 'Nom'), nom),
+      camps,
+      h('p', { class: 'note' }, `${NOM_GENRE[d.genre]} · ${d.points.length} points`),
+      h('p', { class: 'note' }, mesures(d)),
+      d.genre === 'zone' ? null : h('label', { class: 'champ' }, h('span', {}, 'Couloir'), reglageCouloir(d), h('em', {}, 'km de chaque côté')),
+      h('p', { class: 'note' }, 'Glissez les carrés pour déplacer un point, clic droit pour en retirer un.'),
+      h('button', { class: 'danger', type: 'button', onclick: () => supprimer(d.id) }, 'Supprimer le dessin')
+    ].filter(Boolean)
+  );
 }
 
 function reglageCouloir(d) {
   const champ = h('input', { type: 'text', inputmode: 'decimal', value: String(kmCouloir(d)).replace('.', ',') });
   champ.addEventListener('input', () => {
     const km = Number(champ.value.replace(',', '.'));
-    if (Number.isFinite(km) && km >= 0 && km <= 1000) { maj(d.id, { couloir_km: km }); rafraichir(); }
+    if (Number.isFinite(km) && km >= 0 && km <= 1000) {
+      maj(d.id, { couloir_km: km });
+      rafraichir();
+    }
   });
   return champ;
 }
 
 function dessinerListe() {
   const liste = $('dessins-liste');
-  if (!state.dessins.length) { liste.replaceChildren(); return; }
-  liste.replaceChildren(...state.dessins.map((d) => h('button', { type: 'button', class: `modele${d.id === state.selection ? ' arme' : ''}`, onclick: () => choisir(d.id),
-    style: `--c:${d.camp === 'neutre' ? NEUTRE[state.theme] : COULEURS[d.camp]}` },
-  h('span', { class: 'txt' }, h('b', {}, d.nom), h('small', {}, mesures(d))))));
+  if (!state.dessins.length) {
+    liste.replaceChildren();
+    return;
+  }
+  liste.replaceChildren(
+    ...state.dessins.map((d) =>
+      h(
+        'button',
+        {
+          type: 'button',
+          class: `modele${d.id === state.selection ? ' arme' : ''}`,
+          onclick: () => choisir(d.id),
+          style: `--c:${d.camp === 'neutre' ? NEUTRE[state.theme] : COULEURS[d.camp]}`
+        },
+        h('span', { class: 'txt' }, h('b', {}, d.nom), h('small', {}, mesures(d)))
+      )
+    )
+  );
 }
 
 // ---------- montage ----------
@@ -263,10 +482,19 @@ export function monter(map) {
   state.dessins = estJoueur() ? [] : charger(); // un joueur ne lit ni n'écrit jamais l'état local : il reçoit ses tracés du serveur
   map.on('click', (e) => {
     if (estJoueur()) return;
-    if (state.outil !== 'selection') { ajouterPoint(e.lngLat); return; }
+    if (state.outil !== 'selection') {
+      ajouterPoint(e.lngLat);
+      return;
+    }
     if (document.body.dataset.pieceArmee === 'oui' || document.body.dataset.pointage === 'oui') return;
     const { x, y } = e.point;
-    const trouves = map.queryRenderedFeatures([[x - MARGE_CLIC_PX, y - MARGE_CLIC_PX], [x + MARGE_CLIC_PX, y + MARGE_CLIC_PX]], { layers: SELECTABLES });
+    const trouves = map.queryRenderedFeatures(
+      [
+        [x - MARGE_CLIC_PX, y - MARGE_CLIC_PX],
+        [x + MARGE_CLIC_PX, y + MARGE_CLIC_PX]
+      ],
+      { layers: SELECTABLES }
+    );
     const id = trouves.length ? trouves[0].properties.id : null;
     if (id !== state.selection) choisir(id);
   });
@@ -280,24 +508,54 @@ export function monter(map) {
   map.on('mousemove', (e) => {
     if (state.outil === 'selection' || !state.brouillon.length || state.fige) return;
     state.curseur = [e.lngLat.lng, e.lngLat.lat];
-    $('aide-dessin').textContent = aideTexte(); rafraichir();
+    $('aide-dessin').textContent = aideTexte();
+    rafraichir();
   });
-  document.addEventListener('pointerdown', (e) => { if (state.menuCamp && !e.target.closest('.camp-sel')) { state.menuCamp = false; dessinerOutils(); } });
-  document.addEventListener('wg:outil', (e) => { if (e.detail === 'piece' && state.outil !== 'selection') setOutil('selection'); });
-  document.addEventListener('wg:selection', (e) => { if (e.detail === 'piece' && state.selection) choisir(null); });
+  document.addEventListener('pointerdown', (e) => {
+    if (state.menuCamp && !e.target.closest('.camp-sel')) {
+      state.menuCamp = false;
+      dessinerOutils();
+    }
+  });
+  document.addEventListener('wg:outil', (e) => {
+    if (e.detail === 'piece' && state.outil !== 'selection') setOutil('selection');
+  });
+  document.addEventListener('wg:selection', (e) => {
+    if (e.detail === 'piece' && state.selection) choisir(null);
+  });
   document.addEventListener('keydown', (e) => {
     const saisie = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement && document.activeElement.tagName);
     if (e.key === 'Escape') {
-      if (state.brouillon.length) { state.brouillon = []; state.curseur = null; state.fige = false; dessinerOutils(); rafraichir(); }
-      else if (state.outil !== 'selection') setOutil('selection');
+      if (state.brouillon.length) {
+        state.brouillon = [];
+        state.curseur = null;
+        state.fige = false;
+        dessinerOutils();
+        rafraichir();
+      } else if (state.outil !== 'selection') setOutil('selection');
       else if (state.selection) choisir(null);
     } else if (e.key === 'Enter' && state.outil !== 'selection' && !saisie) terminer();
     else if (e.key === 'Backspace' && !saisie) {
-      if (state.outil !== 'selection' && state.brouillon.length) { e.preventDefault(); annulerDernierPoint(); }
-      else if (state.selection) { e.preventDefault(); supprimer(state.selection); }
-    } else if (e.key === 'Delete' && !saisie && state.selection) { e.preventDefault(); supprimer(state.selection); }
+      if (state.outil !== 'selection' && state.brouillon.length) {
+        e.preventDefault();
+        annulerDernierPoint();
+      } else if (state.selection) {
+        e.preventDefault();
+        supprimer(state.selection);
+      }
+    } else if (e.key === 'Delete' && !saisie && state.selection) {
+      e.preventDefault();
+      supprimer(state.selection);
+    }
   });
-  dessinerOutils(); dessinerFiche(); dessinerListe(); rafraichir();
+  dessinerOutils();
+  dessinerFiche();
+  dessinerListe();
+  rafraichir();
 }
 
-export function majTheme() { dessinerOutils(); dessinerFiche(); dessinerListe(); }
+export function majTheme() {
+  dessinerOutils();
+  dessinerFiche();
+  dessinerListe();
+}

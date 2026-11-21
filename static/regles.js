@@ -22,15 +22,21 @@ export function peutDetruire(attaquant, cible) {
 /** Nombre pseudo-aléatoire dans [0, 1[ déterminé par la graine : une même partie rejouée donne les mêmes impacts. */
 export function bruit(graine) {
   let h = 2166136261;
-  for (const c of String(graine)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
-  h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995); h ^= h >>> 15;
+  for (const c of String(graine)) {
+    h ^= c.charCodeAt(0);
+    h = Math.imul(h, 16777619);
+  }
+  h ^= h >>> 13;
+  h = Math.imul(h, 0x5bd1e995);
+  h ^= h >>> 15;
   return (h >>> 0) / 4294967296;
 }
 
 /** Point d'impact d'un tir de zone : la cible décalée d'une erreur gaussienne d'écart-type `dispersionM`, déterministe. */
 export function impactZone(centre, dispersionM, graine) {
   if (!(dispersionM > 0)) return [centre[0], centre[1]];
-  const u1 = Math.max(bruit(`${graine}|r`), 1e-9), u2 = bruit(`${graine}|a`);
+  const u1 = Math.max(bruit(`${graine}|r`), 1e-9),
+    u2 = bruit(`${graine}|a`);
   const ecartM = dispersionM * Math.sqrt(-2 * Math.log(u1));
   return destination(centre, 360 * u2, ecartM / 1000);
 }
@@ -45,8 +51,8 @@ export function effets(evenement, pieces) {
     return cible && !cible.detruit && peutDetruire(attaquant, cible) ? [{ id: cible.id, cause: 'tir' }] : [];
   }
   if (evenement.type !== 'frappe' && evenement.type !== 'tir_zone') return [];
-  const touches = pieces.filter((p) => !p.detruit && p.id !== attaquant.id && peutDetruire(attaquant, p)
-    && distanceKm([p.lng, p.lat], evenement.impact) * 1000 <= evenement.rayonM)
+  const touches = pieces
+    .filter((p) => !p.detruit && p.id !== attaquant.id && peutDetruire(attaquant, p) && distanceKm([p.lng, p.lat], evenement.impact) * 1000 <= evenement.rayonM)
     .map((p) => ({ id: p.id, cause: evenement.type === 'frappe' ? 'explosion' : 'artillerie' }));
   return evenement.type === 'frappe' ? [{ id: attaquant.id, cause: 'explosion' }, ...touches] : touches;
 }
@@ -55,7 +61,8 @@ export function effets(evenement, pieces) {
 export const estDrone = (p) => p.endurance_min > 0;
 export const enVol = (p) => estDrone(p) && p.etat === 'vol';
 export const retourPossible = (p) => estDrone(p) && p.retour === true;
-export const enduranceRestante = (p) => (p.endurance_restante_min !== undefined && p.endurance_restante_min !== null ? p.endurance_restante_min : p.endurance_min);
+export const enduranceRestante = (p) =>
+  p.endurance_restante_min !== undefined && p.endurance_restante_min !== null ? p.endurance_restante_min : p.endurance_min;
 
 /** Marge prise sur le trajet de retour pour décider de rentrer (10 %). */
 const MARGE_RETOUR = 1.1;

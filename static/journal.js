@@ -14,7 +14,8 @@ const JOURNAL_AFFICHE = 60;
  */
 export function noter(t, texte, genre = 'info', publicVise = []) {
   state.journal = [{ t, texte, genre, visible_to: publicVise }, ...state.journal].slice(0, JOURNAL_MAX);
-  sauver(); dessinerJournal();
+  sauver();
+  dessinerJournal();
   empiler({ texte, genre, t, visible_to: publicVise });
 }
 
@@ -24,10 +25,35 @@ const libellePublic = (v) => (v === 'all' ? 'tous' : Array.isArray(v) && v.lengt
 export function dessinerJournal() {
   const liste = $('journal-ops');
   if (!liste) return;
-  if (!state.journal.length) { liste.replaceChildren(h('p', { class: 'note' }, 'Aucun événement. Les départs, arrivées, contacts et tirs apparaissent ici, à l\'heure de jeu.')); return; }
-  liste.replaceChildren(...state.journal.slice(0, JOURNAL_AFFICHE).map((e) => h('div', { class: `evt evt-${e.genre}` },
-    h('small', {}, `${date(e.t, PARIS)} ${heure(e.t, PARIS)} Paris${enPartieArbitre() ? ` · ${libellePublic(e.visible_to)}` : ''}`), h('span', {}, e.texte))),
-  h('button', { type: 'button', class: 'danger', onclick: () => { state.journal = []; sauver(); dessinerJournal(); } }, 'Effacer le journal'));
+  if (!state.journal.length) {
+    liste.replaceChildren(h('p', { class: 'note' }, "Aucun événement. Les départs, arrivées, contacts et tirs apparaissent ici, à l'heure de jeu."));
+    return;
+  }
+  liste.replaceChildren(
+    ...state.journal
+      .slice(0, JOURNAL_AFFICHE)
+      .map((e) =>
+        h(
+          'div',
+          { class: `evt evt-${e.genre}` },
+          h('small', {}, `${date(e.t, PARIS)} ${heure(e.t, PARIS)} Paris${enPartieArbitre() ? ` · ${libellePublic(e.visible_to)}` : ''}`),
+          h('span', {}, e.texte)
+        )
+      ),
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'danger',
+        onclick: () => {
+          state.journal = [];
+          sauver();
+          dessinerJournal();
+        }
+      },
+      'Effacer le journal'
+    )
+  );
 }
 
 /** Vue d'un joueur : le journal reçu du serveur. */

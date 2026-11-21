@@ -29,9 +29,18 @@ function evenement(t, e, pieces) {
     const cible = nomDe(pieces, e.cibleId);
     if (e.type === 'tir') noter(t, `TIR : ${nom} engage ${cible} à ${metres(e.distanceKm)}.`, 'tir', cotes(pieces, e.pieceId, e.cibleId));
     else if (e.type === 'frappe') noter(t, `FRAPPE : ${nom} explose sur ${cible}.`, 'tir', cotes(pieces, e.pieceId, e.cibleId));
-    else noter(t, `TIR DE ZONE : ${nom} tire sur ${cible} (impact à ${metres(distanceKm(e.impact, position(pieces.find((q) => q.id === e.cibleId) || { lng: e.impact[0], lat: e.impact[1] })))} de la cible, rayon ${Math.round(e.rayonM)} m).`, 'tir', cotes(pieces, e.pieceId, e.cibleId));
+    else
+      noter(
+        t,
+        `TIR DE ZONE : ${nom} tire sur ${cible} (impact à ${metres(distanceKm(e.impact, position(pieces.find((q) => q.id === e.cibleId) || { lng: e.impact[0], lat: e.impact[1] })))} de la cible, rayon ${Math.round(e.rayonM)} m).`,
+        'tir',
+        cotes(pieces, e.pieceId, e.cibleId)
+      );
     const touches = effets(e, pieces);
-    for (const { id, cause } of touches) { detruire(id, cause); noter(t, `${nomDe(pieces, id)} est détruit.`, 'tir', cotes(pieces, e.pieceId, id)); }
+    for (const { id, cause } of touches) {
+      detruire(id, cause);
+      noter(t, `${nomDe(pieces, id)} est détruit.`, 'tir', cotes(pieces, e.pieceId, id));
+    }
     if (!touches.length) noter(t, 'Aucune pièce touchée.', 'info', cotes(pieces, e.pieceId));
   }
 }
@@ -42,7 +51,8 @@ function suivreEquipes(pieces) {
   for (const [id, pos] of nouvelles) {
     const ancien = state.positionsEquipes.get(id);
     if (!ancien || (ancien[0] === pos[0] && ancien[1] === pos[1])) continue;
-    for (const d of pieces) if (d.poste === id && estDrone(d) && !enVol(d) && !d.detruit) positionner(d.id, [d.lng + pos[0] - ancien[0], d.lat + pos[1] - ancien[1]]);
+    for (const d of pieces)
+      if (d.poste === id && estDrone(d) && !enVol(d) && !d.detruit) positionner(d.id, [d.lng + pos[0] - ancien[0], d.lat + pos[1] - ancien[1]]);
   }
   state.positionsEquipes = nouvelles;
 }
@@ -54,13 +64,30 @@ function suivreVol(t, dtMin) {
   for (const d of pieces) {
     if (!enVol(d) || d.detruit) continue;
     const reste = enduranceRestante(d) - dtMin;
-    if (reste <= 0) { modifier(d.id, { endurance_restante_min: 0 }); detruire(d.id, 'endurance'); noter(t, `${d.nom} : endurance épuisée, drone perdu.`, 'alerte', [d.camp]); continue; }
+    if (reste <= 0) {
+      modifier(d.id, { endurance_restante_min: 0 });
+      detruire(d.id, 'endurance');
+      noter(t, `${d.nom} : endurance épuisée, drone perdu.`, 'alerte', [d.camp]);
+      continue;
+    }
     modifier(d.id, { endurance_restante_min: reste });
     const equipe = pieces.find((q) => q.id === d.poste && estPoste(q));
     const file = fileDe(d.id);
     const actif = file.find((c) => c.statut === 'lance' || c.statut === 'en_cours');
-    if (retourPossible(d) && equipe && !equipe.detruit && !(actif && actif.type === 'rentrer') && doitRentrer({ ...d, endurance_restante_min: reste }, equipe, vitesse(d, 'normale'))) {
-      state.ordres = { ...state.ordres, [d.id]: [{ id: newId(), type: 'rentrer', allure: 'normale', statut: 'lance', auto: true }, ...file.map((c) => (c.statut === 'en_cours' ? { ...c, statut: 'lance' } : c))] };
+    if (
+      retourPossible(d) &&
+      equipe &&
+      !equipe.detruit &&
+      !(actif && actif.type === 'rentrer') &&
+      doitRentrer({ ...d, endurance_restante_min: reste }, equipe, vitesse(d, 'normale'))
+    ) {
+      state.ordres = {
+        ...state.ordres,
+        [d.id]: [
+          { id: newId(), type: 'rentrer', allure: 'normale', statut: 'lance', auto: true },
+          ...file.map((c) => (c.statut === 'en_cours' ? { ...c, statut: 'lance' } : c))
+        ]
+      };
       noter(t, `${d.nom} : il ne reste que le temps de rentrer (${Math.round(reste)} min), retour automatique.`, 'alerte', [d.camp]);
       change = true;
     }
@@ -73,7 +100,12 @@ function suivreBrouillage(t) {
   const pieces = listerPieces();
   for (const d of pieces) {
     const brouilleur = brouilleSur(d, pieces);
-    if (brouilleur) { detruire(d.id, 'brouillage'); noter(t, `BROUILLAGE : ${d.nom} entre dans la zone de ${brouilleur.nom}, liaison perdue : drone détruit.`, 'alerte', [...new Set([d.camp, brouilleur.camp])]); }
+    if (brouilleur) {
+      detruire(d.id, 'brouillage');
+      noter(t, `BROUILLAGE : ${d.nom} entre dans la zone de ${brouilleur.nom}, liaison perdue : drone détruit.`, 'alerte', [
+        ...new Set([d.camp, brouilleur.camp])
+      ]);
+    }
   }
 }
 
@@ -103,15 +135,23 @@ export function pas(t, dtMs) {
     if (c.statut === 'lance') {
       c = { ...c, statut: 'en_cours', debutMs: t, depart: [piece.lng, piece.lat] };
       noter(t, `${piece.nom} : début « ${libelle(c, pieces)} ».`, 'info', [piece.camp]);
-      if (estDrone(piece) && !enVol(piece)) { modifier(piece.id, { etat: 'vol' }); pc = { ...piece, etat: 'vol' }; noter(t, `${piece.nom} décolle.`, 'info', [piece.camp]); }
+      if (estDrone(piece) && !enVol(piece)) {
+        modifier(piece.id, { etat: 'vol' });
+        pc = { ...piece, etat: 'vol' };
+        noter(t, `${piece.nom} décolle.`, 'info', [piece.camp]);
+      }
     }
     const r = avancer(pc, c, dtMin, pieces, String(Math.floor(t / 1000)), terrain);
-    if (exigePoste(piece) && r.position && c.type !== 'rentrer') { // l'équipe a pu bouger : jamais plus loin que la portée du drone
+    if (exigePoste(piece) && r.position && c.type !== 'rentrer') {
+      // l'équipe a pu bouger : jamais plus loin que la portée du drone
       const l = etatLiaison({ ...piece, lng: r.position[0], lat: r.position[1] }, pieces);
       if (!l.ok && l.raison === 'hors_portee') {
-        noter(t, `LIAISON : ${piece.nom} s'arrête, la suite de « ${libelle(c, pieces)} » sortirait de la portée de son équipe (${l.poste.nom}).`, 'alerte', [piece.camp]);
+        noter(t, `LIAISON : ${piece.nom} s'arrête, la suite de « ${libelle(c, pieces)} » sortirait de la portée de son équipe (${l.poste.nom}).`, 'alerte', [
+          piece.camp
+        ]);
         state.ordres = { ...state.ordres, [piece.id]: file.map((x, j) => (j === i ? { ...c, statut: 'terminee', finMs: t } : x)) };
-        change = true; continue;
+        change = true;
+        continue;
       }
     }
     positionner(piece.id, r.position, r.termine && c.type !== 'observer' && c.type !== 'rentrer' ? c.depart : null);
@@ -122,7 +162,12 @@ export function pas(t, dtMs) {
   }
   if (suivreVol(t, dtMin)) change = true;
   suivreBrouillage(t);
-  if (change) { sauver(); suivreContacts(t); state.redessinerListe(); rafraichirCarte(); }
+  if (change) {
+    sauver();
+    suivreContacts(t);
+    state.redessinerListe();
+    rafraichirCarte();
+  }
   suivreLiaisons(t);
   if (change) rafraichirPortees();
   majVisibilite();
@@ -136,7 +181,8 @@ function suivreLiaisons(t) {
   if (state.liaisons) {
     for (const p of pieces) {
       if (coupees.has(p.id) && !state.liaisons.has(p.id)) noter(t, `LIAISON COUPÉE : ${p.nom} ${phraseLiaison(etatLiaison(p, pieces))}.`, 'alerte', [p.camp]);
-      else if (!coupees.has(p.id) && state.liaisons.has(p.id) && exigePoste(p) && !p.detruit) noter(t, `Liaison rétablie : ${p.nom} avec ${etatLiaison(p, pieces).poste.nom}.`, 'info', [p.camp]);
+      else if (!coupees.has(p.id) && state.liaisons.has(p.id) && exigePoste(p) && !p.detruit)
+        noter(t, `Liaison rétablie : ${p.nom} avec ${etatLiaison(p, pieces).poste.nom}.`, 'info', [p.camp]);
     }
     if (coupees.size !== state.liaisons.size || [...coupees].some((id) => !state.liaisons.has(id))) rafraichirPortees();
   }
@@ -146,16 +192,23 @@ function suivreLiaisons(t) {
 export function suivreContacts(t) {
   const pieces = listerPieces();
   const maintenantVus = new Set(contacts(pieces, terrain).map((c) => `${c.observateurId}>${c.cibleId}`));
-  for (const cle of maintenantVus) if (!state.contactsVus.has(cle)) {
-    const [o, c] = cle.split('>');
-    const d = distanceKm([pieces.find((p) => p.id === o).lng, pieces.find((p) => p.id === o).lat], [pieces.find((p) => p.id === c).lng, pieces.find((p) => p.id === c).lat]);
-    noter(t, `CONTACT : ${nomDe(pieces, o)} repère ${nomDe(pieces, c)} à ${km(d)}.`, 'contact', cotes(pieces, o)); // seul l'observateur apprend qu'il a repéré
-  }
+  for (const cle of maintenantVus)
+    if (!state.contactsVus.has(cle)) {
+      const [o, c] = cle.split('>');
+      const d = distanceKm(
+        [pieces.find((p) => p.id === o).lng, pieces.find((p) => p.id === o).lat],
+        [pieces.find((p) => p.id === c).lng, pieces.find((p) => p.id === c).lat]
+      );
+      noter(t, `CONTACT : ${nomDe(pieces, o)} repère ${nomDe(pieces, c)} à ${km(d)}.`, 'contact', cotes(pieces, o)); // seul l'observateur apprend qu'il a repéré
+    }
   state.contactsVus = maintenantVus;
 }
 
 export function majVisibilite() {
-  if (state.pointDeVue === 'arbitre') { appliquerVisibilite(null); return; }
+  if (state.pointDeVue === 'arbitre') {
+    appliquerVisibilite(null);
+    return;
+  }
   appliquerVisibilite(visiblesPour(state.pointDeVue, listerPieces(), terrain));
 }
 

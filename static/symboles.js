@@ -1,6 +1,6 @@
 // Symboles militaires APP-6D / MIL-STD-2525D, dessinés par milsymbol (MIT, global `ms`).
 const IDENTITE = { bleu: '3', rouge: '6' }; // 3 = ami (bleu), 6 = hostile (rouge)
-const IDENTITE_INCONNUE = '4';              // 4 = inconnu
+const IDENTITE_INCONNUE = '4'; // 4 = inconnu
 
 /** Code SIDC à 20 chiffres d'un modèle de pièce pour un camp : version, contexte, identité, ensemble, statut, entité. */
 export function sidc(modele, camp) {
