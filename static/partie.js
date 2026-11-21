@@ -1,7 +1,7 @@
 // Partie en ligne : création et adhésion, publication de l'état par l'arbitre, vue filtrée et ordres pour les joueurs.
 // Les jetons vivent dans sessionStorage (un par onglet) : deux onglets de rôles différents ne se mélangent jamais.
 import { definir, role } from './role.js';
-import { ecrireJson, lireJson } from './ui.js';
+import { ecrireJson, ecrireTexte, lireJson, lireTexte } from './ui.js';
 
 const PAS_MS = 1000;
 const LOT_EVENEMENTS = 50;
@@ -11,10 +11,10 @@ const cleJeton = (code) => `wg.jeton.${code}`;
 const lire = (cle) => lireJson(cle, null, sessionStorage);
 const ecrire = (cle, valeur) => ecrireJson(cle, valeur, sessionStorage);
 
-async function appel(chemin, { methode = 'GET', corps = null, jeton = role.jeton } = {}) {
+async function appel(chemin, { methode = 'GET', corps = null, jeton = role.jeton, entetes = {} } = {}) {
   const r = await fetch(chemin, {
     method: methode,
-    headers: { 'Content-Type': 'application/json', ...(jeton ? { 'X-Token': jeton } : {}) },
+    headers: { 'Content-Type': 'application/json', ...(jeton ? { 'X-Token': jeton } : {}), ...entetes },
     body: corps ? JSON.stringify(corps) : undefined,
     cache: 'no-store'
   });
@@ -74,12 +74,26 @@ export async function entrer(nom) {
 }
 
 /** L'arbitre crée la partie : il en devient l'arbitre. Rend les liens à donner aux joueurs. */
+const CLE_CREATION = 'wg.cle.creation';
 export async function creer(nom = 'Arbitre') {
-  const g = await appel('/api/games', {
-    methode: 'POST',
-    corps: { title: 'Partie sur la carte', objective: 'Wargame sur la carte', scenario: '', name: nom, sides: CAMPS },
-    jeton: null
-  });
+  const tenter = (cle) =>
+    appel('/api/games', {
+      methode: 'POST',
+      corps: { title: 'Partie sur la carte', objective: 'Wargame sur la carte', scenario: '', name: nom, sides: CAMPS },
+      jeton: null,
+      entetes: cle ? { 'X-Cle-Creation': cle } : {}
+    });
+  let g;
+  try {
+    g = await tenter(lireTexte(CLE_CREATION, ''));
+  } catch (e) {
+    if (e.status !== 403 || !/création/.test(e.message)) throw e;
+    // serveur hébergé : la création de parties est réservée à qui connaît la clé (demandée une fois, retenue dans ce navigateur)
+    const saisie = (window.prompt('Clé de création de parties :') || '').trim();
+    if (!saisie) throw e;
+    g = await tenter(saisie);
+    ecrireTexte(CLE_CREATION, saisie);
+  }
   ecrire(cleJeton(g.code), { jeton: g.token, cle: g.adj_key });
   definir({ genre: 'arbitre', code: g.code, camp: null, jeton: g.token, nom });
   history.replaceState(null, '', `${location.pathname}?partie=${g.code}${location.hash}`);
@@ -91,10 +105,12 @@ export async function liens() {
   let origine = location.origin;
   let tunnel = { etat: 'arret' };
   let adresses = [];
+  let publique = false;
   try {
     const acces = await appel('/api/acces');
     tunnel = acces.tunnel || tunnel;
     adresses = acces.adresses || [];
+    publique = acces.public === true;
     origine = tunnel.etat === 'actif' ? tunnel.url : acces.reseau; // le lien Internet, s'il est actif, passe avant l'adresse du réseau local
   } catch {
     /* repli : l'adresse de la page */
@@ -103,6 +119,7 @@ export async function liens() {
   return {
     tunnel,
     adresses,
+    public: publique,
     code: role.code,
     bleu: `${origine}/carte?partie=${role.code}&camp=bleu`,
     rouge: `${origine}/carte?partie=${role.code}&camp=rouge`,

@@ -268,19 +268,23 @@ export async function remplirPanneau() {
       ligneLien('Rouge', l.rouge),
       l.arbitre ? ligneLien('Arbitre', l.arbitre) : null,
       note(
-        t.etat === 'actif'
+        l.public
+          ? 'Ces liens marchent depuis n\'importe quel appareil connecté à Internet, sans rien installer.'
+          : t.etat === 'actif'
           ? 'Lien Internet actif : ces liens marchent depuis n\'importe quel réseau. Il disparaît quand vous l\'arrêtez ou fermez le serveur.'
           : l.adresses.length > 1
             ? `Ces liens marchent sur le même réseau. Autres adresses de cet ordinateur : ${l.adresses.slice(1).map((a) => a.url).join(', ')}.`
             : 'Ces liens marchent pour les appareils du même réseau Wi-Fi ou câblé.'
       ),
-      t.etat === 'actif'
-        ? el('button', { type: 'button', onclick: agir('DELETE') }, 'Arrêter le lien Internet')
-        : t.etat === 'demarrage'
-          ? note('Création du lien Internet…')
-          : el('button', { type: 'button', onclick: agir('POST') }, 'Créer un lien Internet'),
+      l.public
+        ? null
+        : t.etat === 'actif'
+          ? el('button', { type: 'button', onclick: agir('DELETE') }, 'Arrêter le lien Internet')
+          : t.etat === 'demarrage'
+            ? note('Création du lien Internet…')
+            : el('button', { type: 'button', onclick: agir('POST') }, 'Créer un lien Internet'),
       t.etat === 'erreur' && t.message ? el('p', { class: 'err' }, t.message) : null,
-      t.etat === 'actif' || t.etat === 'demarrage'
+      l.public || t.etat === 'actif' || t.etat === 'demarrage'
         ? null
         : note("Si vos invités n'arrivent pas à ouvrir le lien (Wi-Fi invité ou d'établissement qui isole les appareils, autre réseau), créez un lien Internet."),
       note("Gardez cet onglet ouvert : la simulation tourne ici. Le lien arbitre rouvre la partie si vous fermez l'onglet ; ne le donnez pas aux joueurs."),

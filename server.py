@@ -10,6 +10,7 @@ import argparse
 import atexit
 import gzip
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -508,6 +509,8 @@ def _cache_ecrire(cle, valeur, disque=True):
 
 # ---------- assistant : traduit une phrase en actions proposées (jamais exécutées ici) ----------
 IA_MODELE = os.environ.get("WG_IA_MODELE", "sonnet")
+# Serveur public : créer une partie exige cette clé (sauf depuis cet ordinateur). Vide = création libre, comme en local.
+CLE_CREATION = os.environ.get("WG_CLE_CREATION", "")
 IA_DELAI_S = 90
 IA_PROMPT_MAX = 2000
 IA_CONTEXTE_MAX = 40 * 1024
@@ -676,6 +679,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._static(path[len("/static/"):])
         if method == "GET" and path == "/api/version":
             return self._json(200, {"version": code_version()})
+        if method == "GET" and path == "/api/acces" and not self._est_local():
+            # visiteur distant (serveur hébergé) : les liens à donner sont ceux de l'adresse par laquelle il est arrivé, jamais le réseau interne de la machine
+            proto = (self.headers.get("X-Forwarded-Proto") or "https").split(",")[0].strip()
+            hote = re.sub(r"[^A-Za-z0-9.:\-]", "", self.headers.get("Host") or "")
+            return self._json(200, {"reseau": f"{proto}://{hote}", "adresses": [], "tunnel": {"etat": "arret"}, "public": True})
         if method == "GET" and path == "/api/acces":
             port = self.server.server_address[1]  # adresses à donner aux joueurs : réseau local, et lien Internet s'il est actif
             return self._json(200, {"reseau": f"http://{lan_address()}:{port}", "adresses": [{**a, "url": f"http://{a['ip']}:{port}"} for a in adresses_reseau()],
@@ -701,6 +709,8 @@ class Handler(BaseHTTPRequestHandler):
                 raise ApiError(403, "L'assistant est réservé à cet ordinateur et aux participants d'une partie.")
             return self._json(200, demander_ia(self._body(), self.lanceur_ia))
         if method == "POST" and path == "/api/games":
+            if CLE_CREATION and not self._est_local() and not hmac.compare_digest((self.headers.get("X-Cle-Creation") or "").encode(), CLE_CREATION.encode()):
+                raise ApiError(403, "Clé de création requise")
             return self._json(200, self.store.create_game(self._body()))
         c = re.fullmatch(r"/api/games/([A-Za-z0-9]{5})/carte(?:/(etat|vue|commandes|evenements))?(?:/(\d+))?", path)
         if c:
