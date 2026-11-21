@@ -53,12 +53,14 @@ export function ecouter({ surTexte, surFin, surErreur }) {
 
 let enCours = null;
 
-/** Voix françaises installées sur cet ordinateur, triées par nom ({ name, lang }). Vide tant que le navigateur ne les a pas chargées. */
+const estFrancaisDeFrance = (v) => Boolean(v.lang) && v.lang.replace('_', '-').toLowerCase() === 'fr-fr'; // ni canadien, ni belge, ni suisse
+
+/** Voix en français de France installées sur cet ordinateur, triées par nom ({ name, lang }). Vide tant que le navigateur ne les a pas chargées. */
 export function voixFrancaises() {
   if (!lectureDisponible()) return [];
   return window.speechSynthesis
     .getVoices()
-    .filter((v) => v.lang && v.lang.toLowerCase().startsWith('fr'))
+    .filter(estFrancaisDeFrance)
     .map((v) => ({ name: v.name, lang: v.lang }))
     .sort((a, b) => a.name.localeCompare(b.name, 'fr'));
 }
@@ -67,13 +69,12 @@ export function surVoix(fn) {
   if (lectureDisponible()) window.speechSynthesis.addEventListener('voiceschanged', fn);
 }
 
-// Voix par défaut : Reed d'abord, puis d'autres voix d'homme naturelles (Eddy, Thomas…), en français de France avant le canadien ; sinon la première voix française.
-const PREFEREES = ['Reed', 'Eddy', 'Thomas', 'Rocko', 'Grandpa', 'Jacques'];
+// Voix par défaut : des voix d'homme en français de France (Eddy, Thomas…) ; jamais le français du Canada. Sinon la première voix de France.
+const PREFEREES = ['Eddy', 'Thomas', 'Rocko', 'Grandpa', 'Jacques'];
 function voixAutomatique(voix) {
-  const fr = voix.filter((v) => v.lang && v.lang.toLowerCase().startsWith('fr'));
+  const fr = voix.filter(estFrancaisDeFrance);
   for (const prenom of PREFEREES) {
-    const trouvees = fr.filter((v) => v.name.startsWith(prenom));
-    const choisie = trouvees.find((v) => v.lang.replace('_', '-').toLowerCase() === 'fr-fr') || trouvees[0];
+    const choisie = fr.find((v) => v.name.startsWith(prenom));
     if (choisie) return choisie;
   }
   return fr[0] || null;
@@ -87,7 +88,7 @@ export function parler(texte, nomVoix = null) {
   u.lang = LANGUE;
   u.rate = 1.05;
   const voix = window.speechSynthesis.getVoices();
-  const choisie = (nomVoix && voix.find((v) => v.name === nomVoix)) || voixAutomatique(voix);
+  const choisie = (nomVoix && voix.filter(estFrancaisDeFrance).find((v) => v.name === nomVoix)) || voixAutomatique(voix); // un nom enregistré d'une voix canadienne est ignoré
   if (choisie) u.voice = choisie;
   enCours = u;
   window.speechSynthesis.speak(u);
