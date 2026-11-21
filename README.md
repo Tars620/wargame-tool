@@ -158,3 +158,8 @@ Le programme n'a aucune dépendance (Python 3 seul, base SQLite) et tient dans ~
 
 Sur un serveur, les liens bleu, rouge et arbitre utilisent l'adresse du site ; le lien Internet temporaire (tunnel) et l'assistant IA (qui appelle le
 programme `claude` de l'ordinateur local) ne sont disponibles que depuis l'ordinateur qui fait tourner le serveur.
+
+### Prototype en ligne en un clic (Render)
+`render.yaml` décrit le service : ouvrir https://dashboard.render.com/blueprint/new?repo=https://github.com/Tars620/wargame-tool, se connecter avec GitHub et valider.
+Render donne une adresse du type `wargame-tool.onrender.com`. La clé de création de parties est générée dans *Environment* (variable `WG_CLE_CREATION`).
+Sur l'offre gratuite, le service dort sans visite et les parties ne survivent pas à un redémarrage : suffisant pour un prototype.

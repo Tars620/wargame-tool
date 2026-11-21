@@ -1,0 +1,17 @@
+# Déploiement en un clic sur Render (prototype) : https://dashboard.render.com/blueprint/new?repo=https://github.com/Tars620/wargame-tool
+# Offre gratuite : le service se met en veille sans visite (le premier chargement est lent) et les parties sont perdues à chaque redémarrage
+# (la base est dans /tmp). Pour garder les parties : offre payante + disque persistant monté sur /data, puis --db /data/wargame.db.
+services:
+  - type: web
+    name: wargame-tool
+    runtime: python
+    plan: free
+    buildCommand: "true"
+    startCommand: python server.py --host 0.0.0.0 --port $PORT --db /tmp/wargame.db
+    healthCheckPath: /carte
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.0
+      # Clé exigée pour créer une partie depuis Internet (à lire dans le tableau de bord Render > Environment). Les joueurs n'en ont pas besoin.
+      - key: WG_CLE_CREATION
+        generateValue: true
