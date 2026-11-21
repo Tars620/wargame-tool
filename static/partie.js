@@ -89,13 +89,20 @@ export async function creer(nom = 'Arbitre') {
 /** Liens d'invitation (avec l'adresse réseau de cet ordinateur, que les autres machines peuvent joindre). */
 export async function liens() {
   let origine = location.origin;
+  let tunnel = { etat: 'arret' };
+  let adresses = [];
   try {
-    origine = (await appel('/api/acces')).reseau;
+    const acces = await appel('/api/acces');
+    tunnel = acces.tunnel || tunnel;
+    adresses = acces.adresses || [];
+    origine = tunnel.etat === 'actif' ? tunnel.url : acces.reseau; // le lien Internet, s'il est actif, passe avant l'adresse du réseau local
   } catch {
     /* repli : l'adresse de la page */
   }
   const cle = (lire(cleJeton(role.code)) || {}).cle;
   return {
+    tunnel,
+    adresses,
     code: role.code,
     bleu: `${origine}/carte?partie=${role.code}&camp=bleu`,
     rouge: `${origine}/carte?partie=${role.code}&camp=rouge`,
@@ -208,3 +215,6 @@ function signaler(e) {
     ecouteur(e);
   }
 }
+
+/** Lien Internet temporaire (tunnel) : demande de démarrage ou d'arrêt au serveur de cet ordinateur. */
+export const tunnel = (methode) => appel('/api/tunnel', { methode });

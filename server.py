@@ -7,15 +7,19 @@ Les décisions restent humaines : l'outil enregistre, ne décide pas.
   python3 server.py [--host 0.0.0.0] [--port 8080] [--db wargame.db]
 """
 import argparse
+import atexit
 import hashlib
 import json
 import os
 import re
 import secrets
 import socket
+import shutil
 import sqlite3
 import ssl
+import subprocess
 import threading
+import time
 import urllib.error
 import urllib.request
 from collections import OrderedDict
@@ -639,6 +643,12 @@ class Handler(BaseHTTPRequestHandler):
     def _json(self, status, obj):
         self._send(status, json.dumps(obj, ensure_ascii=False))
 
+    def _est_local(self):
+        """Requête venue de cet ordinateur lui-même. Un tunnel relaie les visiteurs distants depuis 127.0.0.1 : ses en-têtes les trahissent."""
+        if self.client_address[0] not in ("127.0.0.1", "::1", "::ffff:127.0.0.1"):
+            return False
+        return not any(self.headers.get(h) for h in EN_TETES_RELAIS)
+
     def _body(self, limite=MAX_BODY):
         length = int(self.headers.get("Content-Length") or 0)
         if length > limite:
@@ -663,7 +673,18 @@ class Handler(BaseHTTPRequestHandler):
         if method == "GET" and path == "/api/version":
             return self._json(200, {"version": code_version()})
         if method == "GET" and path == "/api/acces":
-            return self._json(200, {"reseau": f"http://{lan_address()}:{self.server.server_address[1]}"})  # adresse à donner aux joueurs d'autres ordinateurs
+            port = self.server.server_address[1]  # adresses à donner aux joueurs : réseau local, et lien Internet s'il est actif
+            return self._json(200, {"reseau": f"http://{lan_address()}:{port}", "adresses": [{**a, "url": f"http://{a['ip']}:{port}"} for a in adresses_reseau()],
+                                    "tunnel": self.tunnel.statut()})
+        if path == "/api/tunnel":
+            if not self._est_local():
+                raise ApiError(403, "Le lien Internet se gère depuis cet ordinateur.")
+            if method == "GET":
+                return self._json(200, self.tunnel.statut())
+            if method == "POST":
+                return self._json(200, self.tunnel.demarrer())
+            if method == "DELETE":
+                return self._json(200, self.tunnel.arreter())
         if method == "GET" and path == "/api/maps":
             return self._json(200, list_zones())
         if method == "GET" and re.fullmatch(r"/enligne/[a-z0-9-]+", path):
@@ -671,7 +692,7 @@ class Handler(BaseHTTPRequestHandler):
         if method == "GET" and re.fullmatch(r"/maps/[a-z0-9-]+\.pmtiles", path):
             return self._send_file(os.path.join(MAPS_DIR, path[len("/maps/"):]), "application/octet-stream", cache=True)
         if method == "POST" and path == "/api/ia":
-            local = self.client_address[0] in ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+            local = self._est_local()
             if not local and not self.store.est_participant(self.headers.get("X-Partie") or "", token):
                 raise ApiError(403, "L'assistant est réservé à cet ordinateur et aux participants d'une partie.")
             return self._json(200, demander_ia(self._body(), self.lanceur_ia))
@@ -830,6 +851,120 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         self._handle("POST")
 
+    def do_DELETE(self):
+        self._handle("DELETE")
+
+
+def adresses_reseau():
+    """Adresses IPv4 de cet ordinateur sur les réseaux locaux : [{"interface", "ip"}], la principale (route par défaut) d'abord."""
+    principale = lan_address()
+    trouvees = []
+    try:
+        sortie = subprocess.run(["ifconfig"], capture_output=True, text=True, timeout=3).stdout
+        interface = None
+        for ligne in sortie.splitlines():
+            if ligne and not ligne[0].isspace():
+                interface = ligne.split(":")[0]
+            m = re.match(r"\s+inet (\d+\.\d+\.\d+\.\d+) ", ligne)
+            if m and interface and not m.group(1).startswith(("127.", "169.254.")):
+                trouvees.append({"interface": interface, "ip": m.group(1)})
+    except (OSError, subprocess.SubprocessError):
+        pass
+    if principale != "127.0.0.1" and not any(a["ip"] == principale for a in trouvees):
+        trouvees.append({"interface": "?", "ip": principale})
+    return sorted(trouvees, key=lambda a: a["ip"] != principale)
+
+
+URL_TUNNEL = re.compile(r"https://[a-z0-9][a-z0-9-]*\.(?:trycloudflare\.com|lhr\.life|localhost\.run)")
+TUNNEL_DELAI_S = 30
+EN_TETES_RELAIS = ("Cf-Connecting-Ip", "X-Forwarded-For", "Forwarded", "X-Real-Ip", "Cf-Ray")
+
+
+class Tunnel:
+    """Adresse Internet temporaire pour atteindre ce serveur depuis un autre réseau (Wi-Fi invité qui isole les appareils, 4G...).
+    Lancé seulement sur demande depuis cet ordinateur ; arrêté à tout moment ou à la fermeture du serveur.
+    Utilise `cloudflared` s'il est installé, sinon `ssh` (localhost.run) qui existe déjà sur l'ordinateur."""
+
+    def __init__(self, port, choisir_commande=None):
+        self.port = port
+        self.choisir_commande = choisir_commande or self._commande_par_defaut
+        self.verrou = threading.Lock()
+        self.proc = None
+        self.etat = {"etat": "arret", "url": None, "via": None, "message": None}
+        atexit.register(self.arreter)
+
+    def _commande_par_defaut(self):
+        cible = f"http://127.0.0.1:{self.port}"
+        cloudflared = shutil.which("cloudflared") or (os.path.join(HERE, "tools", "cloudflared") if os.path.isfile(os.path.join(HERE, "tools", "cloudflared")) else None)
+        if cloudflared:
+            return "cloudflared", [cloudflared, "tunnel", "--url", cible, "--no-autoupdate"]
+        if shutil.which("ssh"):
+            return "ssh", ["ssh", "-o", "StrictHostKeyChecking=accept-new", "-o", "ServerAliveInterval=30", "-o", "ExitOnForwardFailure=yes",
+                           "-o", "BatchMode=yes", "-R", f"80:127.0.0.1:{self.port}", "nokey@localhost.run"]
+        return None, None
+
+    def statut(self):
+        with self.verrou:
+            if self.proc and self.proc.poll() is not None and self.etat["etat"] in ("demarrage", "actif"):
+                self.etat = {**self.etat, "etat": "erreur", "url": None, "message": "Le lien Internet s'est interrompu."}
+            return dict(self.etat)
+
+    def demarrer(self):
+        with self.verrou:
+            if self.proc and self.proc.poll() is None:
+                return dict(self.etat)
+            via, cmd = self.choisir_commande()
+            if not cmd:
+                self.etat = {"etat": "erreur", "url": None, "via": None, "message": "Aucun programme de tunnel : installez cloudflared (brew install cloudflared) ou vérifiez que ssh est disponible."}
+                return dict(self.etat)
+            try:
+                self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, stdin=subprocess.DEVNULL)
+            except OSError as e:
+                self.etat = {"etat": "erreur", "url": None, "via": via, "message": f"Impossible de lancer le tunnel : {e}"}
+                return dict(self.etat)
+            self.etat = {"etat": "demarrage", "url": None, "via": via, "message": None}
+            proc = self.proc
+            threading.Thread(target=self._lire, args=(proc,), daemon=True).start()
+            threading.Thread(target=self._delai, args=(proc,), daemon=True).start()
+            return dict(self.etat)
+
+    def _lire(self, proc):
+        dernieres = []
+        for ligne in proc.stdout:
+            dernieres = (dernieres + [ligne.strip()])[-4:]
+            m = URL_TUNNEL.search(ligne)
+            if m:
+                with self.verrou:
+                    if self.proc is proc and self.etat["etat"] == "demarrage":
+                        self.etat = {**self.etat, "etat": "actif", "url": m.group(0), "message": None}
+        with self.verrou:
+            if self.proc is proc and self.etat["etat"] in ("demarrage", "actif"):
+                self.etat = {**self.etat, "etat": "erreur", "url": None, "message": "Le tunnel s'est arrêté : " + " ".join(dernieres)[:200]}
+
+    def _delai(self, proc):
+        time.sleep(TUNNEL_DELAI_S)
+        with self.verrou:
+            if self.proc is proc and self.etat["etat"] == "demarrage":
+                self.etat = {**self.etat, "etat": "erreur", "url": None, "message": "Le tunnel n'a pas répondu à temps (pas d'Internet, ou service indisponible)."}
+        if self.etat["etat"] == "erreur":
+            self._tuer(proc)
+
+    @staticmethod
+    def _tuer(proc):
+        if proc and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+
+    def arreter(self):
+        with self.verrou:
+            proc, self.proc = self.proc, None
+            self.etat = {"etat": "arret", "url": None, "via": None, "message": None}
+        self._tuer(proc)
+        return self.statut()
+
 
 def lan_address():
     try:
@@ -843,7 +978,9 @@ def lan_address():
 def make_server(host, port, db_path):
     Handler.store = Store(db_path)
     Handler.carte = CartePartie(Handler.store)
-    return ThreadingHTTPServer((host, port), Handler)
+    serveur = ThreadingHTTPServer((host, port), Handler)
+    Handler.tunnel = Tunnel(serveur.server_address[1])
+    return serveur
 
 
 def main():

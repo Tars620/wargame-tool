@@ -1,6 +1,6 @@
 // Partie en ligne côté interface : choix du rôle au chargement, badge, panneau de création et d'invitation, boucles de synchronisation.
 import { role } from './role.js';
-import { init, entrer, creer, liens, etatPublie, demarrerArbitre, demarrerJoueur, surProbleme } from './partie.js';
+import { init, entrer, creer, liens, tunnel, etatPublie, demarrerArbitre, demarrerJoueur, surProbleme } from './partie.js';
 import { listerPieces, remplacerPieces } from './pieces.js';
 import { etatOrdres, traiterCommande, remplacerOrdres, remplacerJournal, resultatsOrdres } from './ordres.js';
 import { listerDessins, remplacerDessins } from './dessin.js';
@@ -163,6 +163,7 @@ function ligneLien(nom, url) {
   );
 }
 
+let attenteTunnel = null;
 export async function remplirPanneau() {
   const boite = $('partie-panneau');
   if (!boite) return;
@@ -186,12 +187,42 @@ export async function remplirPanneau() {
     }
     if (role.genre !== 'arbitre') return;
     const l = await liens();
+    clearTimeout(attenteTunnel);
+    if (l.tunnel.etat === 'demarrage') attenteTunnel = setTimeout(rendre, 2000); // la création du lien Internet prend quelques secondes
+    const agir = (methode) => async () => {
+      try {
+        await tunnel(methode);
+      } catch (e) {
+        boite.append(el('p', { class: 'err' }, e.message));
+        return;
+      }
+      await rendre();
+    };
+    const t = l.tunnel;
     boite.replaceChildren(
+      ...[
       note(`Partie ${l.code}. Un lien par joueur :`),
       ligneLien('Bleu', l.bleu),
       ligneLien('Rouge', l.rouge),
       l.arbitre ? ligneLien('Arbitre', l.arbitre) : null,
+      note(
+        t.etat === 'actif'
+          ? 'Lien Internet actif : ces liens marchent depuis n\'importe quel réseau. Il disparaît quand vous l\'arrêtez ou fermez le serveur.'
+          : l.adresses.length > 1
+            ? `Ces liens marchent sur le même réseau. Autres adresses de cet ordinateur : ${l.adresses.slice(1).map((a) => a.url).join(', ')}.`
+            : 'Ces liens marchent pour les appareils du même réseau Wi-Fi ou câblé.'
+      ),
+      t.etat === 'actif'
+        ? el('button', { type: 'button', onclick: agir('DELETE') }, 'Arrêter le lien Internet')
+        : t.etat === 'demarrage'
+          ? note('Création du lien Internet…')
+          : el('button', { type: 'button', onclick: agir('POST') }, 'Créer un lien Internet'),
+      t.etat === 'erreur' && t.message ? el('p', { class: 'err' }, t.message) : null,
+      t.etat === 'actif' || t.etat === 'demarrage'
+        ? null
+        : note("Si vos invités n'arrivent pas à ouvrir le lien (Wi-Fi invité ou d'établissement qui isole les appareils, autre réseau), créez un lien Internet."),
       note("Gardez cet onglet ouvert : la simulation tourne ici. Le lien arbitre rouvre la partie si vous fermez l'onglet ; ne le donnez pas aux joueurs.")
+      ].filter(Boolean) // replaceChildren écrirait « null » pour un élément absent
     );
   };
   await rendre();
