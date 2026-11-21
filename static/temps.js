@@ -95,8 +95,14 @@ function afficher() {
   }
   const boite = $('horloges');
   if (!boite.firstChild) boite.innerHTML = '<span id="h-paris" class="h-paris"></span><span id="h-local"></span><span id="h-pause" class="pause"></span>'; // structure fixe : rien ne change sous la souris
-  if (paris !== derniers.paris) { derniers.paris = paris; $('h-paris').innerHTML = paris; }
-  if (local !== derniers.local) { derniers.local = local; $('h-local').innerHTML = local; } // contenu entièrement produit ici (aucune donnée saisie)
+  if (paris !== derniers.paris) {
+    derniers.paris = paris;
+    $('h-paris').innerHTML = paris;
+  }
+  if (local !== derniers.local) {
+    derniers.local = local;
+    $('h-local').innerHTML = local;
+  } // contenu entièrement produit ici (aucune donnée saisie)
   const pause = state.enMarche ? '' : 'En pause';
   if ($('h-pause').textContent !== pause) $('h-pause').textContent = pause;
   majCommandes();

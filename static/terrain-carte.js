@@ -1,9 +1,12 @@
 // Terrain côté navigateur : charge les tuiles vectorielles de la zone, expose l'instance de terrain au moteur, règle et surcouche « ce que voit le moteur ».
 import { creerTerrain, coinTuile, tuileDe, cleTuile, ZOOM_TERRAIN, FORET, EAU, ROUTE } from './terrain.js';
 import { decoder } from './mvt.js';
-import { ecrireJson, lireJson } from './ui.js';
+import * as maplibre from './vendor/maplibre-gl.mjs';
+import { estJoueur } from './role.js';
+import { ecrireJson, h, lireJson } from './ui.js';
 
 const STOCK = 'wg.terrain';
+const STOCK_COUPURES = 'wg.coupures.v1';
 const TUILES_VUE_MAX = 40;
 const SOURCE = 'terrain-vu-';
 const COULEURS = { [FORET]: [46, 175, 67, 190], [EAU]: [30, 120, 255, 160], [ROUTE]: [255, 160, 40, 190] };
@@ -50,6 +53,25 @@ function majEtat() {
   else
     texte = `${r.chargees} tuile${r.chargees > 1 ? 's' : ''} chargée${r.chargees > 1 ? 's' : ''}${r.enAttente ? `, ${r.enAttente} en cours` : ''}${r.echecs ? ` · ${r.echecs} en échec (traitées comme de la plaine)` : ''}.`;
   if (el.textContent !== texte) el.textContent = texte;
+}
+
+// ---------- routes coupées ----------
+let marqueursCoupures = [];
+let cleCoupures = null;
+/** Enregistre les routes coupées et dessine un repère sur chacune (appelée à chaque changement du terrain : ne fait rien si la liste est la même). */
+function majCoupures() {
+  const liste = terrain.coupures;
+  const cle = JSON.stringify(liste);
+  if (cle === cleCoupures) return;
+  cleCoupures = cle;
+  if (!estJoueur()) ecrireJson(STOCK_COUPURES, liste);
+  if (!carte) return;
+  for (const m of marqueursCoupures) m.remove();
+  marqueursCoupures = liste.map((c) =>
+    new maplibre.Marker({ element: h('div', { class: 'coupure', title: `Route coupée (rayon ${Math.round(c.rayonM)} m)` }, '×') })
+      .setLngLat([c.lng, c.lat])
+      .addTo(carte)
+  );
 }
 
 // ---------- surcouche ----------
@@ -142,8 +164,10 @@ export function monter(map, couchePieces) {
   avant = couchePieces;
   surChangement = () => {
     majEtat();
+    majCoupures();
     document.dispatchEvent(new CustomEvent('wg:terrain'));
   };
+  if (!estJoueur()) terrain.remplacerCoupures(lireJson(STOCK_COUPURES, [])); // les routes coupées survivent au rechargement (un joueur les reçoit de l'arbitre)
   const actif = $('terrain-actif'),
     voir = $('terrain-voir');
   if (actif) {

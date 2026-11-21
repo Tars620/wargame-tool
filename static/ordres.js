@@ -233,6 +233,7 @@ function revenirAuDepart() {
   }
   for (const p of listerPieces()) if (p.detruit) restaurer(p.id);
   state.depart = null;
+  terrain.remplacerCoupures([]);
   state.contactsVus = new Set();
   sauver();
   noter(maintenant(), 'Retour aux positions de départ : consignes remises à zéro, pièces détruites rétablies.', 'op');

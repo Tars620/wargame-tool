@@ -3,6 +3,7 @@
 import { distanceKm } from './geo.js';
 import { avancer, contacts, estPoste, position, etatLiaison, exigePoste, phraseLiaison, visiblesPour, vitesse } from './moteur.js';
 import { terrain } from './terrain-carte.js';
+import { EAU, RAYON_COUPURE_MIN_M, ROUTE } from './terrain.js';
 import { surTick } from './temps.js';
 import { listerPieces, positionner, appliquerVisibilite, detruire, rafraichirPortees, modifier } from './pieces.js';
 import { estJoueur } from './role.js';
@@ -19,7 +20,13 @@ function evenement(t, e, pieces) {
   if (e.type === 'arrivee') noter(t, `${nom} est arrivé à destination.`, 'info', cotes(pieces, e.pieceId));
   else if (e.type === 'fin_observation') noter(t, `${nom} termine son observation.`, 'info', cotes(pieces, e.pieceId));
   else if (e.type === 'cible_perdue') noter(t, `${nom} : cible introuvable ou déjà détruite, engagement annulé.`, 'alerte', cotes(pieces, e.pieceId));
-  else if (e.type === 'bloque') noter(t, `${nom} s'arrête : l'eau lui barre la route.`, 'alerte', cotes(pieces, e.pieceId));
+  else if (e.type === 'bloque')
+    noter(
+      t,
+      `${nom} s'arrête : ${e.cause === 'impact' ? 'la route est coupée par un impact' : "l'eau lui barre la route"}.`,
+      'alerte',
+      cotes(pieces, e.pieceId)
+    );
   else if (e.type === 'sans_equipe') noter(t, `${nom} : plus d'équipe de pilotes où se poser.`, 'alerte', cotes(pieces, e.pieceId));
   else if (e.type === 'atterri') {
     const p = pieces.find((q) => q.id === e.pieceId);
@@ -42,7 +49,22 @@ function evenement(t, e, pieces) {
       noter(t, `${nomDe(pieces, id)} est détruit.`, 'tir', cotes(pieces, e.pieceId, id));
     }
     if (!touches.length) noter(t, 'Aucune pièce touchée.', 'info', cotes(pieces, e.pieceId));
+    couperRoute(t, e, pieces);
   }
+}
+
+/** Un impact sur une route (ou un pont) la coupe : véhicules et artillerie ne passent plus à cet endroit. */
+function couperRoute(t, e, pieces) {
+  if (!e.impact || !terrain.actif) return;
+  const bits = terrain.classe(e.impact[0], e.impact[1]);
+  if (bits === null || !(bits & ROUTE)) return;
+  terrain.couper({ lng: e.impact[0], lat: e.impact[1], rayonM: Math.max(e.rayonM || 0, RAYON_COUPURE_MIN_M) });
+  noter(
+    t,
+    `ROUTE COUPÉE : l'impact de ${nomDe(pieces, e.pieceId)} bloque la route${bits & EAU ? ' (pont)' : ''} : véhicules et artillerie ne passent plus.`,
+    'alerte',
+    cotes(pieces, e.pieceId, e.cibleId)
+  );
 }
 
 /** Les drones au sol suivent leur équipe de pilotes quand elle bouge (déplacement par consigne ou à la main). */

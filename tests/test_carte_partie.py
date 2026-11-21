@@ -74,6 +74,12 @@ class VueFiltree(Base):
         self.assertEqual(sorted(d["id"] for d in self.carte.vue(self.code, self.bleu)["dessins"]), ["d1", "d3"])
         self.assertEqual(sorted(d["id"] for d in self.carte.vue(self.code, self.rouge)["dessins"]), ["d2", "d3"])
 
+    def test_les_routes_coupees_sont_publiques_pour_les_deux_camps(self):
+        coupures = [{"lng": 37.5, "lat": 48.5, "rayonM": 15}]
+        self.publier({**ETAT, "coupures": coupures})
+        for jeton in (self.bleu, self.rouge, self.arb):
+            self.assertEqual(self.carte.vue(self.code, jeton)["coupures"], coupures)
+
     def test_la_liste_des_detections_n_est_pas_envoyee_au_joueur(self):
         self.publier()
         v = self.carte.vue(self.code, self.bleu)

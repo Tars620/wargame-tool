@@ -88,6 +88,7 @@ function construireEtat() {
     pieces,
     ordres: etatOrdres(),
     dessins: listerDessins(),
+    coupures: terrain.coupures,
     horloge: { ms: Math.round(maintenant()), vitesse: vitesse(), enMarche: enMarche() },
     visibles: { bleu: [...visiblesPour('bleu', pieces, terrain)], rouge: [...visiblesPour('rouge', pieces, terrain)] }
   };
@@ -114,6 +115,7 @@ function surVue(v) {
     remplacerPieces(v.pieces);
     remplacerOrdres(v.ordres);
     remplacerDessins(v.dessins);
+    terrain.remplacerCoupures(v.coupures);
     synchroniserHorloge(v.horloge);
   }
   resultatsOrdres(v.commandes);

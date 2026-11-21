@@ -79,20 +79,18 @@ export function contexte({ catalogue = [], pieces = [], ordres = {}, dessins = [
   });
   return {
     catalogue: catalogue.map(fiche),
-    pieces: pieces
-      .slice(0, PIECES_MAX)
-      .map((p) => ({
-        id: p.id,
-        nom: p.nom,
-        modele: p.type,
-        camp: p.camp,
-        lng: r4(p.lng),
-        lat: r4(p.lat),
-        detruit: !!p.detruit,
-        ...(p.endurance_min ? { etat: p.etat || 'sol', endurance_restante_min: Math.round(enduranceRestante(p) * 10) / 10 } : {}),
-        ...(exigePoste(p) ? { equipe: p.poste || null, liaison_ok: etatLiaison(p, pieces).ok } : {}),
-        consignes: (ordres[p.id] || []).filter((c) => c.statut !== 'terminee').map((c) => libelleConsigne(c))
-      })),
+    pieces: pieces.slice(0, PIECES_MAX).map((p) => ({
+      id: p.id,
+      nom: p.nom,
+      modele: p.type,
+      camp: p.camp,
+      lng: r4(p.lng),
+      lat: r4(p.lat),
+      detruit: !!p.detruit,
+      ...(p.endurance_min ? { etat: p.etat || 'sol', endurance_restante_min: Math.round(enduranceRestante(p) * 10) / 10 } : {}),
+      ...(exigePoste(p) ? { equipe: p.poste || null, liaison_ok: etatLiaison(p, pieces).ok } : {}),
+      consignes: (ordres[p.id] || []).filter((c) => c.statut !== 'terminee').map((c) => libelleConsigne(c))
+    })),
     dessins: dessins.slice(0, 20).map((d) => ({ genre: d.genre, camp: d.camp, nom: d.nom, points: d.points.slice(0, 12).map(([x, y]) => [r4(x), r4(y)]) })),
     vue,
     horloge

@@ -140,3 +140,49 @@ test('assurerChemin charge les tuiles traversées ; un échec de chargement ne b
   assert.equal(t.prete(), true);
   assert.equal(t.classe(...at(0.5, 0.5)), 0, 'une tuile en échec devient de la plaine');
 });
+
+test('route coupée : un impact sur la route bloque véhicules et artillerie, une pièce déjà dans la zone peut en sortir', async () => {
+  const { premiereCoupure, premierObstacle } = await import('../static/terrain.js');
+  const t = await terrainDe();
+  t.couper({ lng: lng(0.5), lat: lat(0.65), rayonM: 15 });
+  const route = [at(0.1, 0.65), at(0.9, 0.65)];
+  const obstacle = premierObstacle(route, t);
+  assert.equal(obstacle.cause, 'impact');
+  assert.ok(obstacle.distanceKm > 0);
+  assert.equal(premierObstacle([at(0.1, 0.2), at(0.9, 0.2)], t), null, 'en plaine, loin de l\'impact : rien');
+  const dedans = [[lng(0.5), lat(0.65)], at(0.9, 0.65)];
+  assert.equal(premiereCoupure(dedans, t.coupures), null, 'on peut sortir de la zone');
+  const vehicule = piece('v', 'bleu', 'vehicule', at(0.1, 0.65), { mouvement: { min: 50, max: 50 } });
+  const r = verifier(vehicule, { type: 'aller', points: [at(0.9, 0.65)], allure: 'normale' }, { terrain: t });
+  assert.equal(r.ok, false);
+  assert.match(r.erreurs[0], /route est coupée/);
+  const canon = piece('a', 'bleu', 'artillerie', at(0.1, 0.65), { route_seule: true, mouvement: { min: 50, max: 50 }, feu: { mode: 'zone', portee_km: 20 } });
+  assert.equal(verifier(canon, { type: 'aller', points: [at(0.9, 0.65)], allure: 'normale' }, { terrain: t }).ok, false);
+  const fantassin = piece('i', 'bleu', 'fantassin', at(0.1, 0.65));
+  assert.equal(verifier(fantassin, { type: 'aller', points: [at(0.9, 0.65)], allure: 'normale' }, { terrain: t }).ok, true, 'un fantassin passe');
+  t.actif = false;
+  assert.equal(verifier(vehicule, { type: 'aller', points: [at(0.9, 0.65)], allure: 'normale' }, { terrain: t }).ok, true, 'sans terrain actif : comme avant');
+});
+
+test('route coupée : un véhicule en marche s\'arrête avant l\'impact et le dit ; contourner par la plaine est permis', async () => {
+  const t = await terrainDe();
+  t.couper({ lng: lng(0.5), lat: lat(0.65), rayonM: 15 });
+  const vehicule = piece('v', 'bleu', 'vehicule', at(0.1, 0.65), { mouvement: { min: 50, max: 50 } });
+  const consigne = { type: 'aller', points: [at(0.9, 0.65)], etape: 0, allure: 'normale' };
+  const r = avancer(vehicule, consigne, 60, [vehicule], '', t);
+  assert.equal(r.termine, true);
+  assert.equal(r.evenements[0].type, 'bloque');
+  assert.equal(r.evenements[0].cause, 'impact');
+  assert.ok(r.position[0] < lng(0.5), 'il reste avant l\'impact');
+  const detour = verifier(vehicule, { type: 'aller', points: [at(0.3, 0.55), at(0.7, 0.55), at(0.9, 0.65)], allure: 'normale' }, { terrain: t });
+  assert.ok(!detour.erreurs.some((e) => /coupée/.test(e)), 'le détour par la plaine passe à plus de 15 m de l\'impact');
+});
+
+test('remplacerCoupures : même liste, aucun changement signalé', async () => {
+  let changements = 0;
+  const t = creerTerrain({ charger: async () => null, onChange: () => { changements += 1; } });
+  t.remplacerCoupures([{ lng: 1, lat: 2, rayonM: 20 }]);
+  t.remplacerCoupures([{ lng: 1, lat: 2, rayonM: 20 }]);
+  assert.equal(changements, 1);
+  assert.deepEqual(t.coupures, [{ lng: 1, lat: 2, rayonM: 20 }]);
+});

@@ -18,7 +18,7 @@ import {
   rayonVision,
   retourPossible
 } from './regles.js';
-import { ROUTE, eauInterdite, partHorsRoute, premiereEau, routeSeule, voit } from './terrain.js';
+import { ROUTE, eauInterdite, partHorsRoute, premierObstacle, routeSeule, voit } from './terrain.js';
 
 export const ALLURES = { prudente: 'Prudente', normale: 'Normale', maximale: 'Maximale' };
 const MARGE_PORTEE = 0.999; // on s'arrête juste à l'intérieur de la portée de feu
@@ -172,8 +172,13 @@ function controleTerrain(piece, pieces, consigne, terrain) {
   const trajet = trajetPrevu(piece, pieces, consigne);
   if (!trajet) return { erreurs, avertissements };
   if (eauInterdite(piece)) {
-    const eau = premiereEau(trajet, terrain);
-    if (eau) erreurs.push(`Le trajet traverse de l'eau, à ${km1(eau.distanceKm)} km du départ : cette pièce ne peut pas la franchir (hors route ou pont).`);
+    const obstacle = premierObstacle(trajet, terrain);
+    if (obstacle && obstacle.cause === 'eau')
+      erreurs.push(`Le trajet traverse de l'eau, à ${km1(obstacle.distanceKm)} km du départ : cette pièce ne peut pas la franchir (hors route ou pont).`);
+    else if (obstacle)
+      erreurs.push(
+        `Une route est coupée par un impact, à ${km1(obstacle.distanceKm)} km du départ : cette pièce ne peut pas passer (contournez-la ou changez d'itinéraire).`
+      );
   }
   if (routeSeule(piece) && consigne.type === 'aller') {
     const but = consigne.points[consigne.points.length - 1];
@@ -287,10 +292,10 @@ export function avancer(piece, consigne, dtMin, pieces = [], graine = '', terrai
         reste = 0;
       }
     }
-    const arret = arretEau(piece, depart, pos, terrain);
+    const arret = arretSol(piece, depart, pos, terrain);
     if (arret) {
-      evenements.push({ type: 'bloque', cause: 'eau', pieceId: piece.id, position: arret });
-      return { position: arret, consigne: { ...consigne, etape }, termine: true, evenements };
+      evenements.push({ type: 'bloque', cause: arret.cause, pieceId: piece.id, position: arret.position });
+      return { position: arret.position, consigne: { ...consigne, etape }, termine: true, evenements };
     }
     const termine = etape >= consigne.points.length;
     if (termine) evenements.push({ type: 'arrivee', pieceId: piece.id, position: pos });
@@ -349,21 +354,21 @@ export function avancer(piece, consigne, dtMin, pieces = [], graine = '', terrai
   }
   const avance = Math.min(pas, d - portee * MARGE_PORTEE);
   const nouvelle = pointVers(pos, position(cible), avance);
-  const arret = arretEau(piece, pos, nouvelle, terrain);
+  const arret = arretSol(piece, pos, nouvelle, terrain);
   if (arret) {
-    evenements.push({ type: 'bloque', cause: 'eau', pieceId: piece.id, position: arret });
-    return { position: arret, consigne, termine: true, evenements };
+    evenements.push({ type: 'bloque', cause: arret.cause, pieceId: piece.id, position: arret.position });
+    return { position: arret.position, consigne, termine: true, evenements };
   }
   return { position: nouvelle, consigne, termine: false, evenements };
 }
 
-/** Dernier point sec d'un déplacement qui entrerait dans l'eau (pièce sensible à l'eau, sous terrain actif) ; null si rien ne l'arrête. */
-function arretEau(piece, de, vers, terrain) {
+/** Dernier point libre d'un déplacement qui entrerait dans l'eau ou une route coupée (pièce roulante, terrain actif) : { cause, position } ; null si rien ne l'arrête. */
+function arretSol(piece, de, vers, terrain) {
   if (!terrain || !terrain.actif || !eauInterdite(piece) || estDrone(piece)) return null;
-  const eau = premiereEau([de, vers], terrain);
-  if (!eau) return null;
-  const d = distanceKm(de, eau.point);
-  return d > 0.03 ? pointVers(de, vers, d - 0.025) : de;
+  const obstacle = premierObstacle([de, vers], terrain);
+  if (!obstacle) return null;
+  const d = distanceKm(de, obstacle.point);
+  return { cause: obstacle.cause, position: d > 0.03 ? pointVers(de, vers, d - 0.025) : de };
 }
 
 /** Contacts : pour chaque pièce, les pièces adverses comprises dans son rayon de vision. */

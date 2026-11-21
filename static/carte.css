@@ -112,6 +112,7 @@ details[open] > summary::before { transform: rotate(45deg); margin-bottom: 4px; 
 .grille2 { display: grid; grid-template-columns: 1fr 1fr; padding-top: 1px; margin-right: -1px; }
 .grille2 .opt { margin: -1px -1px 0 0; padding: 5px 6px; gap: 6px; } .grille2 .opt span { white-space: nowrap; }
 
+.coupure { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border: 2px solid var(--rouge); background: color-mix(in srgb, var(--rouge) 25%, var(--panneau)); color: var(--rouge); font-size: var(--t-md); line-height: 1; pointer-events: none; }
 .legende-terrain { margin: 4px 0 0; font-size: var(--t-sm); color: var(--texte-2); display: flex; align-items: center; gap: 4px; }
 .legende-terrain i { width: 10px; height: 10px; display: inline-block; margin-left: 8px; }
 .legende-terrain i:first-child { margin-left: 0; }

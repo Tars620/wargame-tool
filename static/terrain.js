@@ -104,6 +104,7 @@ export function creerTerrain({ charger, disponible = true, z = ZOOM_TERRAIN, onC
     attente = new Map();
   let actif = true,
     echecs = 0;
+  let coupures = [];
   const dispo = () => (typeof disponible === 'function' ? Boolean(disponible()) : Boolean(disponible));
   const t = {
     get actif() {
@@ -130,6 +131,20 @@ export function creerTerrain({ charger, disponible = true, z = ZOOM_TERRAIN, onC
       return g[Math.floor((y % 1) * GRILLE) * GRILLE + Math.floor((x % 1) * GRILLE)];
     },
     grille: (zz, x, y) => grilles.get(cleTuile(zz, x, y)) || null,
+    /** Routes coupées par un impact : { lng, lat, rayonM }. Véhicules et artillerie ne passent pas. */
+    get coupures() {
+      return coupures.map((c) => ({ ...c }));
+    },
+    couper(c) {
+      coupures = [...coupures, { lng: c.lng, lat: c.lat, rayonM: c.rayonM }];
+      onChange();
+    },
+    remplacerCoupures(liste) {
+      const neuves = (liste || []).map((c) => ({ lng: c.lng, lat: c.lat, rayonM: c.rayonM }));
+      if (JSON.stringify(neuves) === JSON.stringify(coupures)) return;
+      coupures = neuves;
+      onChange();
+    },
     rapport: () => ({ actif: t.actif, voulu: actif, disponible: dispo(), chargees: grilles.size, enAttente: attente.size, echecs }),
     prete: () => attente.size === 0,
     /** Charge ces tuiles ({x, y} entiers) ; résout quand toutes sont arrivées. */
@@ -244,6 +259,30 @@ export function premiereEau(points, terrain) {
     cumul += distanceApprox(points[i - 1], points[i]);
   }
   return null;
+}
+/** Rayon minimal d'une route coupée : la largeur d'une chaussée, même pour une petite charge. */
+export const RAYON_COUPURE_MIN_M = 15;
+/** Première route coupée que le trajet traverserait : { point, distanceKm, coupure } ou null. Une pièce déjà dans la zone peut en sortir. */
+export function premiereCoupure(points, coupures) {
+  if (!coupures || !coupures.length || points.length < 2) return null;
+  const libres = coupures.filter((c) => distanceApprox(points[0], [c.lng, c.lat]) * 1000 > c.rayonM);
+  let cumul = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    for (const pt of echantillons(points[i - 1], points[i], PAS_M)) {
+      const c = libres.find((q) => distanceApprox(pt, [q.lng, q.lat]) * 1000 <= q.rayonM);
+      if (c) return { point: pt, distanceKm: cumul + distanceApprox(points[i - 1], pt), coupure: c };
+    }
+    cumul += distanceApprox(points[i - 1], points[i]);
+  }
+  return null;
+}
+/** Ce qui arrêterait un véhicule ou une artillerie sur ce trajet : l'eau (hors pont) ou une route coupée. { cause: 'eau' | 'impact', point, distanceKm } ou null. */
+export function premierObstacle(points, terrain) {
+  if (!actifs(terrain)) return null;
+  const eau = premiereEau(points, terrain);
+  const coupure = premiereCoupure(points, terrain.coupures);
+  if (eau && (!coupure || eau.distanceKm <= coupure.distanceKm)) return { cause: 'eau', point: eau.point, distanceKm: eau.distanceKm };
+  return coupure ? { cause: 'impact', point: coupure.point, distanceKm: coupure.distanceKm } : null;
 }
 /** Part (0..1) d'un trajet qui n'est pas sur une route, et nombre de cellules dont la tuile manque. */
 export function partHorsRoute(points, terrain) {
