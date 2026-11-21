@@ -44,6 +44,19 @@ La page se recharge seule quand le code du serveur change (`/api/version`), en g
   leur vision révèle. « Revenir au départ » rétablit les positions d'avant le lancement.
 - Logique pure et testée : `static/moteur.js` (faisabilité, déplacement, contacts), `static/fuseaux.js` (heures).
 
+## Symboles, scénarios et bibliothèques réutilisées
+- **Symboles** : les pièces utilisent les symboles militaires APP-6D / MIL-STD-2525D dessinés par **milsymbol**
+  (MIT). Bleu = ami, rouge = hostile. Chaque modèle de `static/pieces.json` porte son code (ensemble + entité) ;
+  les six sont vérifiés valides pour les deux camps par `tests/symboles.test.mjs`. Les deux UAV partagent le même symbole.
+- **Scénario** (panneau de gauche) : *Enregistrer* (pièces, dessins, consignes, journal, en `.json`), *Ouvrir*,
+  *Exporter en GeoJSON* (pièces en points avec leur code APP-6D, dessins en lignes et polygones, lisible par d'autres outils
+  de cartographie). À l'ouverture, le fichier est vérifié champ par champ (`static/scenario.js`) : au moindre défaut il est
+  refusé en entier et le scénario en cours n'est pas touché. Limite : 5 Mo, 2000 pièces.
+- Réutilisé : milsymbol (symboles), Turf (couloirs), MapLibre, PMTiles, tz-lookup. Étudié mais non repris :
+  *orbat-mapper* (MIT) est une application Vue complète (hiérarchies d'unités, lecture temporelle, grille MGRS,
+  import/export KML) qui demande une chaîne de build ; elle sert de référence de fonctionnalités. Le GeoJSON exporté
+  n'a pas été essayé dans orbat-mapper. *terra-draw* (dessin) fait double emploi avec nos outils de dessin.
+
 ## Pièces (`/carte`, panneau de droite)
 Banque de six pièces (UAV de reconnaissance, UAV armé, fantassin, véhicule blindé, artillerie, guerre électronique),
 définies dans `static/pieces.json`. Choisir un camp et une pièce, puis cliquer sur la carte pour la poser.

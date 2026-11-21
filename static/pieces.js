@@ -1,19 +1,12 @@
 import * as maplibre from './vendor/maplibre-gl.mjs';
 import { distanceKm, cercle, formatDuree, dureesDeplacement, formatKm } from './geo.js';
+import { symbole } from './symboles.js';
 
 export const SOURCE_ID = 'portees';
 const STORAGE_KEY = 'wg.pieces.v1';
 const COULEURS = { bleu: '#4c8dff', rouge: '#e5484d' };
 const NOM_CAMP = { bleu: 'Bleu', rouge: 'Rouge' };
 const PUISSANCE_MAX = 10;
-const ICONES = { // tracés dans un cadre 24 x 24 ; le cadre rectangulaire est dessiné à part
-  infanterie: ['M3 6 L21 18', 'M21 6 L3 18'],
-  blinde: ['M7 12 a5 3 0 1 0 10 0 a5 3 0 1 0 -10 0'],
-  artillerie: ['M12 9 a3 3 0 1 0 0.01 0'],
-  uav: ['M4 16 L12 8 L20 16', 'M12 8 L12 17'],
-  'guerre-electronique': ['M6 16 L9 8 L12 16 L15 8 L18 16'],
-};
-
 const state = { catalogue: [], pieces: [], camp: 'bleu', arme: null, selection: null, portees: 'selection', map: null,
   marqueurs: new Map(), racine: null, visibles: null };
 
@@ -27,22 +20,6 @@ function h(tag, props = {}, ...kids) {
   }
   for (const c of kids.flat()) if (c != null && c !== false) n.append(c.nodeType ? c : document.createTextNode(String(c)));
   return n;
-}
-
-function icone(type) {
-  const NS = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('width', '100%'); svg.setAttribute('height', '100%');
-  svg.setAttribute('aria-hidden', 'true');
-  const cadre = document.createElementNS(NS, 'rect');
-  for (const [k, v] of Object.entries({ x: 2, y: 5, width: 20, height: 14, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.6 })) cadre.setAttribute(k, v);
-  svg.append(cadre);
-  for (const d of ICONES[type] || []) {
-    const p = document.createElementNS(NS, 'path');
-    for (const [k, v] of Object.entries({ d, fill: type === 'artillerie' ? 'currentColor' : 'none', stroke: 'currentColor', 'stroke-width': 1.6, 'stroke-linejoin': 'round' })) p.setAttribute(k, v);
-    svg.append(p);
-  }
-  return svg;
 }
 
 function nombre(valeur, min, max, repli) {
@@ -97,14 +74,17 @@ function rafraichirCarte() {
 }
 
 // ---------- marqueurs ----------
+const modeleDe = (p) => state.catalogue.find((m) => m.id === p.type) || { nom: p.nom };
+
 function styleMarqueur(p, el) {
   el.style.setProperty('--c', COULEURS[p.camp]);
+  if (el.dataset.camp !== p.camp) { el.replaceChildren(symbole(modeleDe(p), p.camp, 22)); el.dataset.camp = p.camp; } // l'identité du symbole suit le camp
   el.title = `${p.nom} (${NOM_CAMP[p.camp]})`;
   el.classList.toggle('choisi', p.id === state.selection);
 }
 
 function ajouterMarqueur(p) {
-  const el = h('button', { class: 'pion', type: 'button' }, icone(p.icone));
+  const el = h('button', { class: 'pion', type: 'button' });
   styleMarqueur(p, el);
   el.addEventListener('click', (ev) => { ev.stopPropagation(); choisir(p.id); });
   const marqueur = new maplibre.Marker({ element: el, draggable: true }).setLngLat([p.lng, p.lat]).addTo(state.map);
@@ -172,7 +152,7 @@ function dessinerBanque() {
   const boutons = Object.keys(NOM_CAMP).map((camp) => h('button', { class: 'camp', type: 'button', 'aria-pressed': String(state.camp === camp), style: `--c:${COULEURS[camp]}`,
     onclick: () => { state.camp = camp; dessinerBanque(); } }, NOM_CAMP[camp]));
   const cartes = state.catalogue.map((m) => h('button', { class: `modele${state.arme === m.id ? ' arme' : ''}`, type: 'button', onclick: () => armer(m.id), style: `--c:${COULEURS[state.camp]}` },
-    h('span', { class: 'ico' }, icone(m.icone)), h('span', { class: 'txt' }, h('b', {}, m.nom), ...resume(m).map((l) => h('small', {}, l)))));
+    h('span', { class: 'ico' }, symbole(m, state.camp, 22)), h('span', { class: 'txt' }, h('b', {}, m.nom), ...resume(m).map((l) => h('small', {}, l)))));
   const aide = state.arme ? 'Cliquez sur la carte pour poser. Échap pour arrêter.' : 'Choisissez un camp, une pièce, puis cliquez sur la carte.';
   $('banque').replaceChildren(h('div', { class: 'camps' }, boutons), ...cartes, h('p', { class: 'note' }, aide));
 }

@@ -1,6 +1,7 @@
 import * as maplibre from './vendor/maplibre-gl.mjs';
 import { layers, namedFlavor } from './vendor/protomaps-basemaps.mjs';
 import { monter as monterPieces, collection as piecesGeojson, layerSpecs as piecesCouches, SOURCE_ID as PIECES_SOURCE } from './pieces.js';
+import { assembler, valider, versGeoJSON, TAILLE_MAX_OCTETS } from './scenario.js';
 import { monter as monterTemps } from './temps.js';
 import { monter as monterMeteo, pourStyle as meteoPourStyle } from './meteo.js';
 import { monter as monterOrdres, collection as consignesGeojson, layerSpecs as consignesCouches, setTheme as themeOrdres, SOURCE_CONSIGNES } from './ordres.js';
@@ -251,6 +252,54 @@ function majInfoZone() {
     ? `Zoom maximal de cette zone atteint. Pour zoomer plus loin, choisissez « ${plusFin.label} ».` : infoZone();
 }
 
+// ---------- scénario : enregistrer, ouvrir, exporter ----------
+const CLES_STOCK = { pieces: 'wg.pieces.v1', dessins: 'wg.dessins.v1', ordres: 'wg.ordres.v1', journal: 'wg.journal.v1' };
+const lireStock = (cle, repli) => { try { return JSON.parse(localStorage.getItem(cle)) ?? repli; } catch { return repli; } };
+const stockActuel = () => ({ pieces: lireStock(CLES_STOCK.pieces, []), dessins: lireStock(CLES_STOCK.dessins, []), ordres: lireStock(CLES_STOCK.ordres, {}), journal: lireStock(CLES_STOCK.journal, []) });
+const horodatage = () => new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
+
+function telecharger(nom, contenu, type) {
+  const lien = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([contenu], { type })), download: nom });
+  document.body.append(lien); lien.click(); lien.remove();
+  setTimeout(() => URL.revokeObjectURL(lien.href), 1000);
+}
+
+function fillScenario() {
+  const message = Object.assign(document.createElement('p'), { className: 'note' });
+  const dire = (texte, erreur = false) => { message.textContent = texte; message.className = erreur ? 'err' : 'note'; };
+  const bouton = (texte, onclick) => { const b = document.createElement('button'); Object.assign(b, { type: 'button', textContent: texte }); b.addEventListener('click', onclick); return b; };
+  const courant = () => { const v = valider(assembler(stockActuel())); if (!v.ok) dire(`Le scénario actuel contient une valeur invalide : ${v.erreur}`, true); return v.ok ? v.scenario : null; };
+
+  const fichier = Object.assign(document.createElement('input'), { type: 'file', accept: '.json,application/json', hidden: true });
+  fichier.addEventListener('change', async () => {
+    const f = fichier.files[0]; fichier.value = '';
+    if (!f) return;
+    if (f.size > TAILLE_MAX_OCTETS) { dire('Fichier trop volumineux (5 Mo au plus).', true); return; }
+    let objet;
+    try { objet = JSON.parse(await f.text()); } catch { dire("Ce fichier n'est pas du JSON valide.", true); return; }
+    const v = valider(objet);
+    if (!v.ok) { dire(`Scénario refusé : ${v.erreur}`, true); return; }
+    const sc = v.scenario;
+    if (!confirm(`Ouvrir ce scénario ? Il remplace le scénario actuel (${sc.pieces.length} pièce(s), ${sc.dessins.length} dessin(s)).`)) return;
+    try {
+      localStorage.setItem(CLES_STOCK.pieces, JSON.stringify(sc.pieces)); localStorage.setItem(CLES_STOCK.dessins, JSON.stringify(sc.dessins));
+      localStorage.setItem(CLES_STOCK.ordres, JSON.stringify(sc.ordres)); localStorage.setItem(CLES_STOCK.journal, JSON.stringify(sc.journal));
+    } catch { dire('Impossible d\'enregistrer le scénario dans le navigateur (stockage plein ou bloqué).', true); return; }
+    location.reload();
+  });
+
+  $('scenario-panneau').replaceChildren(
+    bouton('Enregistrer (.json)', () => { const sc = courant(); if (sc) { telecharger(`scenario-${horodatage()}.json`, JSON.stringify(sc, null, 1), 'application/json'); dire('Scénario enregistré.'); } }),
+    bouton('Ouvrir un scénario…', () => fichier.click()),
+    bouton('Exporter en GeoJSON', async () => {
+      const sc = courant(); if (!sc) return;
+      try { const { pieces } = await (await fetch('/static/pieces.json')).json(); telecharger(`scenario-${horodatage()}.geojson`, JSON.stringify(versGeoJSON(sc, pieces), null, 1), 'application/geo+json'); dire('Export GeoJSON prêt.'); }
+      catch (e) { dire(`Export impossible : ${e.message}`, true); }
+    }),
+    fichier, message,
+    Object.assign(document.createElement('p'), { className: 'note', textContent: 'Le scénario contient les pièces, dessins, consignes et le journal. Le GeoJSON se lit dans les autres outils de cartographie (les pièces portent leur code APP-6D).' }));
+}
+
 // Chaque section des panneaux se plie et se déplie ; l'état est mémorisé.
 const SECTIONS_KEY = 'wg.sections';
 function sectionsRepliables() {
@@ -307,7 +356,7 @@ async function start() {
   if (!state.zones.length) { showError('Aucune zone : placez un fichier .pmtiles dans data/maps et déclarez-le dans zones.json.'); return; }
   state.zone = [...state.zones].sort((x, y) => y.maxzoom - x.maxzoom)[0]; // la plus détaillée : on peut zoomer à fond
   appliquerTheme();
-  fillTheme(); fillFonds(); fillZones(); majInfoZone();
+  fillTheme(); fillFonds(); fillZones(); fillScenario(); majInfoZone();
   $('labels').addEventListener('change', (e) => { state.labels = e.target.checked; render(); });
   $('relief3d').addEventListener('change', (e) => { state.relief3d = e.target.checked; render().then(setPitch); });
   await render();

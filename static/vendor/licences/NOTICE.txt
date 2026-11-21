@@ -8,3 +8,4 @@ Relief : Mapzen/AWS Terrain Tiles (sources SRTM, GMTED, NED et autres, voir http
 - tz-lookup 6.1.25  CC0-1.0 (static/vendor/tz.js, fuseau horaire d'un point : fonction globale tzlookup(lat, lng))
 Météo : Open-Meteo (https://open-meteo.com, usage non commercial, CC BY 4.0) ; radar : RainViewer.
 - @turf/turf 7.4.0  MIT (static/vendor/turf.min.js : couloirs autour des lignes de front, calcul géodésique)
+- milsymbol 3.0.5  MIT (static/vendor/milsymbol.js : symboles APP-6 / MIL-STD-2525, global ms)
