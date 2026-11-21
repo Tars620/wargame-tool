@@ -90,11 +90,11 @@ const THEMES = {
 
 const { Protocol } = window.pmtiles; // chargé par carte.html (version autonome : elle embarque fflate)
 const $ = (id) => document.getElementById(id);
-const state = { zones: [], zone: null, fond: 'plan', labels: true, relief3d: false, nasaDate: null, map: null, theme: lireTheme() };
-
 // Un visiteur qui arrive sur le site hébergé (pas sur l'ordinateur local ni le réseau local) trouve : thème clair, panneau de gauche ouvert, panneau de droite replié.
 // Ce n'est qu'un départ : tout choix qu'il fait ensuite est mémorisé et prime.
 const EN_LIGNE = !/^(localhost$|127\.|\[::1\]$|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
+const state = { zones: [], zone: null, fond: 'plan', labels: true, relief3d: false, nasaDate: null, map: null, theme: lireTheme() };
+
 function lireTheme() {
   const t = lireTexte(THEME_KEY);
   return THEMES[t] ? t : EN_LIGNE ? 'clair' : 'sombre';
