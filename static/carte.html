@@ -74,6 +74,25 @@ summary::-webkit-details-marker { display: none; }
 summary::before { content: '+'; display: inline-block; width: 14px; }
 details[open] > summary::before { content: '−'; }
 
+/* horloges, consignes, météo */
+.horloges { margin-left: auto; display: flex; gap: 22px; font-size: var(--t-base); font-variant-numeric: tabular-nums; color: var(--texte); }
+.horloges b { font-weight: 500; margin-right: 4px; color: var(--texte-2); text-transform: uppercase; letter-spacing: .05em; font-size: var(--t-xs); }
+.horloges em { font-style: normal; color: var(--texte-2); font-size: var(--t-sm); }
+.horloges .discret { color: var(--texte-2); } .horloges .etat { border: 1px solid var(--trait-fort); padding: 0 8px; }
+.primaire { background: var(--accent); color: var(--fond); border-color: var(--accent); }
+.primaire:hover { opacity: .85; } .primaire:disabled { opacity: .35; cursor: default; }
+.avert { margin: 6px 0 0; font-size: var(--t-sm); color: #d9a441; }
+:root[data-theme=clair] .avert { color: #a06a00; }
+.consigne { display: flex; justify-content: space-between; align-items: center; gap: 8px; border: 1px solid var(--trait); margin-top: -1px; padding: 6px 8px; font-size: var(--t-base); }
+.consigne small { display: block; color: var(--texte-2); font-size: var(--t-sm); } .consigne b { font-weight: 500; }
+.consigne button { padding: 2px 8px; }
+.evt { padding: 6px 0; border-bottom: 1px solid var(--trait); font-size: var(--t-base); } .evt small { display: block; color: var(--texte-2); font-size: var(--t-xs); }
+.evt-tir span, .evt-alerte span { color: var(--rouge); } .evt-contact span { color: var(--bleu); }
+.ligne-meteo { margin: 2px 0; color: var(--texte); font-size: var(--t-base); }
+#temps-panneau > * { margin-top: 6px; } #temps-panneau .camps { margin-bottom: 0; }
+#temps-panneau input[type=datetime-local] { width: 100%; padding: 7px 9px; border: 1px solid var(--trait); background: var(--fond); color: var(--texte); font: inherit; color-scheme: dark; }
+:root[data-theme=clair] #temps-panneau input[type=datetime-local] { color-scheme: light; }
+
 /* barre d'outils de dessin */
 .barre-outils { position: fixed; top: calc(var(--barre-h) + 12px); left: 50%; transform: translateX(-50%); z-index: 4; display: grid; justify-items: center; gap: 6px; }
 .outils { display: flex; align-items: center; background: var(--panneau); border: 1px solid var(--trait); }
@@ -96,34 +115,37 @@ details[open] > summary::before { content: '−'; }
 </style>
 </head>
 <body>
-<div class="top"><b>Carte</b><a href="/">Journal de partie</a></div>
+<div class="top"><b>Carte</b><a href="/">Journal de partie</a><div class="horloges" id="horloges"></div></div>
 <div id="map"></div>
 <div class="barre-outils"><div class="outils" id="outils"></div><div class="aide" id="aide-dessin"></div></div>
 
 <aside class="panneau gauche">
-  <h3>Affichage</h3>
-  <div id="theme" class="camps"></div>
-  <h3>Fond</h3>
-  <div id="fonds"></div>
-  <h3>Superpositions</h3>
-  <label class="opt"><input type="checkbox" id="labels" checked><span>Frontières et noms<small>Sur tous les fonds</small></span></label>
-  <label class="opt"><input type="checkbox" id="relief3d"><span>Relief en 3D<small>Inclinaison de la vue, glisser avec Ctrl</small></span></label>
-  <h3>Zone de jeu</h3>
-  <select id="zone"></select>
-  <p class="note" id="zoneinfo"></p>
+  <details open data-cle="g-affichage"><summary>Affichage</summary><div id="theme" class="camps"></div></details>
+  <details open data-cle="g-fond"><summary>Fond</summary><div id="fonds"></div></details>
+  <details open data-cle="g-sup"><summary>Superpositions</summary>
+    <label class="opt"><input type="checkbox" id="labels" checked><span>Frontières et noms<small>Sur tous les fonds</small></span></label>
+    <label class="opt"><input type="checkbox" id="relief3d"><span>Relief en 3D<small>Inclinaison de la vue, glisser avec Ctrl</small></span></label>
+  </details>
+  <details open data-cle="g-temps"><summary>Temps de jeu</summary><div id="temps-panneau"></div></details>
+  <details data-cle="g-meteo"><summary>Météo</summary><div id="meteo-panneau"></div></details>
+  <details open data-cle="g-zone"><summary>Zone de jeu</summary><select id="zone"></select><p class="note" id="zoneinfo"></p></details>
   <div class="err" id="err"></div>
 </aside>
 
 <aside class="panneau droite">
-  <details open><summary>Dessin sélectionné</summary><div id="dessin-fiche"></div></details>
-  <details open><summary>Dessins</summary><div id="dessins-liste"></div></details>
-  <details open><summary>Pièce sélectionnée</summary><div id="fiche"></div></details>
-  <details open><summary>Banque de pièces</summary><div id="banque"></div></details>
-  <details><summary>Portées affichées</summary><div id="portees"></div></details>
+  <details open data-cle="d-ops"><summary>Opération</summary><div id="operation"></div></details>
+  <details open data-cle="d-consignes"><summary>Consignes</summary><div id="consignes"></div></details>
+  <details open data-cle="d-journal"><summary>Journal des opérations</summary><div id="journal-ops"></div></details>
+  <details open data-cle="d-dessin"><summary>Dessin sélectionné</summary><div id="dessin-fiche"></div></details>
+  <details open data-cle="d-dessins"><summary>Dessins</summary><div id="dessins-liste"></div></details>
+  <details open data-cle="d-fiche"><summary>Pièce sélectionnée</summary><div id="fiche"></div></details>
+  <details open data-cle="d-banque"><summary>Banque de pièces</summary><div id="banque"></div></details>
+  <details data-cle="d-portees"><summary>Portées affichées</summary><div id="portees"></div></details>
 </aside>
 
 <div class="lecture" id="lecture">—</div>
 <script src="/static/vendor/pmtiles.js"></script>
+<script src="/static/vendor/tz.js"></script>
 <script type="module" src="/static/carte.js"></script>
 </body>
 </html>

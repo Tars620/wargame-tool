@@ -1,6 +1,9 @@
 import * as maplibre from './vendor/maplibre-gl.mjs';
 import { layers, namedFlavor } from './vendor/protomaps-basemaps.mjs';
 import { monter as monterPieces, collection as piecesGeojson, layerSpecs as piecesCouches, SOURCE_ID as PIECES_SOURCE } from './pieces.js';
+import { monter as monterTemps } from './temps.js';
+import { monter as monterMeteo, pourStyle as meteoPourStyle } from './meteo.js';
+import { monter as monterOrdres, collection as consignesGeojson, layerSpecs as consignesCouches, setTheme as themeOrdres, SOURCE_CONSIGNES } from './ordres.js';
 import { monter as monterDessin, collection as dessinsGeojson, collectionBrouillon, layerSpecs as dessinsCouches,
   setTheme as themeDessin, majTheme as majThemeDessin, SOURCE_DESSINS, SOURCE_BROUILLON } from './dessin.js';
 
@@ -15,7 +18,9 @@ const NASA_PROBE = '6/25/31'; // une tuile quelconque, servie dès qu'une journ�
 const NASA_MAX_DAYS = 45;
 const PITCH_3D = 60;
 const TERRAIN_EXAGGERATION = 1.4;
-const SURZOOM = 2; // niveaux de zoom au-delà des données d'une zone (image agrandie)
+const SURZOOM = 2;        // niveaux d'agrandissement au-delà des données d'une zone locale
+const SURZOOM_DETAIL = 5; // une zone détaillée (zoom 14 ou plus) peut aller bien plus loin : le vecteur reste net
+const ZOOM_ABSOLU = 20;
 const THEME_KEY = 'wg.theme';
 
 const FONDS = {
@@ -38,7 +43,7 @@ const $ = (id) => document.getElementById(id);
 const state = { zones: [], zone: null, fond: 'plan', labels: true, relief3d: false, nasaDate: null, map: null, theme: lireTheme() };
 
 function lireTheme() { try { const t = localStorage.getItem(THEME_KEY); return THEMES[t] ? t : 'sombre'; } catch { return 'sombre'; } }
-function appliquerTheme() { document.documentElement.dataset.theme = state.theme; themeDessin(state.theme); }
+function appliquerTheme() { document.documentElement.dataset.theme = state.theme; themeDessin(state.theme); themeOrdres(state.theme); }
 
 // ---------- construction du style ----------
 function flavor() {
@@ -120,10 +125,13 @@ function buildStyle() {
   const { fond, labels, zone } = state;
   const style = { version: 8, glyphs: GLYPHS, sources: sourcesFor(fond, labels, zone), layers: layersFor(fond, labels) };
   if (fond === 'nasa' && !state.nasaDate) style.layers = [{ id: 'fond', type: 'background', paint: { 'background-color': '#0a0a0c' } }];
+  const meteo = meteoPourStyle();
+  Object.assign(style.sources, meteo.sources);
+  style.sources[SOURCE_CONSIGNES] = { type: 'geojson', data: consignesGeojson() };
   style.sources[SOURCE_DESSINS] = { type: 'geojson', data: dessinsGeojson() };
   style.sources[SOURCE_BROUILLON] = { type: 'geojson', data: collectionBrouillon() };
   style.sources[PIECES_SOURCE] = { type: 'geojson', data: piecesGeojson() };
-  style.layers = [...style.layers, ...dessinsCouches(), ...piecesCouches()];
+  style.layers = [...style.layers, ...meteo.layers, ...dessinsCouches(), ...consignesCouches(), ...piecesCouches()];
   if (state.relief3d) style.terrain = { source: 'dem', exaggeration: TERRAIN_EXAGGERATION };
   return style;
 }
@@ -140,7 +148,7 @@ async function latestNasaDate() {
 
 // ---------- carte ----------
 function showError(message) { $('err').textContent = message || ''; }
-const zoomMax = (zone) => zone.maxzoom + SURZOOM;
+const zoomMax = (zone) => Math.min(zone.maxzoom + (zone.maxzoom >= 14 ? SURZOOM_DETAIL : SURZOOM), ZOOM_ABSOLU);
 
 function createMap() {
   maplibre.addProtocol('pmtiles', new Protocol().tile);
@@ -153,9 +161,12 @@ function createMap() {
   map.on('error', (e) => showError(`Chargement impossible : ${(e.error && e.error.message) || 'source indisponible'}`));
   map.on('styledata', () => showError(''));
   map.on('zoomend', majInfoZone);
-  map.once('load', () => {
-    monterPieces(map).catch((e) => showError(`Pièces indisponibles : ${e.message}`));
+  // Les panneaux se montent dès que le style est prêt : inutile d'attendre les tuiles (lentes quand la carte est en ligne).
+  map.once('style.load', () => {
+    monterTemps(map);
+    monterMeteo(map, { surChangement: () => render() });
     monterDessin(map);
+    monterPieces(map).then(() => monterOrdres(map)).catch((e) => showError(`Pièces ou consignes indisponibles : ${e.message}`));
   });
   return map;
 }
@@ -217,10 +228,12 @@ function fillFonds() {
 
 function fillZones() {
   const select = $('zone');
+  select.value = '';
   for (const z of state.zones) {
     const taille = z.en_ligne ? 'en ligne' : `${(z.bytes / 1e6).toFixed(0)} Mo`;
     select.append(Object.assign(document.createElement('option'), { value: z.key, textContent: `${z.label} · ${taille}` }));
   }
+  select.value = state.zone.key;
   select.addEventListener('change', () => { state.zone = state.zones.find((z) => z.key === select.value); majInfoZone(); render().then(flyToZone); });
 }
 
@@ -237,11 +250,23 @@ function majInfoZone() {
     ? `Zoom maximal de cette zone atteint. Pour zoomer plus loin, choisissez « ${plusFin.label} ».` : infoZone();
 }
 
+// Chaque section des panneaux se plie et se déplie ; l'état est mémorisé.
+const SECTIONS_KEY = 'wg.sections';
+function sectionsRepliables() {
+  let etat = {};
+  try { etat = JSON.parse(localStorage.getItem(SECTIONS_KEY) || '{}'); } catch { etat = {}; }
+  for (const d of document.querySelectorAll('details[data-cle]')) {
+    if (d.dataset.cle in etat) d.open = etat[d.dataset.cle];
+    d.addEventListener('toggle', () => { etat = { ...etat, [d.dataset.cle]: d.open }; try { localStorage.setItem(SECTIONS_KEY, JSON.stringify(etat)); } catch { /* stockage indisponible */ } });
+  }
+}
+
 async function start() {
+  sectionsRepliables();
   const res = await fetch('/api/maps');
   state.zones = await res.json();
   if (!state.zones.length) { showError('Aucune zone : placez un fichier .pmtiles dans data/maps et déclarez-le dans zones.json.'); return; }
-  state.zone = state.zones[0];
+  state.zone = [...state.zones].sort((x, y) => y.maxzoom - x.maxzoom)[0]; // la plus détaillée : on peut zoomer à fond
   appliquerTheme();
   fillTheme(); fillFonds(); fillZones(); majInfoZone();
   $('labels').addEventListener('change', (e) => { state.labels = e.target.checked; render(); });

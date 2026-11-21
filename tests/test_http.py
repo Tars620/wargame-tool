@@ -17,7 +17,10 @@ PAYLOAD = bytes(range(256)) * 8  # 2048 octets reconnaissables
 
 class Upstream(BaseHTTPRequestHandler):
     """Faux serveur de carte en ligne : sert PAYLOAD par tranches."""
+    hits = 0
+
     def do_GET(self):
+        Upstream.hits += 1
         m = re.fullmatch(r"bytes=(\d+)-(\d+)", self.headers.get("Range", ""))
         a, b = (int(m.group(1)), min(int(m.group(2)), len(PAYLOAD) - 1)) if m else (0, len(PAYLOAD) - 1)
         body = PAYLOAD[a:b + 1]
@@ -94,6 +97,22 @@ class OnlineRelayTests(HttpCase):
         status, headers, body = self.get("/enligne/en-ligne", "bytes=100-199")
         self.assertEqual((status, body), (206, PAYLOAD[100:200]))
         self.assertEqual(headers["Content-Range"], "bytes 100-199/2048")
+
+    def test_a_repeated_range_is_served_from_memory(self):
+        self.get("/enligne/en-ligne", "bytes=300-399")
+        avant = Upstream.hits
+        status, _, body = self.get("/enligne/en-ligne", "bytes=300-399")
+        self.assertEqual((status, body, Upstream.hits), (206, PAYLOAD[300:400], avant))
+
+    def test_the_memory_is_bounded(self):
+        server._relais_cache.clear(); server._relais_taille = 0
+        ancien, server.RELAIS_CACHE_MAX = server.RELAIS_CACHE_MAX, 250
+        try:
+            for debut in (0, 100, 200, 300):
+                self.get("/enligne/en-ligne", f"bytes={debut}-{debut + 99}")
+            self.assertLessEqual(server._relais_taille, 250)
+        finally:
+            server.RELAIS_CACHE_MAX = ancien
 
     def test_requires_an_explicit_bounded_range(self):
         for rng in (None, "bytes=0-", "bytes=-10", "bytes=50-10", f"bytes=0-{server.MAX_RELAIS + 5}"):

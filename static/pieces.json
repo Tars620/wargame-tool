@@ -1,18 +1,108 @@
 {
-  "note": "Valeurs de départ : paramètres de jeu modifiables sur chaque pièce, pas des données officielles. mouvement = vitesse en km/h (min et max) ; feu = portée en km et puissance destructrice de 0 à 10 ; vision = rayon en km.",
+  "note": "Valeurs de départ : paramètres de jeu modifiables sur chaque pièce, pas des données officielles. mouvement = vitesse en km/h (min et max) ; feu = portée en km et puissance destructrice de 0 à 10 ; vision = rayon en km. meteo_max = limites d'emploi (vent en km/h) : dépassées, la consigne est signalée.",
   "pieces": [
-    { "id": "uav-reco", "nom": "UAV de reconnaissance", "icone": "uav",
-      "mouvement": { "min": 60, "max": 120 }, "feu": { "portee_km": 0, "puissance": 0 }, "vision": { "rayon_km": 15 } },
-    { "id": "uav-arme", "nom": "UAV armé", "icone": "uav",
-      "mouvement": { "min": 60, "max": 150 }, "feu": { "portee_km": 10, "puissance": 4 }, "vision": { "rayon_km": 8 } },
-    { "id": "fantassin", "nom": "Fantassin", "icone": "infanterie",
-      "mouvement": { "min": 4, "max": 6 }, "feu": { "portee_km": 0.5, "puissance": 2 }, "vision": { "rayon_km": 1.5 } },
-    { "id": "blinde", "nom": "Véhicule blindé", "icone": "blinde",
-      "mouvement": { "min": 50, "max": 70 }, "feu": { "portee_km": 3, "puissance": 6 }, "vision": { "rayon_km": 3 } },
-    { "id": "artillerie", "nom": "Artillerie", "icone": "artillerie",
-      "mouvement": { "min": 30, "max": 60 }, "feu": { "portee_km": 30, "puissance": 8 }, "vision": { "rayon_km": 1 } },
-    { "id": "guerre-electronique", "nom": "Guerre électronique", "icone": "guerre-electronique",
-      "mouvement": { "min": 30, "max": 60 }, "feu": { "portee_km": 0, "puissance": 0 }, "vision": { "rayon_km": 10 },
-      "avertissement": "L'effet de brouillage n'est pas encore modélisé : la pièce n'a ni feu ni effet sur les autres pour l'instant." }
+    {
+      "id": "uav-reco",
+      "nom": "UAV de reconnaissance",
+      "icone": "uav",
+      "mouvement": {
+        "min": 60,
+        "max": 120
+      },
+      "feu": {
+        "portee_km": 0,
+        "puissance": 0
+      },
+      "vision": {
+        "rayon_km": 15
+      },
+      "meteo_max": {
+        "vent_kmh": 45
+      }
+    },
+    {
+      "id": "uav-arme",
+      "nom": "UAV armé",
+      "icone": "uav",
+      "mouvement": {
+        "min": 60,
+        "max": 150
+      },
+      "feu": {
+        "portee_km": 10,
+        "puissance": 4
+      },
+      "vision": {
+        "rayon_km": 8
+      },
+      "meteo_max": {
+        "vent_kmh": 45
+      }
+    },
+    {
+      "id": "fantassin",
+      "nom": "Fantassin",
+      "icone": "infanterie",
+      "mouvement": {
+        "min": 4,
+        "max": 6
+      },
+      "feu": {
+        "portee_km": 0.5,
+        "puissance": 2
+      },
+      "vision": {
+        "rayon_km": 1.5
+      }
+    },
+    {
+      "id": "blinde",
+      "nom": "Véhicule blindé",
+      "icone": "blinde",
+      "mouvement": {
+        "min": 50,
+        "max": 70
+      },
+      "feu": {
+        "portee_km": 3,
+        "puissance": 6
+      },
+      "vision": {
+        "rayon_km": 3
+      }
+    },
+    {
+      "id": "artillerie",
+      "nom": "Artillerie",
+      "icone": "artillerie",
+      "mouvement": {
+        "min": 30,
+        "max": 60
+      },
+      "feu": {
+        "portee_km": 30,
+        "puissance": 8
+      },
+      "vision": {
+        "rayon_km": 1
+      }
+    },
+    {
+      "id": "guerre-electronique",
+      "nom": "Guerre électronique",
+      "icone": "guerre-electronique",
+      "mouvement": {
+        "min": 30,
+        "max": 60
+      },
+      "feu": {
+        "portee_km": 0,
+        "puissance": 0
+      },
+      "vision": {
+        "rayon_km": 10
+      },
+      "avertissement": "L'effet de brouillage n'est pas encore modélisé : la pièce n'a ni feu ni effet sur les autres pour l'instant."
+    }
   ]
 }

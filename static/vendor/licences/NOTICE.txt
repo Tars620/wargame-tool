@@ -5,3 +5,5 @@ Bibliothèques copiées dans static/vendor (versions figées, intégrité npm v�
 Données cartographiques : © OpenStreetMap contributors (ODbL), via Protomaps Basemap.
 Imagerie : NASA GIBS (VIIRS) ; Sentinel-2 cloudless by EOX IT Services GmbH (contient des données Copernicus Sentinel modifiées, CC BY-NC-SA 4.0 : usage non commercial).
 Relief : Mapzen/AWS Terrain Tiles (sources SRTM, GMTED, NED et autres, voir https://github.com/tilezen/joerd/blob/master/docs/attribution.md).
+- tz-lookup 6.1.25  CC0-1.0 (static/vendor/tz.js, fuseau horaire d'un point : fonction globale tzlookup(lat, lng))
+Météo : Open-Meteo (https://open-meteo.com, usage non commercial, CC BY 4.0) ; radar : RainViewer.

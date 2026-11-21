@@ -15,7 +15,7 @@ const ICONES = { // tracés dans un cadre 24 x 24 ; le cadre rectangulaire est d
 };
 
 const state = { catalogue: [], pieces: [], camp: 'bleu', arme: null, selection: null, portees: 'selection', map: null,
-  marqueurs: new Map(), racine: null };
+  marqueurs: new Map(), racine: null, visibles: null };
 
 // ---------- utilitaires DOM ----------
 function h(tag, props = {}, ...kids) {
@@ -78,7 +78,8 @@ export function layerSpecs() {
 }
 
 export function collection() {
-  const visibles = state.portees === 'toutes' ? state.pieces : state.portees === 'selection' ? state.pieces.filter((p) => p.id === state.selection) : [];
+  const montrees = state.pieces.filter(estVisible);
+  const visibles = state.portees === 'toutes' ? montrees : state.portees === 'selection' ? montrees.filter((p) => p.id === state.selection) : [];
   const features = [];
   for (const p of visibles) {
     const proprietes = { camp: p.camp, id: p.id };
@@ -122,9 +123,9 @@ function creer(type, lngLat) {
   const modele = state.catalogue.find((m) => m.id === type);
   const numero = state.pieces.filter((p) => p.type === type).length + 1;
   const p = { id: newId(), type, icone: modele.icone, nom: `${modele.nom} ${numero}`, camp: state.camp, lng: lngLat.lng, lat: lngLat.lat,
-    mouvement: { ...modele.mouvement }, feu: { ...modele.feu }, vision: { ...modele.vision }, dernier_deplacement: null };
+    mouvement: { ...modele.mouvement }, feu: { ...modele.feu }, vision: { ...modele.vision }, meteo_max: modele.meteo_max ? { ...modele.meteo_max } : null, dernier_deplacement: null };
   state.pieces = [...state.pieces, p];
-  sauver(); ajouterMarqueur(p); choisir(p.id);
+  sauver(); ajouterMarqueur(p); choisir(p.id); signaler();
 }
 
 function deplacer(id, depart, arrivee) {
@@ -132,7 +133,7 @@ function deplacer(id, depart, arrivee) {
   if (!p || !depart) return;
   const km = distanceKm(depart, arrivee);
   maj(id, { lng: arrivee[0], lat: arrivee[1], dernier_deplacement: km < 0.001 ? null : { km, trace: [depart, arrivee] } });
-  rafraichirCarte(); dessinerFiche();
+  rafraichirCarte(); dessinerFiche(); signaler();
 }
 
 function supprimer(id) {
@@ -142,12 +143,13 @@ function supprimer(id) {
   state.pieces = state.pieces.filter((p) => p.id !== id);
   sauver();
   if (state.selection === id) state.selection = null;
-  rafraichirCarte(); dessinerFiche();
+  rafraichirCarte(); dessinerFiche(); signaler();
 }
 
 function choisir(id) {
   state.selection = id;
   if (id) document.dispatchEvent(new CustomEvent('wg:selection', { detail: 'piece' }));
+  document.dispatchEvent(new CustomEvent('wg:piece', { detail: { id } }));
   majMarqueurs(); rafraichirCarte(); dessinerFiche();
 }
 
@@ -230,6 +232,33 @@ function dessinerOptions() {
   h('button', { class: 'danger', type: 'button', onclick: () => { if (state.pieces.length && confirm('Retirer toutes les pièces de la carte ?')) [...state.pieces].forEach((p) => supprimer(p.id)); } }, 'Tout effacer'));
 }
 
+// ---------- interface pour les consignes ----------
+const estVisible = (p) => !state.visibles || state.visibles.has(p.id);
+function signaler() { document.dispatchEvent(new CustomEvent('wg:pieces')); }
+
+export const listerPieces = () => state.pieces.map((p) => ({ ...p }));
+export const pieceChoisie = () => state.selection;
+export const choisirPiece = (id) => choisir(id);
+
+/** Déplace une pièce par programme (exécution d'une consigne). `trace` garde le point de départ pour le tracé. */
+export function positionner(id, [lng, lat], trace = null) {
+  const p = piece(id);
+  if (!p) return;
+  const depart = trace || [p.lng, p.lat];
+  maj(id, { lng, lat, dernier_deplacement: trace ? { km: distanceKm(depart, [lng, lat]), trace: [depart, [lng, lat]] } : p.dernier_deplacement });
+  const m = state.marqueurs.get(id);
+  if (m) m.setLngLat([lng, lat]);
+}
+
+/** Limite l'affichage aux pièces dont l'identifiant est dans `ids` (point de vue d'un camp). null = tout voir. */
+export function appliquerVisibilite(ids) {
+  state.visibles = ids;
+  for (const p of state.pieces) { const m = state.marqueurs.get(p.id); if (m) m.getElement().style.display = estVisible(p) ? '' : 'none'; }
+  rafraichirCarte();
+}
+
+export function rafraichir() { rafraichirCarte(); dessinerFiche(); }
+
 // ---------- montage ----------
 export async function monter(map) {
   state.map = map;
@@ -237,7 +266,10 @@ export async function monter(map) {
   state.catalogue = (await reponse.json()).pieces;
   state.pieces = charger();
   for (const p of state.pieces) ajouterMarqueur(p);
-  map.on('click', (e) => { if (state.arme) creer(state.arme, e.lngLat); else if (state.selection) choisir(null); });
+  map.on('click', (e) => {
+    if (document.body.dataset.pointage === 'oui') return; // une consigne est en cours de pointage sur la carte
+    if (state.arme) creer(state.arme, e.lngLat); else if (state.selection) choisir(null);
+  });
   document.addEventListener('keydown', (e) => {
     const saisie = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement && document.activeElement.tagName);
     if (e.key === 'Escape' && state.arme) armer(state.arme);

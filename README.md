@@ -25,6 +25,22 @@ Ajouter une zone : `scripts/extraire_zone.sh baltique 9,53,30,61 12` (outil `too
   Double-clic ou Entrée termine, Retour arrière retire le dernier point, Échap annule. Dessin sélectionné :
   glisser les carrés pour déplacer un point, clic droit pour en retirer un. Enregistrés dans le navigateur.
 
+## Temps, météo et consignes (`/carte`)
+- **Temps de jeu** : une seule horloge, qui suit l'heure réelle au départ. Lecture, pause, vitesses ×1 à ×1800,
+  réglage de l'heure (saisie en heure de Paris), retour à l'heure réelle. En haut : heure de Paris et heure locale
+  du centre de la carte (fuseau trouvé par `tz-lookup`), affichée dès le zoom 3.
+- **Météo** : radar de pluie en temps réel (RainViewer) ; vent et température prévus **à l'heure de jeu** sur une
+  grille de 35 points (Open-Meteo, usage non commercial) ; fiche des conditions au centre. Données disponibles
+  du 20/08 au 06/12/2026 (fenêtre glissante) : hors de cette plage, la page le dit.
+- **Consignes** (panneau de droite) : par pièce, *aller à* (un point ou un itinéraire, allure prudente / normale /
+  maximale = vitesse min / moyenne / max), *observer* (durée), *engager* (la pièce s'approche jusqu'à sa portée
+  puis tire ; **le résultat du tir est laissé à l'arbitre**). Chaque consigne est vérifiée selon les capacités de la
+  pièce (vitesse, feu, portée, limite de vent des UAV) et donne distance, durée et heure d'arrivée prévue (Paris).
+  « Lancer l'opération » exécute les consignes avec l'horloge de jeu ; contacts (vision), départs, arrivées et tirs
+  vont au journal des opérations. « Point de vue » : l'arbitre voit tout, un camp ne voit que ses pièces et ce que
+  leur vision révèle. « Revenir au départ » rétablit les positions d'avant le lancement.
+- Logique pure et testée : `static/moteur.js` (faisabilité, déplacement, contacts), `static/fuseaux.js` (heures).
+
 ## Pièces (`/carte`, panneau de droite)
 Banque de six pièces (UAV de reconnaissance, UAV armé, fantassin, véhicule blindé, artillerie, guerre électronique),
 définies dans `static/pieces.json`. Choisir un camp et une pièce, puis cliquer sur la carte pour la poser.
@@ -36,6 +52,8 @@ Les valeurs du catalogue sont des paramètres de jeu de départ, pas des donnée
 La guerre électronique n'a pas encore d'effet de brouillage.
 
 ## Limites connues
+- Pièces, consignes et journal des opérations sont gardés dans le navigateur : ni partagés entre postes, ni encore
+  reliés au journal de partie. Les tirs ne causent aucun dégât (arbitrage humain) ; la météo ne limite que le vent des UAV.
 - **Pas entièrement hors ligne** : le plan l'est (géométrie), mais le relief, les satellites et les polices des noms
   de lieux sont chargés depuis Internet.
 - Sentinel-2 : licence CC BY-NC-SA (usage non commercial). OpenStreetMap : ODbL (mention obligatoire).

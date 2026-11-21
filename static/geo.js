@@ -74,3 +74,20 @@ export function formatSurface(km2) {
   if (km2 < 1) return `${Math.round(km2 * 100 * 10) / 10} ha`.replace('.', ',');
   return `${km2 < 100 ? km2.toFixed(1) : Math.round(km2)} km²`.replace('.', ',');
 }
+
+/** Cap initial (degrés, 0 = nord, sens horaire) pour aller de `a` vers `b`. */
+export function capVers([lng1, lat1], [lng2, lat2]) {
+  const phi1 = rad(lat1);
+  const phi2 = rad(lat2);
+  const dLng = rad(lng2 - lng1);
+  const y = Math.sin(dLng) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLng);
+  return (deg(Math.atan2(y, x)) + 360) % 360;
+}
+
+/** Avance de `km` en ligne droite de `a` vers `b`, sans jamais dépasser `b`. */
+export function pointVers(a, b, km) {
+  const reste = distanceKm(a, b);
+  if (km >= reste) return [b[0], b[1]];
+  return destination(a, capVers(a, b), Math.max(km, 0));
+}

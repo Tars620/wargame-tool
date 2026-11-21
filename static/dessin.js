@@ -209,7 +209,7 @@ export function monter(map) {
   state.dessins = charger();
   map.on('click', (e) => {
     if (state.outil !== 'selection') { ajouterPoint(e.lngLat); return; }
-    if (document.body.dataset.pieceArmee === 'oui') return;
+    if (document.body.dataset.pieceArmee === 'oui' || document.body.dataset.pointage === 'oui') return;
     const { x, y } = e.point;
     const trouves = map.queryRenderedFeatures([[x - MARGE_CLIC_PX, y - MARGE_CLIC_PX], [x + MARGE_CLIC_PX, y + MARGE_CLIC_PX]], { layers: SELECTABLES });
     const id = trouves.length ? trouves[0].properties.id : null;

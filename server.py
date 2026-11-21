@@ -18,6 +18,7 @@ import ssl
 import threading
 import urllib.error
 import urllib.request
+from collections import OrderedDict
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -29,6 +30,10 @@ ZONES_FILE = os.path.join(HERE, "zones.json")
 CHUNK = 1024 * 1024
 MAX_RELAIS = 8 * 1024 * 1024  # taille maximale d'une tranche relayée depuis une carte en ligne
 CERTIFICATS = "/etc/ssl/cert.pem"
+RELAIS_CACHE_MAX = 128 * 1024 * 1024  # mémoire gardée pour les tranches déjà relayées
+_relais_cache = OrderedDict()
+_relais_taille = 0
+_relais_verrou = threading.Lock()
 GENESIS = "0" * 64
 MAX_TEXT = 4000
 MAX_BODY = 64 * 1024
@@ -416,6 +421,27 @@ def list_zones():
     return zones
 
 
+def _cache_lire(cle):
+    with _relais_verrou:
+        valeur = _relais_cache.get(cle)
+        if valeur is not None:
+            _relais_cache.move_to_end(cle)
+        return valeur
+
+
+def _cache_ecrire(cle, valeur):
+    """Mémoire bornée : on retire les entrées les plus anciennes au-delà de RELAIS_CACHE_MAX."""
+    global _relais_taille
+    with _relais_verrou:
+        if cle in _relais_cache:
+            return
+        _relais_cache[cle] = valeur
+        _relais_taille += len(valeur[0])
+        while _relais_taille > RELAIS_CACHE_MAX and _relais_cache:
+            _, ancien = _relais_cache.popitem(last=False)
+            _relais_taille -= len(ancien[0])
+
+
 # ---------- HTTP ----------
 class Handler(BaseHTTPRequestHandler):
     store = None
@@ -513,15 +539,21 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError(404 if not zone else 416, "Introuvable" if not zone else "Plage explicite requise")
         if int(m.group(2)) < int(m.group(1)) or int(m.group(2)) - int(m.group(1)) + 1 > MAX_RELAIS:
             raise ApiError(416, "Plage trop grande")
-        ctx = ssl.create_default_context(cafile=CERTIFICATS) if os.path.exists(CERTIFICATS) else ssl.create_default_context()
-        req = urllib.request.Request(zone[1]["url"], headers={"Range": f"bytes={m.group(1)}-{m.group(2)}", "User-Agent": "WargameLog/0.1"})
-        try:
-            with urllib.request.urlopen(req, timeout=30, context=ctx) as r:
-                data, status, content_range = r.read(MAX_RELAIS + 1), r.status, r.headers.get("Content-Range")
-        except (urllib.error.URLError, TimeoutError, OSError):
-            raise ApiError(502, "Carte en ligne indisponible")
-        if len(data) > MAX_RELAIS:
-            raise ApiError(502, "Réponse inattendue de la source")
+        cle = (key, m.group(1), m.group(2))
+        en_cache = _cache_lire(cle)
+        if en_cache:
+            data, status, content_range = en_cache
+        else:
+            ctx = ssl.create_default_context(cafile=CERTIFICATS) if os.path.exists(CERTIFICATS) else ssl.create_default_context()
+            req = urllib.request.Request(zone[1]["url"], headers={"Range": f"bytes={m.group(1)}-{m.group(2)}", "User-Agent": "WargameLog/0.1"})
+            try:
+                with urllib.request.urlopen(req, timeout=30, context=ctx) as r:
+                    data, status, content_range = r.read(MAX_RELAIS + 1), r.status, r.headers.get("Content-Range")
+            except (urllib.error.URLError, TimeoutError, OSError):
+                raise ApiError(502, "Carte en ligne indisponible")
+            if len(data) > MAX_RELAIS:
+                raise ApiError(502, "Réponse inattendue de la source")
+            _cache_ecrire(cle, (data, status, content_range))
         extra = {"Accept-Ranges": "bytes", "Cache-Control": "public, max-age=3600"}
         if content_range:
             extra["Content-Range"] = content_range
