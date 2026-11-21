@@ -33,7 +33,7 @@ function choixVoix() {
   const remplir = () => {
     const voix = voixFrancaises();
     liste.replaceChildren(
-      h('option', { value: '' }, 'Voix : automatique (Eddy, Reed, Thomas…)'),
+      h('option', { value: '' }, 'Voix : automatique (Reed)'),
       ...voix.map((v) => h('option', { value: v.name, selected: v.name === state.reglages.voix }, `${v.name} (${v.lang})`))
     );
     liste.value = voix.some((v) => v.name === state.reglages.voix) ? state.reglages.voix : '';

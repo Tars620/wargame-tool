@@ -125,6 +125,16 @@ export function collection() {
       for (const r of portees)
         features.push({ type: 'Feature', properties: { ...proprietes, genre: 'liaison' }, geometry: { type: 'LineString', coordinates: cercle(centre, r) } });
     }
+    if (exigePoste(p)) {
+      // le périmètre d'un drone : jusqu'où il peut s'éloigner de son équipe de pilotes (anneau autour de l'équipe)
+      const poste = etatLiaison(p, state.pieces).poste;
+      if (poste && !poste.detruit && estVisible(poste))
+        features.push({
+          type: 'Feature',
+          properties: { ...proprietes, genre: 'liaison' },
+          geometry: { type: 'LineString', coordinates: cercle([poste.lng, poste.lat], porteeLiaison(p, poste)) }
+        });
+    }
     if (rayonBrouillage(p) > 0)
       features.push({
         type: 'Feature',

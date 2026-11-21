@@ -67,8 +67,8 @@ export function surVoix(fn) {
   if (lectureDisponible()) window.speechSynthesis.addEventListener('voiceschanged', fn);
 }
 
-// Voix par défaut : des voix d'homme naturelles d'abord (Eddy, Reed, Thomas…), en français de France avant le canadien ; sinon la première voix française.
-const PREFEREES = ['Eddy', 'Reed', 'Thomas', 'Rocko', 'Grandpa', 'Jacques'];
+// Voix par défaut : Reed d'abord, puis d'autres voix d'homme naturelles (Eddy, Thomas…), en français de France avant le canadien ; sinon la première voix française.
+const PREFEREES = ['Reed', 'Eddy', 'Thomas', 'Rocko', 'Grandpa', 'Jacques'];
 function voixAutomatique(voix) {
   const fr = voix.filter((v) => v.lang && v.lang.toLowerCase().startsWith('fr'));
   for (const prenom of PREFEREES) {
