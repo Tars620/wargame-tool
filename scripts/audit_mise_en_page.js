@@ -30,7 +30,7 @@
   if (Math.abs(cb.r - (dOuvert ? db.x : W)) > 1.5) defauts.push(`carte : sa droite (${cb.r.toFixed(0)}) ne touche pas le panneau (${dOuvert ? db.x.toFixed(0) : W})`);
   for (const p of [g, d]) { const b = rect(p); if (Math.abs(b.y - hautVu) > 1) defauts.push(`${nom(p)} : son haut (${b.y.toFixed(0)}) n'est pas sous la barre (${hautVu.toFixed(0)})`); }
   // 4. rien ne dépasse de l'écran
-  for (const e of q('body *')) { if (e.closest('.maplibregl-map') || e.closest('.maplibregl-canvas-container')) continue; const b = rect(e); if (b.r > W + 1 || b.b > H + 1 || b.x < -1) { if (!e.closest('.panneau') || b.x >= -1) defauts.push(`hors écran : ${nom(e)} (${b.x.toFixed(0)}..${b.r.toFixed(0)}, ${b.y.toFixed(0)}..${b.b.toFixed(0)})`); } }
+  for (const e of q('body *')) { if (e.closest('.maplibregl-map') || e.closest('.maplibregl-canvas-container')) continue; const b = rect(e); const defile = (n) => { for (let p = n.parentElement; p; p = p.parentElement) if (/(auto|scroll)/.test(getComputedStyle(p).overflowY)) return true; return false; }; if (b.b > H + 1 && b.r <= W + 1 && b.x >= -1 && defile(e)) continue; if (b.r > W + 1 || b.b > H + 1 || b.x < -1) { if (!e.closest('.panneau') || b.x >= -1) defauts.push(`hors écran : ${nom(e)} (${b.x.toFixed(0)}..${b.r.toFixed(0)}, ${b.y.toFixed(0)}..${b.b.toFixed(0)})`); } }
   // 5. recouvrements entre éléments flottants sur la carte
   const flottants = q('.lecture, .maplibregl-ctrl-scale, .maplibregl-ctrl-attrib, .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group, .maplibregl-ctrl-top-left .maplibregl-ctrl, .maplibregl-ctrl-top-right .maplibregl-ctrl, #onglet-g, #onglet-d, .banniere');
   for (let i = 0; i < flottants.length; i += 1) for (let j = i + 1; j < flottants.length; j += 1) {

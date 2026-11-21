@@ -65,30 +65,43 @@ function tick() {
 // ---------- panneau « Temps de jeu » ----------
 function bouton(texte, onclick) { const b = document.createElement('button'); Object.assign(b, { type: 'button', textContent: texte }); b.addEventListener('click', onclick); return b; }
 
-/** Commandes du temps de jeu, dans la barre du haut : pause/lecture, vitesse, retour à l'heure réelle. */
+let basculerReglage = () => {};
+
+/** Commandes du temps de jeu : un seul bouton « Temps » dans la barre du haut ; il déroule pause/lecture, vitesse, retour à maintenant et réglage de l'heure. */
 function commandes() {
   const boite = $('temps-cmd');
   if (!boite || boite.dataset.pret) return;
   boite.dataset.pret = 'oui';
-  const bascule = bouton('Pause', () => (state.enMarche ? arreter() : demarrer()));
-  bascule.id = 'h-etat';
-  const vit = document.createElement('select');
-  vit.id = 'h-vitesse'; vit.setAttribute('aria-label', 'Vitesse du temps de jeu');
-  for (const [v, nom, aide] of VITESSES) vit.append(Object.assign(document.createElement('option'), { value: String(v), textContent: nom, title: aide }));
-  vit.addEventListener('change', () => reglerVitesse(Number(vit.value)));
-  const reel = bouton('Maintenant', heureReelle);
-  reel.dataset.tip = 'Revenir à l\'heure réelle, à vitesse normale';
-  boite.replaceChildren(bascule, vit, reel);
+  const principal = bouton('Temps', () => ouvrirMenu(menu.hidden));
+  principal.id = 'h-temps'; principal.setAttribute('aria-haspopup', 'menu'); principal.setAttribute('aria-expanded', 'false');
+  const menu = document.createElement('div');
+  menu.id = 'menu-temps'; menu.className = 'menu-temps'; menu.hidden = true; menu.setAttribute('role', 'menu');
+  const entree = (texte, onclick, id, extra = {}) => {
+    const b = bouton(texte, () => { onclick(); ouvrirMenu(false); });
+    b.setAttribute('role', extra.role || 'menuitem'); if (id) b.id = id; if (extra.vitesse) b.dataset.vitesse = String(extra.vitesse); if (extra.groupe) b.classList.add('debut-groupe');
+    return b;
+  };
+  const items = [entree('Pause', () => (state.enMarche ? arreter() : demarrer()), 'h-etat')];
+  VITESSES.forEach(([v, nom, aide], k) => { const b = entree(`${nom}  ${aide}`, () => reglerVitesse(v), null, { role: 'menuitemradio', vitesse: v, groupe: k === 0 }); items.push(b); });
+  items.push(entree('Maintenant', heureReelle, 'h-maintenant', { groupe: true }), entree('Régler la date et l\'heure…', () => basculerReglage(true), null));
+  menu.replaceChildren(...items);
+  boite.replaceChildren(principal, menu);
+  function ouvrirMenu(ouvert) {
+    menu.hidden = !ouvert; principal.setAttribute('aria-expanded', String(ouvert));
+    if (ouvert) majCommandes();
+  }
+  document.addEventListener('mousedown', (e) => { if (!menu.hidden && !boite.contains(e.target)) ouvrirMenu(false); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !menu.hidden) { ouvrirMenu(false); principal.focus(); } });
 }
 
 function majCommandes() {
   const b = $('h-etat');
   if (!b) return;
-  const texte = state.enMarche ? 'Pause' : 'Lecture';
+  const texte = state.enMarche ? 'Pause' : 'Reprendre';
   if (b.textContent !== texte) b.textContent = texte;
-  b.dataset.tip = state.enMarche ? 'Mettre le temps de jeu en pause' : 'Reprendre le temps de jeu';
-  const v = $('h-vitesse');
-  if (v && v.value !== String(state.vitesse) && document.activeElement !== v) v.value = String(state.vitesse);
+  for (const v of document.querySelectorAll('#menu-temps [data-vitesse]')) v.setAttribute('aria-checked', String(Number(v.dataset.vitesse) === state.vitesse));
+  const principal = $('h-temps');
+  if (principal) principal.dataset.etat = state.enMarche ? 'marche' : 'pause';
 }
 
 /** Réglage d'une date et d'une heure précises (heure de Paris) : s'ouvre en cliquant l'heure de Paris. */
@@ -100,12 +113,13 @@ function reglageHeure() {
   const appliquer = () => { const ms = parisVersMs(saisie.value); if (ms !== null) { regler(ms); fermer(); } };
   saisie.addEventListener('keydown', (e) => { if (e.key === 'Enter') appliquer(); else if (e.key === 'Escape') fermer(); });
   fenetre.replaceChildren(saisie, bouton('Régler', appliquer), Object.assign(document.createElement('p'), { className: 'note', textContent: 'Heure de Paris.' }));
-  $('horloges').addEventListener('click', (e) => {
-    if (estJoueur() || !e.target.closest('.h-paris')) return;
-    fenetre.hidden = !fenetre.hidden;
+  basculerReglage = (ouvrir) => {
+    if (estJoueur()) return;
+    fenetre.hidden = ouvrir === undefined ? !fenetre.hidden : !ouvrir;
     if (!fenetre.hidden) { saisie.value = msVersParis(maintenant()); saisie.focus(); }
-  });
-  document.addEventListener('mousedown', (e) => { if (!fenetre.hidden && !fenetre.contains(e.target) && !e.target.closest('.h-paris')) fermer(); });
+  };
+  $('horloges').addEventListener('click', (e) => { if (e.target.closest('.h-paris')) basculerReglage(); });
+  document.addEventListener('mousedown', (e) => { if (!fenetre.hidden && !fenetre.contains(e.target) && !e.target.closest('.h-paris') && !e.target.closest('#menu-temps')) fermer(); });
 }
 
 export function monter(map) {

@@ -96,12 +96,18 @@ details[open] > summary::before { transform: rotate(45deg); margin-bottom: 4px; 
 .ligne-meteo { margin: 2px 0; color: var(--texte); font-size: var(--t-base); }
 #scenario-panneau { display: grid; gap: 4px; }
 /* commandes du temps de jeu et thème : cellules collées, pleine hauteur de la barre */
-.temps-cmd, .seg { display: flex; align-self: stretch; margin: 0; }
-.temps-cmd { margin-left: 2px; }
-.temps-cmd > button, .temps-cmd > select, .seg > button { height: 100%; border: 0; padding: 0 14px; background: transparent; font-size: var(--t-sm); white-space: nowrap; }
-.temps-cmd > select { width: 64px; appearance: none; -webkit-appearance: none; text-align: center; text-align-last: center; padding: 0 6px; color: var(--texte); }
-.temps-cmd > button:hover, .temps-cmd > select:hover, .seg > button:hover { background: var(--panneau-2); }
-.temps-cmd [data-tip]:hover::after { right: 0; left: auto; }
+.temps-cmd, .seg { display: flex; align-self: stretch; margin: 0; position: relative; }
+.temps-cmd { margin-left: 2px; position: relative; }
+.temps-cmd > button, .seg > button { height: 100%; border: 0; padding: 0 14px; background: transparent; font-size: var(--t-sm); white-space: nowrap; }
+.temps-cmd > button:hover, .seg > button:hover, .temps-cmd > button[aria-expanded=true], .seg > button[aria-expanded=true] { background: var(--panneau-2); }
+.temps-cmd > button::after, .seg > button::after { content: ''; display: inline-block; margin: 0 0 2px 8px; border: 4px solid transparent; border-top-color: var(--texte-2); border-bottom-width: 0; }
+.temps-cmd > button[data-etat=pause] { color: var(--accent); }
+.menu-temps { position: absolute; top: 100%; right: 0; z-index: 14; min-width: 230px; display: flex; flex-direction: column; padding: 4px 0; background: var(--panneau); border: 1px solid var(--trait-fort); border-top: 0; }
+.menu-temps[hidden] { display: none; }
+.menu-temps button { display: block; width: 100%; height: 30px; padding: 0 14px; border: 0; background: transparent; text-align: left; font-size: var(--t-base); white-space: pre; }
+.menu-temps button:hover { background: var(--panneau-2); }
+.menu-temps .debut-groupe { margin-top: 6px; }
+.menu-temps button[aria-checked=true] { color: var(--accent); box-shadow: inset 2px 0 0 var(--accent); }
 .reglage-heure { position: fixed; top: var(--barre-h); right: 0; z-index: 12; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 6px; background: var(--panneau); border: 1px solid var(--trait-fort); border-top: 0; }
 .reglage-heure[hidden] { display: none; }
 .reglage-heure input { width: 190px; padding: 5px 8px; border: 1px solid var(--trait); background: var(--fond); color: var(--texte); font: inherit; color-scheme: dark; }
