@@ -80,6 +80,16 @@ class VueFiltree(Base):
         for jeton in (self.bleu, self.rouge, self.arb):
             self.assertEqual(self.carte.vue(self.code, jeton)["coupures"], coupures)
 
+    def test_les_impacts_sont_publics_pour_les_deux_camps_et_la_reinitialisation_les_vide(self):
+        impacts = [{"lng": 37.5, "lat": 48.5, "rayonM": 40, "genre": "frappe", "t": 1}]
+        self.publier({**ETAT, "impacts": impacts})
+        for jeton in (self.bleu, self.rouge, self.arb):
+            self.assertEqual(self.carte.vue(self.code, jeton)["impacts"], impacts)
+        self.publier({"pieces": [], "ordres": {}, "dessins": [], "coupures": [], "impacts": []})
+        for jeton in (self.bleu, self.rouge, self.arb):
+            v = self.carte.vue(self.code, jeton)
+            self.assertEqual((v["pieces"], v["impacts"], v["coupures"]), ([], [], []))
+
     def test_la_liste_des_detections_n_est_pas_envoyee_au_joueur(self):
         self.publier()
         v = self.carte.vue(self.code, self.bleu)

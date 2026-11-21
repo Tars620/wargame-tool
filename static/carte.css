@@ -65,6 +65,22 @@ button:hover { border-color: var(--accent); }
 /* Le mât et le cadre des symboles sont noirs : en thème sombre un fin liseré clair les garde lisibles. */
 :root:not([data-theme=clair]) .symbole svg { filter: drop-shadow(0 0 .7px #fff) drop-shadow(0 0 .7px #fff); }
 .pion.choisi { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Drone en vol : le symbole est en altitude, relié par un fil à son ombre posée sur le sol (le pion est ancré au sol). */
+.pion.en-vol .symbole { position: relative; transform: translateY(-26px); animation: vol 3.2s ease-in-out infinite; filter: drop-shadow(0 6px 5px rgba(0,0,0,.45)); }
+.pion.en-vol::before { content: ''; position: absolute; left: 50%; top: 50%; width: 1px; height: 26px; transform: translate(-50%, -100%); background: linear-gradient(to top, transparent, var(--c)); opacity: .85; }
+.pion.en-vol::after { content: ''; position: absolute; left: 50%; top: 50%; width: 16px; height: 6px; transform: translate(-50%, -50%); background: radial-gradient(ellipse at center, rgba(0,0,0,.55), transparent 70%); border-radius: 50% !important; }
+.pion.en-vol.choisi { outline: 0; } .pion.en-vol.choisi .symbole { outline: 2px solid var(--accent); outline-offset: 2px; }
+@keyframes vol { 0%, 100% { transform: translateY(-26px); } 50% { transform: translateY(-29px); } }
+
+/* Impacts : boule de feu et onde, puis le cratère reste (couche carte). */
+.impact-flash { width: 0; height: 0; pointer-events: none; --s: 1; }
+.impact-flash.impact-tir { --s: .55; } .impact-flash.impact-zone { --s: 1.25; }
+.impact-flash i, .impact-flash b { position: absolute; left: 0; top: 0; transform: translate(-50%, -50%) scale(.2); border-radius: 50% !important; }
+.impact-flash i { width: 84px; height: 84px; background: radial-gradient(circle, #fff 0%, #ffd27a 22%, #ff7a1a 48%, rgba(255,60,0,0) 70%); animation: boule 1.1s ease-out forwards; }
+.impact-flash b { width: 84px; height: 84px; border: 2px solid #ffb347; animation: onde 1.6s ease-out forwards; }
+@keyframes boule { 0% { transform: translate(-50%, -50%) scale(calc(.2 * var(--s))); opacity: 1; } 35% { opacity: 1; } 100% { transform: translate(-50%, -50%) scale(calc(1.5 * var(--s))); opacity: 0; } }
+@keyframes onde { 0% { transform: translate(-50%, -50%) scale(calc(.3 * var(--s))); opacity: .9; } 100% { transform: translate(-50%, -50%) scale(calc(2.8 * var(--s))); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .pion.en-vol .symbole, .impact-flash i, .impact-flash b { animation-duration: .01s; } }
 
 details { border-top: 1px solid var(--trait); padding: 0 0 6px; }
 details:first-of-type { border-top: 0; }
@@ -159,6 +175,7 @@ html[data-role=joueur] { --outils-h: 0px; }
 html[data-role=joueur] [data-arbitre] { display: none !important; }
 .lien-partie { display: grid; grid-template-columns: 52px 1fr auto; gap: 6px; align-items: center; margin: 4px 0; font-size: var(--t-sm); }
 .lien-partie input { font-size: var(--t-xs); padding: 4px 6px; }
+.partie-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; } .partie-actions button { padding: 4px 6px; font-size: var(--t-sm); } .partie-actions .danger { margin-top: 0; width: auto; }
 .lien-partie button { padding: 3px 8px; font-size: var(--t-xs); }
 .banniere { position: fixed; top: calc(var(--haut) + 10px); left: 50%; transform: translateX(-50%); z-index: 6; padding: 8px 14px; background: var(--panneau-2); color: var(--texte); border: 1px solid var(--trait-fort); font-size: var(--t-sm); }
 .entree { position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: color-mix(in srgb, var(--fond) 92%, transparent); }

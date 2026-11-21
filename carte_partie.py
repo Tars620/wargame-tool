@@ -48,6 +48,7 @@ def etat_nettoye(brut):
         "ordres": {str(k): v for k, v in ordres.items() if isinstance(v, list)},
         "dessins": _liste(brut.get("dessins"), 2000),
         "coupures": _liste(brut.get("coupures"), 500),
+        "impacts": _liste(brut.get("impacts"), 100),
         "horloge": {k: horloge[k] for k in ("ms", "vitesse", "enMarche") if k in horloge} if horloge else None,
         "visibles": {c: [i for i in visibles.get(c, []) if isinstance(i, str)] for c in ("bleu", "rouge") if isinstance(visibles.get(c), list)},
     }
@@ -57,7 +58,7 @@ def vue_pour(etat, kind, side):
     """La vue d'un participant. L'arbitre reçoit tout (sauf rien) ; un joueur : ses pièces, les adverses détectées, ses ordres, ses tracés."""
     if kind == "adjudicator":
         return {"horloge": etat.get("horloge"), "pieces": etat.get("pieces", []), "ordres": etat.get("ordres", {}),
-                "dessins": etat.get("dessins", []), "coupures": etat.get("coupures", []), "visibles": etat.get("visibles", {})}
+                "dessins": etat.get("dessins", []), "coupures": etat.get("coupures", []), "impacts": etat.get("impacts", []), "visibles": etat.get("visibles", {})}
     pieces = etat.get("pieces", [])
     detectees = set((etat.get("visibles") or {}).get(side) or [])
     propres = [p for p in pieces if p.get("camp") == side]
@@ -66,7 +67,7 @@ def vue_pour(etat, kind, side):
     return {"horloge": etat.get("horloge"), "pieces": propres + adverses,
             "ordres": {pid: file for pid, file in (etat.get("ordres") or {}).items() if pid in ids},
             "dessins": [d for d in etat.get("dessins", []) if d.get("camp") in (side, "neutre")],
-            "coupures": etat.get("coupures", [])}  # un cratère sur une route se voit des deux camps
+            "coupures": etat.get("coupures", []), "impacts": etat.get("impacts", [])}  # un cratère sur une route se voit des deux camps
 
 
 def _nombre(x, mini, maxi):

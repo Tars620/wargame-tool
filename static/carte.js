@@ -1,5 +1,6 @@
 import * as maplibre from './vendor/maplibre-gl.mjs';
 import { layers, namedFlavor } from './vendor/protomaps-basemaps.mjs';
+import { SOURCE_IMPACTS, collection as impactsGeojson, layerSpecs as impactsCouches, monter as monterImpacts } from './impacts.js';
 import { monter as monterPieces, collection as piecesGeojson, layerSpecs as piecesCouches, SOURCE_ID as PIECES_SOURCE, piecesRetirees } from './pieces.js';
 import { assembler, valider, versGeoJSON, TAILLE_MAX_OCTETS, CLES_STOCK } from './scenario.js';
 import { preparerRole, remplirPanneau, demarrerSynchronisation } from './partie-ui.js';
@@ -70,6 +71,8 @@ const THEMES = {
       bridges_minor: '#3b3e45', bridges_major: '#51545c', bridges_highway: '#62656e', railway: '#3a3d44', buildings: '#101114'
     },
     frontPlan: '#a3a6b0',
+    ciel: { 'sky-color': '#070b14', 'horizon-color': '#1c2740', 'fog-color': '#0a0d14', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.7, 'fog-ground-blend': 0.35 },
+    batiment: '#2b2e36',
     relief: { shadow: '#000000', highlight: '#5a5d66', accent: '#1d1e22' }
   },
   clair: {
@@ -77,6 +80,8 @@ const THEMES = {
     base: 'light',
     reglages: { background: '#eceef2', water: '#c8d4e2', earth: '#f7f7f5' },
     frontPlan: '#5f6168',
+    ciel: { 'sky-color': '#7fb2ec', 'horizon-color': '#dbe8f5', 'fog-color': '#e9eef4', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.7, 'fog-ground-blend': 0.35 },
+    batiment: '#d4d0c8',
     relief: { shadow: '#3a3c42', highlight: '#ffffff', accent: '#a0a3ab' }
   }
 };
@@ -141,6 +146,29 @@ function plan(labels) {
   const couches = frontieres(vecteur(flavor()), THEMES[state.theme].frontPlan);
   return labels ? couches : couches.filter((l) => !isOverlay(l));
 }
+
+/** Bâtiments en volume (3D seulement) : hauteur du relevé, sinon une hauteur moyenne. */
+function batiments() {
+  return {
+    id: 'batiments-3d',
+    type: 'fill-extrusion',
+    source: 'protomaps',
+    'source-layer': 'buildings',
+    minzoom: 13,
+    paint: {
+      'fill-extrusion-color': THEMES[state.theme].batiment,
+      'fill-extrusion-height': ['coalesce', ['get', 'height'], 9],
+      'fill-extrusion-base': ['coalesce', ['get', 'min_height'], 0],
+      'fill-extrusion-opacity': 0.92,
+      'fill-extrusion-vertical-gradient': true
+    }
+  };
+}
+/** Les bâtiments se posent avant les noms et frontières : on les insère avant la première couche de texte. */
+const batimentsIndice = (couches) => {
+  const i = couches.findIndex((l) => l.type === 'symbol');
+  return i < 0 ? couches.length : i;
+};
 
 function hillshade() {
   const r = THEMES[state.theme].relief;
@@ -213,8 +241,13 @@ function buildStyle() {
   style.sources[SOURCE_DESSINS] = { type: 'geojson', data: dessinsGeojson() };
   style.sources[SOURCE_BROUILLON] = { type: 'geojson', data: collectionBrouillon() };
   style.sources[PIECES_SOURCE] = { type: 'geojson', data: piecesGeojson() };
-  style.layers = [...style.layers, ...meteo.layers, ...dessinsCouches(), ...consignesCouches(), ...piecesCouches()];
-  if (state.relief3d) style.terrain = { source: 'dem', exaggeration: exageration };
+  style.sources[SOURCE_IMPACTS] = { type: 'geojson', data: impactsGeojson() };
+  style.layers = [...style.layers, ...meteo.layers, ...dessinsCouches(), ...impactsCouches(), ...consignesCouches(), ...piecesCouches()];
+  if (state.relief3d) {
+    style.terrain = { source: 'dem', exaggeration: exageration };
+    style.sky = THEMES[state.theme].ciel;
+    if (style.sources.protomaps && state.fond !== 'nasa' && state.fond !== 's2') style.layers.splice(batimentsIndice(style.layers), 0, batiments());
+  }
   return style;
 }
 
@@ -272,6 +305,7 @@ function createMap() {
     monterDessin(map);
     configurerTerrain(state.zone, urlZone(state.zone));
     monterTerrain(map, 'portee-vision-fond');
+    monterImpacts(map);
     monterPieces(map)
       .then(() => {
         monterOrdres(map);
@@ -317,7 +351,7 @@ async function render() {
 }
 
 function setPitch() {
-  state.map && state.map.easeTo({ pitch: state.relief3d ? PITCH_3D : 0, duration: 600 });
+  state.map && state.map.easeTo({ pitch: state.relief3d ? PITCH_3D : 0, bearing: state.relief3d ? -20 : 0, duration: 1200 });
 }
 
 function flyToZone() {

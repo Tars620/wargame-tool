@@ -1,12 +1,13 @@
 // Partie en ligne côté interface : choix du rôle au chargement, badge, panneau de création et d'invitation, boucles de synchronisation.
 import { role } from './role.js';
-import { init, entrer, creer, liens, tunnel, etatPublie, demarrerArbitre, demarrerJoueur, surProbleme } from './partie.js';
+import { init, entrer, creer, liens, tunnel, etatPublie, demarrerArbitre, demarrerJoueur, surProbleme, suspendre, publierEtat, annoncer } from './partie.js';
 import { listerPieces, remplacerPieces } from './pieces.js';
 import { etatOrdres, traiterCommande, remplacerOrdres, remplacerJournal, resultatsOrdres } from './ordres.js';
 import { listerDessins, remplacerDessins } from './dessin.js';
 import { maintenant, enMarche, vitesse, synchroniserHorloge } from './temps.js';
 import { visiblesPour } from './moteur.js';
 import { terrain } from './terrain-carte.js';
+import { listerImpacts, remplacerImpacts } from './impacts.js';
 import { assembler, valider, CLES_STOCK } from './scenario.js';
 import { ecrireJson } from './ui.js';
 
@@ -89,6 +90,7 @@ function construireEtat() {
     ordres: etatOrdres(),
     dessins: listerDessins(),
     coupures: terrain.coupures,
+    impacts: listerImpacts(),
     horloge: { ms: Math.round(maintenant()), vitesse: vitesse(), enMarche: enMarche() },
     visibles: { bleu: [...visiblesPour('bleu', pieces, terrain)], rouge: [...visiblesPour('rouge', pieces, terrain)] }
   };
@@ -116,6 +118,7 @@ function surVue(v) {
     remplacerOrdres(v.ordres);
     remplacerDessins(v.dessins);
     terrain.remplacerCoupures(v.coupures);
+    remplacerImpacts(v.impacts);
     synchroniserHorloge(v.horloge);
   }
   resultatsOrdres(v.commandes);
@@ -163,6 +166,59 @@ function ligneLien(nom, url) {
   );
 }
 
+// ---------- réinitialiser, nouvelle partie ----------
+/** Vide les pièces, dessins, consignes et le journal du navigateur (la carte, la zone et les réglages restent). */
+function viderStockage() {
+  const vide = { pieces: [], dessins: [], ordres: {}, journal: [] };
+  ecrireJson('wg.coupures.v1', []); // routes coupées
+  ecrireJson('wg.impacts.v1', []); // cratères
+  return Object.keys(CLES_STOCK).every((cle) => ecrireJson(CLES_STOCK[cle], vide[cle]));
+}
+
+/** Même partie, mêmes liens et mêmes joueurs : la carte repart vide, l'horloge à l'heure réelle. Le journal déjà écrit reste (il est chaîné). */
+async function reinitialiser() {
+  if (!confirm('Réinitialiser la partie ? Pièces, dessins, consignes et impacts sont effacés pour tout le monde, l\'horloge repasse à l\'heure réelle. Les liens ne changent pas.')) return;
+  suspendre();
+  if (role.code) {
+    const maintenant_ = Date.now();
+    await publierEtat({ pieces: [], ordres: {}, dessins: [], coupures: [], impacts: [], horloge: { ms: maintenant_, vitesse: 1, enMarche: true }, visibles: { bleu: [], rouge: [] } });
+    await annoncer('Partie réinitialisée par l\'arbitre.', maintenant_).catch(() => null);
+  }
+  if (!viderStockage()) throw new Error('Impossible de vider les données du navigateur (stockage bloqué).');
+  location.reload();
+}
+
+/** Autre partie : nouveau code, nouveaux liens, carte vide. L'ancienne partie reste sur le serveur mais ses joueurs n'y voient plus rien évoluer. */
+async function nouvellePartie() {
+  const enLigne = Boolean(role.code);
+  const texte = enLigne
+    ? 'Commencer une nouvelle partie ? Elle a un nouveau code et de nouveaux liens à redonner aux joueurs. L\'ancienne partie est abandonnée.'
+    : 'Commencer une nouvelle partie ? Pièces, dessins, consignes et journal sont effacés.';
+  if (!confirm(texte)) return;
+  suspendre();
+  if (enLigne) {
+    await creer();
+  }
+  if (!viderStockage()) throw new Error('Impossible de vider les données du navigateur (stockage bloqué).');
+  location.reload();
+}
+
+function boutonsPartie(boite) {
+  const agir = (f) => async () => {
+    try {
+      await f();
+    } catch (e) {
+      boite.append(el('p', { class: 'err' }, e.message));
+    }
+  };
+  return el(
+    'div',
+    { class: 'partie-actions' },
+    el('button', { type: 'button', onclick: agir(nouvellePartie) }, 'Nouvelle partie'),
+    el('button', { type: 'button', class: 'danger', onclick: agir(reinitialiser) }, 'Réinitialiser la partie')
+  );
+}
+
 let attenteTunnel = null;
 export async function remplirPanneau() {
   const boite = $('partie-panneau');
@@ -181,7 +237,8 @@ export async function remplirPanneau() {
     if (!role.code) {
       boite.replaceChildren(
         note('Jouez seul, ou ouvrez une partie en ligne : les camps bleu et rouge se connectent par un lien et ne voient que leurs pièces.'),
-        el('button', { type: 'button', onclick: creerPartie }, 'Créer une partie en ligne')
+        el('button', { type: 'button', onclick: creerPartie }, 'Créer une partie en ligne'),
+        boutonsPartie(boite)
       );
       return;
     }
@@ -221,7 +278,8 @@ export async function remplirPanneau() {
       t.etat === 'actif' || t.etat === 'demarrage'
         ? null
         : note("Si vos invités n'arrivent pas à ouvrir le lien (Wi-Fi invité ou d'établissement qui isole les appareils, autre réseau), créez un lien Internet."),
-      note("Gardez cet onglet ouvert : la simulation tourne ici. Le lien arbitre rouvre la partie si vous fermez l'onglet ; ne le donnez pas aux joueurs.")
+      note("Gardez cet onglet ouvert : la simulation tourne ici. Le lien arbitre rouvre la partie si vous fermez l'onglet ; ne le donnez pas aux joueurs."),
+      boutonsPartie(boite)
       ].filter(Boolean) // replaceChildren écrirait « null » pour un élément absent
     );
   };

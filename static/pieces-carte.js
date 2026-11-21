@@ -129,6 +129,7 @@ export function styleMarqueur(p, el) {
   el.title = `${p.nom} (${NOM_CAMP[p.camp]})${p.detruit ? ', détruit' : ''}`;
   el.classList.toggle('choisi', p.id === state.selection);
   el.classList.toggle('detruit', !!p.detruit);
+  el.classList.toggle('en-vol', estDrone(p) && enVol(p) && !p.detruit); // un drone en vol se lit comme tel : en altitude, avec son ombre au sol
 }
 
 export function ajouterMarqueur(p) {

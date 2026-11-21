@@ -11,6 +11,7 @@ import { brouilleSur, doitRentrer, effets, enVol, enduranceRestante, estDrone, r
 import { cotes, fileDe, km, libelle, newId, nomDe, sauver, state } from './ordres-etat.js';
 import { noter } from './journal.js';
 import { rafraichirCarte } from './ordres-carte.js';
+import { enregistrerImpact } from './impacts.js';
 
 const metres = (km) => `${Math.round(km * 1000)} m`;
 
@@ -43,6 +44,9 @@ function evenement(t, e, pieces) {
         'tir',
         cotes(pieces, e.pieceId, e.cibleId)
       );
+    const cibleP = pieces.find((q) => q.id === e.cibleId);
+    const lieu = e.impact || (cibleP ? [cibleP.lng, cibleP.lat] : null);
+    if (lieu) enregistrerImpact({ lng: lieu[0], lat: lieu[1], rayonM: e.rayonM || 0, genre: e.type === 'tir_zone' ? 'zone' : e.type, t: Math.round(t) });
     const touches = effets(e, pieces);
     for (const { id, cause } of touches) {
       detruire(id, cause);

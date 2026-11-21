@@ -113,7 +113,18 @@ export async function liens() {
 // ---------- arbitre ----------
 const file = [];
 let publiee = null,
-  enCours = false;
+  enCours = false,
+  suspendu = false;
+
+/** Arrête les envois de cet onglet (avant une réinitialisation ou une nouvelle partie) : l'ancien état ne doit plus rejoindre le serveur. */
+export const suspendre = () => {
+  suspendu = true;
+};
+/** Publie un état tel quel (réinitialisation). */
+export const publierEtat = (etat) => appel(`${base()}/carte`, { methode: 'POST', corps: { etat } });
+/** Inscrit une ligne visible de tous au journal de la partie, tout de suite. */
+export const annoncer = (texte, t) =>
+  appel(`${base()}/carte/evenements`, { methode: 'POST', corps: { evenements: [{ texte, genre: 'info', visible_to: 'all', t }] } });
 
 /** Journal : un événement de la simulation, avec ceux qui doivent le voir ('all', ['bleu'], [] = arbitrage seul). Envoyé en lots. */
 export function empiler(evenement) {
@@ -121,7 +132,7 @@ export function empiler(evenement) {
 }
 
 async function tourArbitre(construireEtat, traiter) {
-  if (enCours) return;
+  if (enCours || suspendu) return;
   enCours = true;
   try {
     const etat = construireEtat();
