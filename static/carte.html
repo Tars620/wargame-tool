@@ -25,7 +25,7 @@ html, body { height: 100%; margin: 0; }
 body { font: var(--poids) var(--t-md)/1.45 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--texte); background: var(--fond); }
 .top { position: fixed; inset: 0 0 auto 0; height: var(--barre-h); background: var(--barre); border-bottom: 1px solid var(--trait); display: flex; align-items: center; gap: 12px; padding: 0 0 0 10px; z-index: 5; }
 .top b { font-weight: var(--poids); letter-spacing: .04em; text-transform: uppercase; font-size: var(--t-base); }
-.top a { color: var(--texte-2); text-decoration: none; font-size: var(--t-base); }
+.top a { color: var(--texte); text-decoration: none; font-size: var(--t-base); }
 .top a:hover { color: var(--accent); }
 #map { position: fixed; top: var(--haut); bottom: 0; left: var(--gauche-w); right: var(--droite-w); }
 body.g-ferme { --gauche-w: 0px; } body.d-ferme { --droite-w: 0px; }
@@ -98,7 +98,7 @@ details[open] > summary::before { transform: rotate(45deg); margin-bottom: 4px; 
 /* commandes du temps de jeu et thème : cellules collées, pleine hauteur de la barre */
 .temps-cmd, .seg { display: flex; align-self: stretch; margin: 0; position: relative; }
 .temps-cmd { margin-left: 2px; position: relative; }
-.temps-cmd > button, .seg > button { height: 100%; border: 0; padding: 0 14px; background: transparent; font-size: var(--t-sm); white-space: nowrap; }
+.temps-cmd > button, .seg > button { color: var(--texte); height: 100%; border: 0; padding: 0 14px; background: transparent; font-size: var(--t-sm); white-space: nowrap; }
 .temps-cmd > button:hover, .seg > button:hover, .temps-cmd > button[aria-expanded=true], .seg > button[aria-expanded=true] { background: var(--panneau-2); }
 .temps-cmd > button::after, .seg > button::after { content: ''; display: inline-block; margin: 0 0 2px 8px; border: 4px solid transparent; border-top-color: var(--texte-2); border-bottom-width: 0; }
 .temps-cmd > button[data-etat=pause] { color: var(--accent); }
@@ -119,10 +119,11 @@ details[open] > summary::before { transform: rotate(45deg); margin-bottom: 4px; 
 .legende-terrain { margin: 4px 0 0; font-size: var(--t-sm); color: var(--texte-2); display: flex; align-items: center; gap: 4px; }
 .legende-terrain i { width: 10px; height: 10px; display: inline-block; margin-left: 8px; }
 .legende-terrain i:first-child { margin-left: 0; }
+/* Règle de couleur des barres : une commande (Temps, Thème, lien) est en --texte ; un choix non retenu (outil, onglet) en --texte-2 ; le choix retenu en --accent, fond et liseré. */
 /* barre d'outils : toutes les cellules ont la même hauteur et le même repère d'état */
 .barre-outils { position: fixed; top: var(--barre-h); left: 0; right: 0; height: var(--outils-h); z-index: 4; display: flex; align-items: stretch; background: var(--panneau); border-bottom: 1px solid var(--trait); }
 .outils { display: flex; align-items: stretch; }
-.outils > button { display: flex; align-items: center; height: 100%; padding: 0 14px; border: 0; font-size: var(--t-base); line-height: 1; white-space: nowrap; }
+.outils > button { display: flex; align-items: center; height: 100%; padding: 0 14px; border: 0; font-size: var(--t-base); line-height: 1; white-space: nowrap; color: var(--texte-2); }
 .outils > button[aria-pressed=true] { background: var(--panneau-2); box-shadow: inset 0 -2px 0 var(--accent); color: var(--accent); }
 .outils > button:hover { background: var(--panneau-2); }
 .camp-sel { position: relative; display: flex; margin: 0 6px; }
@@ -143,8 +144,6 @@ details[open] > summary::before { transform: rotate(45deg); margin-bottom: 4px; 
 .bord-droit[data-tip]:hover::after, .top [data-tip]:hover::after { left: auto; right: 0; }
 
 /* bascule de thème, dans la barre du haut */
-.seg > button { color: var(--texte-2); }
-.seg > button[aria-pressed=true] { color: var(--accent); background: var(--panneau-2); box-shadow: inset 0 -2px 0 var(--accent); }
 
 /* partie en ligne : rôles */
 .badge-partie { font-size: var(--t-sm); color: var(--texte-2); }
