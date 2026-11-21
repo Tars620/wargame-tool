@@ -120,3 +120,59 @@ class SousAdresse(unittest.TestCase):
         statut, corps = self.lire("/wargame/api/acces", {"X-Forwarded-For": "1.2.3.4", "Host": "exemple.fr", "X-Forwarded-Proto": "https"})
         self.assertEqual(statut, 200)
         self.assertEqual(json.loads(corps)["reseau"], "https://exemple.fr")  # l'adresse du site ; le préfixe est ajouté aux liens par les pages elles-mêmes
+
+
+class AssistantParApi(unittest.TestCase):
+    """Sur un serveur, l'assistant appelle une API avec la clé du serveur ; les visiteurs n'ont rien à fournir, mais leur nombre de demandes est plafonné."""
+
+    def setUp(self):
+        self.sauve = {k: getattr(server, k) for k in ("IA_CLE_ANTHROPIC", "IA_URL_COMPATIBLE", "IA_CLE_COMPATIBLE", "IA_PAR_HEURE_ET_VISITEUR", "IA_PAR_JOUR", "_post_json")}
+        server._IA_JOURNAL.update({"visiteurs": {}, "jour": (None, 0)})
+
+    def tearDown(self):
+        for k, v in self.sauve.items():
+            setattr(server, k, v)
+
+    def test_sans_cle_l_assistant_reste_celui_de_l_ordinateur_local(self):
+        server.IA_CLE_ANTHROPIC = server.IA_CLE_COMPATIBLE = server.IA_URL_COMPATIBLE = ""
+        self.assertFalse(server.ia_par_api())
+
+    def test_anthropic_la_reponse_est_le_texte_des_blocs(self):
+        server.IA_CLE_ANTHROPIC = "cle-test"
+        vus = {}
+        def faux(url, en_tetes, corps):
+            vus.update(url=url, cle=en_tetes.get("x-api-key"), modele=corps["model"], consignes=bool(corps["system"]))
+            return {"content": [{"type": "text", "text": '{"message": "ok", '}, {"type": "text", "text": '"actions": []}'}]}
+        server._post_json = faux
+        self.assertTrue(server.ia_par_api())
+        self.assertEqual(server.lancer_api("demande"), '{"message": "ok", "actions": []}')
+        self.assertEqual(vus["url"], "https://api.anthropic.com/v1/messages")
+        self.assertEqual(vus["cle"], "cle-test")
+        self.assertTrue(vus["consignes"])
+
+    def test_fournisseur_compatible_openai(self):
+        server.IA_CLE_ANTHROPIC = ""
+        server.IA_URL_COMPATIBLE, server.IA_CLE_COMPATIBLE = "https://exemple.test/chat", "k"
+        server._post_json = lambda url, en_tetes, corps: {"choices": [{"message": {"content": "bonjour"}}]} if en_tetes["Authorization"] == "Bearer k" else {}
+        self.assertEqual(server.lancer_api("x"), "bonjour")
+
+    def test_plafonds_par_visiteur_et_par_jour(self):
+        server.IA_PAR_HEURE_ET_VISITEUR, server.IA_PAR_JOUR = 2, 3
+        t = 1_700_000_000
+        server.limiter_ia("a", t); server.limiter_ia("a", t + 1)
+        with self.assertRaises(server.ApiError) as c:
+            server.limiter_ia("a", t + 2)
+        self.assertEqual(c.exception.status, 429)
+        server.limiter_ia("a", t + 3700)  # une heure plus tard, le visiteur peut de nouveau demander
+        with self.assertRaises(server.ApiError):
+            server.limiter_ia("b", t + 3701)  # plafond du jour atteint pour tout le monde
+        server.limiter_ia("b", t + 90000)  # le lendemain, c'est reparti
+
+    def test_une_panne_du_fournisseur_est_une_erreur_claire(self):
+        def panne(url, en_tetes, corps):
+            raise server.ApiError(502, "L'assistant est indisponible (erreur 401 du fournisseur).")
+        server.IA_CLE_ANTHROPIC = "mauvaise"
+        server._post_json = panne
+        with self.assertRaises(server.ApiError) as c:
+            server.demander_ia({"prompt": "x", "contexte": {}})
+        self.assertEqual(c.exception.status, 502)

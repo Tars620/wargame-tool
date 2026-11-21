@@ -163,3 +163,9 @@ programme `claude` de l'ordinateur local) ne sont disponibles que depuis l'ordin
 `render.yaml` décrit le service : ouvrir https://dashboard.render.com/blueprint/new?repo=https://github.com/Tars620/wargame-tool, se connecter avec GitHub et valider.
 Render donne une adresse du type `wargame-tool.onrender.com`. La clé de création de parties est générée dans *Environment* (variable `WG_CLE_CREATION`).
 Sur l'offre gratuite, le service dort sans visite et les parties ne survivent pas à un redémarrage : suffisant pour un prototype.
+
+### Assistant IA sur un serveur
+Sans clé, l'assistant utilise le programme `claude` de l'ordinateur local. Sur un serveur, mettre dans `/etc/wargame.env` **soit**
+`ANTHROPIC_API_KEY=<clé>` (modèle `claude-sonnet-5-5`, changeable par `WG_IA_MODELE_API`), **soit** `WG_IA_URL=<adresse d'une API « chat/completions »>`
++ `WG_IA_CLE=<clé>` + `WG_IA_MODELE_API=<modèle>` (par exemple DeepSeek). Les visiteurs n'ont rien à fournir ; le serveur paie les appels.
+Plafonds : `WG_IA_PAR_HEURE` demandes par visiteur et par heure (30 par défaut) et `WG_IA_PAR_JOUR` au total par jour (400 par défaut).

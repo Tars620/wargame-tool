@@ -602,7 +602,7 @@ def lancer_claude(entree):
         try:
             r = subprocess.run(cmd, input=entree, capture_output=True, text=True, timeout=IA_DELAI_S, cwd=cwd)
         except FileNotFoundError:
-            raise ApiError(503, "Le programme « claude » est introuvable sur cet ordinateur.")
+            raise ApiError(503, "L'assistant n'est pas disponible ici : le programme « claude » est absent et aucune clé d'API n'est configurée.")
         except subprocess.TimeoutExpired:
             raise ApiError(504, "L'assistant n'a pas répondu à temps.")
     try:
@@ -612,6 +612,63 @@ def lancer_claude(entree):
     if r.returncode != 0 or sortie.get("is_error"):
         raise ApiError(502, "L'assistant a refusé la demande (vérifiez que vous êtes connecté à Claude).")
     return str(sortie.get("result") or "")
+
+
+# ---------- assistant sur un serveur : appel direct d'une API (aucun compte demandé aux visiteurs) ----------
+# Sans clé, l'assistant utilise le programme « claude » de l'ordinateur local (voir lancer_claude). Avec ANTHROPIC_API_KEY ou WG_IA_CLE (+ WG_IA_URL), c'est le serveur qui paie et appelle l'API.
+IA_CLE_ANTHROPIC = os.environ.get("ANTHROPIC_API_KEY", "")
+IA_MODELE_API = os.environ.get("WG_IA_MODELE_API", "claude-sonnet-5-5")
+IA_URL_COMPATIBLE = os.environ.get("WG_IA_URL", "")  # ex. https://api.deepseek.com/chat/completions (format « OpenAI »)
+IA_CLE_COMPATIBLE = os.environ.get("WG_IA_CLE", "")
+IA_PAR_HEURE_ET_VISITEUR = int(os.environ.get("WG_IA_PAR_HEURE", "30"))
+IA_PAR_JOUR = int(os.environ.get("WG_IA_PAR_JOUR", "400"))
+_IA_JOURNAL = {"visiteurs": {}, "jour": (None, 0)}
+_IA_JOURNAL_VERROU = threading.Lock()
+
+
+def ia_par_api():
+    return bool(IA_CLE_ANTHROPIC or (IA_URL_COMPATIBLE and IA_CLE_COMPATIBLE))
+
+
+def limiter_ia(visiteur, maintenant=None):
+    """Plafonne les demandes à l'API payante : par visiteur et par heure, et au total par jour. Lève 429 au-delà."""
+    t = time.time() if maintenant is None else maintenant
+    jour = time.strftime("%Y-%m-%d", time.gmtime(t))
+    with _IA_JOURNAL_VERROU:
+        j, n = _IA_JOURNAL["jour"]
+        if j != jour:
+            j, n = jour, 0
+        recents = [x for x in _IA_JOURNAL["visiteurs"].get(visiteur, []) if t - x < 3600]
+        if len(recents) >= IA_PAR_HEURE_ET_VISITEUR:
+            raise ApiError(429, "Trop de demandes à l'assistant : réessayez dans un moment.")
+        if n >= IA_PAR_JOUR:
+            raise ApiError(429, "L'assistant a atteint sa limite du jour : réessayez demain.")
+        _IA_JOURNAL["visiteurs"][visiteur] = recents + [t]
+        _IA_JOURNAL["jour"] = (j, n + 1)
+
+
+def _post_json(url, en_tetes, corps):
+    req = urllib.request.Request(url, data=json.dumps(corps).encode("utf-8"), headers={"Content-Type": "application/json", **en_tetes}, method="POST")
+    ctx = ssl.create_default_context(cafile=CERTIFICATS) if os.path.exists(CERTIFICATS) else ssl.create_default_context()
+    try:
+        with urllib.request.urlopen(req, timeout=IA_DELAI_S, context=ctx) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        raise ApiError(502, f"L'assistant est indisponible (erreur {e.code} du fournisseur).")
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+        raise ApiError(504, "L'assistant n'a pas répondu à temps.")
+
+
+def lancer_api(entree):
+    """Appelle l'API d'un fournisseur (Anthropic, ou compatible « OpenAI » comme DeepSeek) ; rend le texte de la réponse."""
+    if IA_CLE_ANTHROPIC:
+        r = _post_json("https://api.anthropic.com/v1/messages", {"x-api-key": IA_CLE_ANTHROPIC, "anthropic-version": "2023-06-01"},
+                       {"model": IA_MODELE_API, "max_tokens": 2500, "system": IA_CONSIGNES, "messages": [{"role": "user", "content": entree}]})
+        return "".join(b.get("text", "") for b in r.get("content", []) if isinstance(b, dict))
+    r = _post_json(IA_URL_COMPATIBLE, {"Authorization": f"Bearer {IA_CLE_COMPATIBLE}"},
+                   {"model": IA_MODELE_API, "max_tokens": 2500, "messages": [{"role": "system", "content": IA_CONSIGNES}, {"role": "user", "content": entree}]})
+    choix = (r.get("choices") or [{}])[0]
+    return str((choix.get("message") or {}).get("content") or "")
 
 
 def demander_ia(corps, lanceur=None):
@@ -627,7 +684,7 @@ def demander_ia(corps, lanceur=None):
     if not IA_VERROU.acquire(blocking=False):
         raise ApiError(429, "Une demande est déjà en cours.")
     try:
-        texte = (lanceur or lancer_claude)(entree)
+        texte = (lanceur or (lancer_api if ia_par_api() else lancer_claude))(entree)
     finally:
         IA_VERROU.release()
     objet = _extraire_json(texte)
@@ -725,6 +782,8 @@ class Handler(BaseHTTPRequestHandler):
             local = self._est_local()
             if not local and not self.store.est_participant(self.headers.get("X-Partie") or "", token):
                 raise ApiError(403, "L'assistant est réservé à cet ordinateur et aux participants d'une partie.")
+            if ia_par_api() and not self.lanceur_ia:
+                limiter_ia(self.headers.get("X-Real-Ip") or self.client_address[0])
             return self._json(200, demander_ia(self._body(), self.lanceur_ia))
         if method == "POST" and path == "/api/games":
             if CLE_CREATION and not self._est_local() and not hmac.compare_digest((self.headers.get("X-Cle-Creation") or "").encode(), CLE_CREATION.encode()):
