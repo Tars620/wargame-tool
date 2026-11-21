@@ -348,7 +348,9 @@ export function dessinerOptions() {
         }),
         h('span', {}, libelle)
       )
-    ),
+    )
+  );
+  $('tout-effacer').replaceChildren(
     h(
       'button',
       {

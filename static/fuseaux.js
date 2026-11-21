@@ -30,6 +30,11 @@ export function date(ms, zone) {
   return formateur(zone, { weekday: 'short', day: '2-digit', month: '2-digit' }).format(new Date(ms));
 }
 
+/** Date complète « sam. 21/11/2026 » dans `zone`. */
+export function dateComplete(ms, zone) {
+  return formateur(zone, { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(ms));
+}
+
 /** « UTC+1 », « UTC+5:30 ». */
 export function etiquetteDecalage(ms, zone) {
   const m = decalageMin(ms, zone);

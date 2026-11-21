@@ -1,6 +1,6 @@
 import { estJoueur } from './role.js';
 import { menuDeroulant } from './ui.js';
-import { PARIS, heure, date, etiquetteDecalage, nomZone, ecartAvecParis, parisVersMs, msVersParis } from './fuseaux.js';
+import { PARIS, heure, dateComplete as date, etiquetteDecalage, nomZone, ecartAvecParis, parisVersMs, msVersParis } from './fuseaux.js';
 
 const VITESSES = [
   [1, '×1', 'Temps réel'],
@@ -86,12 +86,12 @@ const derniers = { paris: null, local: null };
 function afficher() {
   const t = maintenant();
   const zone = zoneLocale();
-  const paris = `<b>Paris</b> ${date(t, PARIS)} ${heure(t, PARIS)} <em>${etiquetteDecalage(t, PARIS)}</em>`;
+  const paris = `<b>Paris</b><span class="h-date">${date(t, PARIS)}</span><span class="h-heure">${heure(t, PARIS)}</span><em>${etiquetteDecalage(t, PARIS)}</em>`;
   let local = '<span class="discret"><b>Local</b> zoomez sur une zone</span>';
   if (zone) {
     const ecart = ecartAvecParis(t, zone);
     const diff = ecart === 0 ? 'même heure' : `${ecart > 0 ? '+' : '−'}${Math.abs(ecart).toString().replace('.', ',')} h`;
-    local = `<b>${nomZone(zone)}</b> ${date(t, zone)} ${heure(t, zone)} <em>${etiquetteDecalage(t, zone)} · ${diff}</em>`;
+    local = `<b>${nomZone(zone)}</b><span class="h-date">${date(t, zone)}</span><span class="h-heure">${heure(t, zone)}</span><em>${etiquetteDecalage(t, zone)} · ${diff}</em>`;
   }
   const boite = $('horloges');
   if (!boite.firstChild) boite.innerHTML = '<span id="h-paris" class="h-paris"></span><span id="h-local"></span><span id="h-pause" class="pause"></span>'; // structure fixe : rien ne change sous la souris

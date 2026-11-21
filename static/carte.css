@@ -4,7 +4,7 @@
   --texte: #e8e8ea; --texte-2: #9a9aa2;
   --accent: #ffffff; --barre: #000000; --pion-fond: #000000; --invert-ctrl: invert(1);
   --bleu: #4c8dff; --rouge: #e5484d;   /* réservés aux camps et aux états */
-  --t-xs: 11px; --t-sm: 12px; --t-base: 13px; --t-md: 14px; --barre-h: 38px; --outils-h: 38px;
+  --t-micro: 9.5px; --t-xs: 11px; --t-sm: 12px; --t-base: 13px; --t-md: 14px; --barre-h: 38px; --outils-h: 38px;
   --haut: calc(var(--barre-h) + var(--outils-h)); --g: 300px; --d: 400px; --poids: 400; --gauche-w: var(--g); --droite-w: var(--d);
 }
 /* Thème clair : mêmes règles (angles droits, Inter), couleurs inversées. Bleu et rouge restent réservés aux camps. */
@@ -65,12 +65,26 @@ button:hover { border-color: var(--accent); }
 /* Le mât et le cadre des symboles sont noirs : en thème sombre un fin liseré clair les garde lisibles. */
 :root:not([data-theme=clair]) .symbole svg { filter: drop-shadow(0 0 .7px #fff) drop-shadow(0 0 .7px #fff); }
 .pion.choisi { outline: 2px solid var(--accent); outline-offset: 2px; }
-/* Drone en vol : le symbole est en altitude, relié par un fil à son ombre posée sur le sol (le pion est ancré au sol). */
-.pion.en-vol .symbole { position: relative; transform: translateY(-26px); animation: vol 3.2s ease-in-out infinite; filter: drop-shadow(0 6px 5px rgba(0,0,0,.45)); }
-.pion.en-vol::before { content: ''; position: absolute; left: 50%; top: 50%; width: 1px; height: 26px; transform: translate(-50%, -100%); background: linear-gradient(to top, transparent, var(--c)); opacity: .85; }
-.pion.en-vol::after { content: ''; position: absolute; left: 50%; top: 50%; width: 16px; height: 6px; transform: translate(-50%, -50%); background: radial-gradient(ellipse at center, rgba(0,0,0,.55), transparent 70%); border-radius: 50% !important; }
-.pion.en-vol.choisi { outline: 0; } .pion.en-vol.choisi .symbole { outline: 2px solid var(--accent); outline-offset: 2px; }
-@keyframes vol { 0%, 100% { transform: translateY(-26px); } 50% { transform: translateY(-29px); } }
+/* Drone en vol : le symbole est en altitude (--alt, qui grandit avec l'inclinaison de la vue), relié par un fil à son ombre posée sur le sol (le pion est ancré au sol). */
+#map { --alt: 16; }
+.pion[data-drone] { z-index: 3; }
+.pion.en-vol { z-index: 6; }
+.symbole.aerien { position: relative; }
+.pion.en-vol .symbole { transform: translateY(calc(var(--alt) * -1px)); animation: vol 3.2s ease-in-out infinite; filter: drop-shadow(0 0 7px var(--c)) drop-shadow(0 7px 5px rgba(0,0,0,.45)); }
+.pion.en-vol::before { content: ''; position: absolute; left: 50%; top: 50%; width: 1px; height: calc(var(--alt) * 1px); transform: translate(-50%, -100%); background: linear-gradient(to top, transparent, var(--c)); opacity: .9; }
+.pion.en-vol::after { content: ''; position: absolute; left: 50%; top: 50%; width: 18px; height: 7px; transform: translate(-50%, -50%); background: radial-gradient(ellipse at center, rgba(0,0,0,.6), transparent 70%); border-radius: 50% !important; }
+.pion.en-vol.choisi { outline: 0; } .pion.en-vol.choisi .symbole { outline: 2px solid var(--accent); outline-offset: 3px; }
+.symbole .halo, .symbole .tag { display: none; position: absolute; pointer-events: none; }
+.pion.en-vol .halo { display: block; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border: 1.5px solid var(--c); border-radius: 50% !important; opacity: .85; }
+.pion.en-vol[data-drone=isr] .halo { border-style: dashed; animation: balayage 6s linear infinite; }
+.pion.en-vol[data-drone=owa] .halo { border-width: 2px; box-shadow: 0 0 10px var(--c), inset 0 0 8px var(--c); animation: pouls 1.4s ease-in-out infinite; }
+.pion.en-vol[data-drone=filoguide] .halo { border-style: dotted; border-width: 2px; width: 40px; height: 40px; margin: -20px 0 0 -20px; }
+.symbole .tag { display: block; right: -14px; bottom: -9px; padding: 0 3px; font: 600 8.5px/12px Inter, system-ui, sans-serif; letter-spacing: .04em; color: var(--c); background: var(--pion-fond); border: 1px solid var(--c); }
+.pion[data-drone=owa] .symbole .tag { color: #fff; background: var(--c); }
+@keyframes vol { 0%, 100% { transform: translateY(calc(var(--alt) * -1px)); } 50% { transform: translateY(calc(var(--alt) * -1px - 3px)); } }
+@keyframes balayage { to { transform: rotate(360deg); } }
+@keyframes pouls { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.18); opacity: .45; } }
+.legende-zones { list-style: none; margin: 6px 0; padding: 0; font-size: var(--t-sm); } .legende-zones li { display: flex; align-items: center; gap: 8px; margin: 2px 0; } .legende-zones i { width: 14px; height: 10px; flex: none; opacity: .85; }
 
 /* Impacts : boule de feu et onde, puis le cratère reste (couche carte). */
 .impact-flash { width: 0; height: 0; pointer-events: none; --s: 1; }
@@ -80,7 +94,7 @@ button:hover { border-color: var(--accent); }
 .impact-flash b { width: 84px; height: 84px; border: 2px solid #ffb347; animation: onde 1.6s ease-out forwards; }
 @keyframes boule { 0% { transform: translate(-50%, -50%) scale(calc(.2 * var(--s))); opacity: 1; } 35% { opacity: 1; } 100% { transform: translate(-50%, -50%) scale(calc(1.5 * var(--s))); opacity: 0; } }
 @keyframes onde { 0% { transform: translate(-50%, -50%) scale(calc(.3 * var(--s))); opacity: .9; } 100% { transform: translate(-50%, -50%) scale(calc(2.8 * var(--s))); opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .pion.en-vol .symbole, .impact-flash i, .impact-flash b { animation-duration: .01s; } }
+@media (prefers-reduced-motion: reduce) { .pion.en-vol .symbole, .pion.en-vol .halo, .impact-flash i, .impact-flash b { animation-duration: .01s; } }
 
 details { border-top: 1px solid var(--trait); padding: 0 0 6px; }
 details:first-of-type { border-top: 0; }
@@ -90,10 +104,13 @@ summary::before { content: ''; width: 6px; height: 6px; margin: 0 2px 2px 1px; b
 details[open] > summary::before { transform: rotate(45deg); margin-bottom: 4px; }
 
 /* horloges, consignes, météo */
-.horloges { margin-left: auto; display: flex; gap: 14px; align-items: center; font-size: var(--t-base); font-variant-numeric: tabular-nums; color: var(--texte); }
-.horloges b { font-weight: var(--poids); margin-right: 4px; color: var(--texte-2); text-transform: uppercase; letter-spacing: .05em; font-size: var(--t-xs); }
-.horloges em { font-style: normal; color: var(--texte-2); font-size: var(--t-sm); }
-.horloges .discret { color: var(--texte-2); } .horloges .pause { color: var(--rouge); font-size: var(--t-sm); } .horloges .pause:empty { display: none; } .h-paris { cursor: pointer; }
+/* Les deux horloges sur une seule ligne, alignées sur la ligne de base : date et heure à la même taille, le nom du lieu et le décalage UTC nettement plus petits. */
+.horloges { margin-left: auto; display: flex; gap: 22px; align-items: baseline; flex-shrink: 0; white-space: nowrap; font-size: var(--t-base); font-variant-numeric: tabular-nums; color: var(--texte); }
+.horloges > span { display: inline-flex; align-items: baseline; gap: 7px; }
+.horloges .h-date, .horloges .h-heure { font-size: var(--t-base); }
+.horloges b { font-weight: var(--poids); margin: 0; color: var(--texte-2); text-transform: uppercase; letter-spacing: .06em; font-size: var(--t-micro); }
+.horloges em { font-style: normal; color: var(--texte-2); font-size: var(--t-micro); }
+.horloges .discret { color: var(--texte-2); font-size: var(--t-xs); } .horloges .pause { color: var(--rouge); font-size: var(--t-xs); } .horloges .pause:empty { display: none; } .h-paris { cursor: pointer; }
 .primaire { background: var(--accent); color: var(--fond); border-color: var(--accent); }
 .primaire:hover { opacity: .85; } .primaire:disabled { opacity: .35; cursor: default; }
 .avert { margin: 3px 0 0; font-size: var(--t-sm); color: #d9a441; }

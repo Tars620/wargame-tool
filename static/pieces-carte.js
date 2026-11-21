@@ -8,6 +8,7 @@ import { enVol, estDrone, rayonBrouillage, rayonVision } from './regles.js';
 import { h, sourceGeojson } from './ui.js';
 import { COULEURS, NOM_CAMP, SOURCE_ID, estVisible, state } from './pieces-etat.js';
 
+const ETIQUETTE_DRONE = { 'drone-isr': 'ISR', 'drone-owa': 'OWA', 'drone-filoguide': 'FILO' };
 const couleurDe = ['match', ['get', 'camp'], 'rouge', COULEURS.rouge, COULEURS.bleu];
 
 export function layerSpecs() {
@@ -95,6 +96,14 @@ export function collection() {
         geometry: { type: 'LineString', coordinates: p.dernier_deplacement.trace }
       });
   }
+  // Un drone en vol montre toujours ce qu'il observe, même quand les portées ne sont pas affichées : c'est lui qu'on suit des yeux.
+  for (const p of montrees)
+    if (estDrone(p) && enVol(p) && !visibles.includes(p) && rayonVision(p.vision) > 0)
+      features.push({
+        type: 'Feature',
+        properties: { camp: p.camp, id: p.id, genre: 'vision' },
+        geometry: { type: 'Polygon', coordinates: [cercle([p.lng, p.lat], rayonVision(p.vision))] }
+      });
   for (const p of montrees) {
     // les liens se voient toujours : c'est la structure de commandement, pas une portée
     if (!exigePoste(p)) continue;
@@ -123,7 +132,15 @@ export const modeleDe = (p) => state.catalogue.find((m) => m.id === p.type) || {
 export function styleMarqueur(p, el) {
   el.style.setProperty('--c', COULEURS[p.camp]);
   if (el.dataset.camp !== p.camp) {
-    el.replaceChildren(symbole(modeleDe(p), p.camp, 22));
+    const drone = estDrone(p);
+    const s = symbole(modeleDe(p), p.camp, drone ? 30 : 22);
+    if (drone) {
+      // trois sortes de drones, trois silhouettes : anneau pointillé qui tourne (observation), anneau plein qui pulse (attaque), anneau fin (filoguidé)
+      s.classList.add('aerien');
+      s.append(h('i', { class: 'halo' }), h('b', { class: 'tag' }, ETIQUETTE_DRONE[p.type] || 'UAV'));
+      el.dataset.drone = ['drone-isr', 'drone-owa', 'drone-filoguide'].includes(p.type) ? p.type.slice(6) : 'autre';
+    }
+    el.replaceChildren(s);
     el.dataset.camp = p.camp;
   } // l'identité du symbole suit le camp
   el.title = `${p.nom} (${NOM_CAMP[p.camp]})${p.detruit ? ', détruit' : ''}`;

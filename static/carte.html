@@ -26,6 +26,7 @@
     <label class="relief-ligne" id="relief-ligne" hidden><span>Relief</span><input type="range" id="relief-ex" aria-label="Exagération du relief"><span id="relief-val"></span></label>
     <p class="note">Relief 3D : inclinaison de la vue, glisser avec Ctrl.</p>
   </details>
+  <details open data-cle="g-zones"><summary>Zones et portées</summary><div id="controle-panneau"></div><h4>Rayons et portées affichés</h4><div id="portees"></div></details>
   <details data-cle="g-terrain" data-arbitre><summary>Terrain</summary>
     <div class="grille2">
       <label class="opt"><input type="checkbox" id="terrain-actif" checked><span>Appliquer le terrain</span></label>
@@ -53,7 +54,7 @@
   <section class="volet" data-volet="pieces" hidden>
     <details open data-cle="d-fiche"><summary>Pièce sélectionnée</summary><div id="fiche"></div></details>
     <details open data-cle="d-banque" data-arbitre><summary>Banque de pièces</summary><div id="banque"></div></details>
-    <details data-cle="d-portees"><summary>Portées affichées</summary><div id="portees"></div></details>
+    <div id="tout-effacer"></div>
   </section>
   <section class="volet" data-volet="consignes" hidden>
     <details open data-cle="d-ops" data-arbitre><summary>Situation</summary><div id="operation"></div></details>

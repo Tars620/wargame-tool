@@ -1,5 +1,6 @@
 import * as maplibre from './vendor/maplibre-gl.mjs';
 import { layers, namedFlavor } from './vendor/protomaps-basemaps.mjs';
+import { SOURCE_CONTROLE, collection as controleGeojson, layerSpecs as controleCouches, monter as monterControle } from './controle.js';
 import { SOURCE_IMPACTS, collection as impactsGeojson, layerSpecs as impactsCouches, monter as monterImpacts } from './impacts.js';
 import { monter as monterPieces, collection as piecesGeojson, layerSpecs as piecesCouches, SOURCE_ID as PIECES_SOURCE, piecesRetirees } from './pieces.js';
 import { assembler, valider, versGeoJSON, TAILLE_MAX_OCTETS, CLES_STOCK } from './scenario.js';
@@ -241,8 +242,9 @@ function buildStyle() {
   style.sources[SOURCE_DESSINS] = { type: 'geojson', data: dessinsGeojson() };
   style.sources[SOURCE_BROUILLON] = { type: 'geojson', data: collectionBrouillon() };
   style.sources[PIECES_SOURCE] = { type: 'geojson', data: piecesGeojson() };
+  style.sources[SOURCE_CONTROLE] = { type: 'geojson', data: controleGeojson() };
   style.sources[SOURCE_IMPACTS] = { type: 'geojson', data: impactsGeojson() };
-  style.layers = [...style.layers, ...meteo.layers, ...dessinsCouches(), ...impactsCouches(), ...consignesCouches(), ...piecesCouches()];
+  style.layers = [...style.layers, ...meteo.layers, ...controleCouches(), ...dessinsCouches(), ...impactsCouches(), ...consignesCouches(), ...piecesCouches()];
   if (state.relief3d) {
     style.terrain = { source: 'dem', exaggeration: exageration };
     style.sky = THEMES[state.theme].ciel;
@@ -297,6 +299,10 @@ function createMap() {
   map.on('error', (e) => showError(`Chargement impossible : ${(e.error && e.error.message) || 'source indisponible'}`));
   map.on('styledata', () => showError(''));
   map.on('zoomend', majInfoZone);
+  // Plus la vue est inclinée, plus un drone en vol monte au-dessus de son ombre : il reste lisible en 3D.
+  const altitude = () => $('map').style.setProperty('--alt', String(Math.round(14 + map.getPitch() * 0.4)));
+  map.on('pitch', altitude);
+  altitude();
   new ResizeObserver(() => map.resize()).observe($('map'));
   // Les panneaux se montent dès que le style est prêt : inutile d'attendre les tuiles (lentes quand la carte est en ligne).
   map.once('style.load', () => {
@@ -309,6 +315,7 @@ function createMap() {
     monterPieces(map)
       .then(() => {
         monterOrdres(map);
+        monterControle(map);
         monterIa(map);
         remplirPanneau();
         demarrerSynchronisation();
