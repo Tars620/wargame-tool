@@ -254,7 +254,7 @@
         "jeu": "10",
         "entite": "130300"
       },
-      "avertissement": "Estimé : portée (20 km), rayon de destruction (50 m), dispersion (30 m) et observation (1 km). Ne se déplace que sur route (règle de terrain à venir : pour l'instant en ligne droite)."
+      "avertissement": "Estimé : portée (20 km), rayon de destruction (50 m), dispersion (30 m) et observation (1 km). Ne se déplace que sur route : la destination doit être sur une route, le trajet est tracé en ligne droite entre les points (routage automatique à venir). Arrêtée par l'eau."
     }
   ]
 }

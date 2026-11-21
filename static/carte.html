@@ -111,6 +111,9 @@ details[open] > summary::before { transform: rotate(45deg); margin-bottom: 4px; 
 .grille2 { display: grid; grid-template-columns: 1fr 1fr; padding-top: 1px; margin-right: -1px; }
 .grille2 .opt { margin: -1px -1px 0 0; padding: 5px 8px; }
 
+.legende-terrain { margin: 4px 0 0; font-size: var(--t-sm); color: var(--texte-2); display: flex; align-items: center; gap: 4px; }
+.legende-terrain i { width: 10px; height: 10px; display: inline-block; margin-left: 8px; }
+.legende-terrain i:first-child { margin-left: 0; }
 /* barre d'outils : toutes les cellules ont la même hauteur et le même repère d'état */
 .barre-outils { position: fixed; top: var(--barre-h); left: 0; right: 0; height: var(--outils-h); z-index: 4; display: flex; align-items: stretch; background: var(--panneau); border-bottom: 1px solid var(--trait); }
 .outils { display: flex; align-items: stretch; }
@@ -217,6 +220,15 @@ html[data-role=joueur] [data-arbitre] { display: none !important; }
       <label class="opt"><input type="checkbox" id="relief3d"><span>Relief 3D</span></label>
     </div>
     <p class="note">Relief 3D : inclinaison de la vue, glisser avec Ctrl.</p>
+  </details>
+  <details data-cle="g-terrain" data-arbitre><summary>Terrain</summary>
+    <div class="grille2">
+      <label class="opt"><input type="checkbox" id="terrain-actif" checked><span>Appliquer le terrain</span></label>
+      <label class="opt"><input type="checkbox" id="terrain-voir"><span>Voir ce que lit le moteur</span></label>
+    </div>
+    <p class="note">Forêt : cache les pièces. Eau : arrête véhicules et artillerie. Route : seule voie de l'artillerie.</p>
+    <p class="note" id="terrain-etat"></p><p class="note" id="terrain-vue"></p>
+    <p class="legende-terrain"><i style="background:#2ea043"></i>Forêt <i style="background:#1e78ff"></i>Eau <i style="background:#ffa028"></i>Route</p>
   </details>
   <details data-cle="g-meteo"><summary>Météo</summary><div id="meteo-panneau"></div></details>
   <details data-cle="g-scenario" data-arbitre><summary>Scénario</summary><div id="scenario-panneau"></div></details>

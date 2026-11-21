@@ -6,6 +6,7 @@ import { etatOrdres, traiterCommande, remplacerOrdres, remplacerJournal, resulta
 import { listerDessins, remplacerDessins } from './dessin.js';
 import { maintenant, enMarche, vitesse, synchroniserHorloge } from './temps.js';
 import { visiblesPour } from './moteur.js';
+import { terrain } from './terrain-carte.js';
 import { assembler, valider, CLES_STOCK } from './scenario.js';
 
 const $ = (id) => document.getElementById(id);
@@ -50,7 +51,7 @@ export async function preparerRole() {
 function construireEtat() {
   const pieces = listerPieces();
   return { pieces, ordres: etatOrdres(), dessins: listerDessins(), horloge: { ms: Math.round(maintenant()), vitesse: vitesse(), enMarche: enMarche() },
-    visibles: { bleu: [...visiblesPour('bleu', pieces)], rouge: [...visiblesPour('rouge', pieces)] } };
+    visibles: { bleu: [...visiblesPour('bleu', pieces, terrain)], rouge: [...visiblesPour('rouge', pieces, terrain)] } };
 }
 
 /** Arbitre dont le navigateur a perdu l'état (données effacées) : on reprend le dernier état publié sur le serveur. */

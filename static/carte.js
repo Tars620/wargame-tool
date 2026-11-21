@@ -4,6 +4,7 @@ import { monter as monterPieces, collection as piecesGeojson, layerSpecs as piec
 import { assembler, valider, versGeoJSON, TAILLE_MAX_OCTETS, CLES_STOCK } from './scenario.js';
 import { preparerRole, remplirPanneau, demarrerSynchronisation } from './partie-ui.js';
 import { monter as monterTemps } from './temps.js';
+import { monter as monterTerrain, configurer as configurerTerrain } from './terrain-carte.js';
 import { monter as monterIa } from './ia.js';
 import { monter as monterMeteo, pourStyle as meteoPourStyle } from './meteo.js';
 import { monter as monterOrdres, noterOperation, collection as consignesGeojson, layerSpecs as consignesCouches, setTheme as themeOrdres, SOURCE_CONSIGNES } from './ordres.js';
@@ -170,6 +171,8 @@ function createMap() {
     monterTemps(map);
     monterMeteo(map, { surChangement: () => render() });
     monterDessin(map);
+    configurerTerrain(state.zone, urlZone(state.zone));
+    monterTerrain(map, 'portee-vision-fond');
     monterPieces(map).then(() => {
       monterOrdres(map); monterIa(map);
       remplirPanneau(); demarrerSynchronisation();
@@ -244,7 +247,7 @@ function fillZones() {
     select.append(Object.assign(document.createElement('option'), { value: z.key, textContent: `${z.label} · ${taille}` }));
   }
   select.value = state.zone.key;
-  select.addEventListener('change', () => { state.zone = state.zones.find((z) => z.key === select.value); majInfoZone(); render().then(flyToZone); });
+  select.addEventListener('change', () => { state.zone = state.zones.find((z) => z.key === select.value); configurerTerrain(state.zone, urlZone(state.zone)); majInfoZone(); render().then(flyToZone); });
 }
 
 function infoZone() {

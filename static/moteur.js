@@ -4,6 +4,7 @@
 import { distanceKm, longueurKm, pointVers } from './geo.js';
 import { aFeu, brouilleursContre, categorie, distanceMinTrajet, enduranceRestante, estDrone, impactZone, minutesRetour, modeFeu, peutDetruire, rayonBrouillage,
   rayonDeSurfaceM, rayonVision, retourPossible } from './regles.js';
+import { ROUTE, eauInterdite, partHorsRoute, premiereEau, routeSeule, voit } from './terrain.js';
 
 export const ALLURES = { prudente: 'Prudente', normale: 'Normale', maximale: 'Maximale' };
 const MARGE_PORTEE = 0.999; // on s'arrête juste à l'intérieur de la portée de feu
@@ -116,12 +117,45 @@ function avertissementsBrouillage(piece, pieces, consigne) {
     .map((q) => `La trajectoire traverse la zone de brouillage de ${q.nom} (${km1(rayonBrouillage(q))} km) : le drone y serait perdu.`);
 }
 
+/** Trajet que la pièce suivrait : les points d'un « aller », ou la route directe vers un point d'arrêt à portée de feu pour « engager ». */
+export function trajetPrevu(piece, pieces, consigne) {
+  if (consigne.type === 'aller' && consigne.points && consigne.points.length) return [position(piece), ...consigne.points];
+  if (consigne.type === 'engager' && aFeu(piece)) {
+    const cible = pieces.find((q) => q.id === consigne.cibleId);
+    if (!cible || cible.detruit) return null;
+    const portee = piece.feu.portee_km || 0, d = distanceKm(position(piece), position(cible));
+    return d > portee ? [position(piece), pointVers(position(piece), position(cible), d - portee * MARGE_PORTEE)] : null;
+  }
+  return null;
+}
+
+/** Terrain : l'eau arrête véhicules et artillerie ; l'artillerie ne va que sur route. Les cellules dont la tuile manque sont signalées, jamais devinées. */
+function controleTerrain(piece, pieces, consigne, terrain) {
+  const erreurs = [], avertissements = [];
+  const trajet = trajetPrevu(piece, pieces, consigne);
+  if (!trajet) return { erreurs, avertissements };
+  if (eauInterdite(piece)) {
+    const eau = premiereEau(trajet, terrain);
+    if (eau) erreurs.push(`Le trajet traverse de l'eau, à ${km1(eau.distanceKm)} km du départ : cette pièce ne peut pas la franchir (hors route ou pont).`);
+  }
+  if (routeSeule(piece) && consigne.type === 'aller') {
+    const but = consigne.points[consigne.points.length - 1];
+    const surRoute = terrain.classe(but[0], but[1]);
+    if (surRoute !== null && !(surRoute & ROUTE)) erreurs.push("Cette pièce ne se déplace que sur route : la destination n'est pas sur une route reconnue.");
+    const h = partHorsRoute(trajet, terrain);
+    if (!erreurs.length && h.part > 0.1) avertissements.push(`${Math.round(h.part * 100)} % du trajet (tracé en ligne droite) n'est pas sur une route : ajoutez des points le long de la route.`);
+  }
+  const m = partHorsRoute(trajet, terrain).inconnues;
+  if (m > 0) avertissements.push('Terrain pas encore chargé sur une partie du trajet : la vérification est incomplète.');
+  return { erreurs, avertissements };
+}
+
 /**
  * Une consigne est-elle compatible avec les capacités de la pièce ?
  * Rend { ok, erreurs, avertissements, distanceKm, dureeMin }. Les erreurs interdisent la consigne,
  * les avertissements la laissent passer (météo, délais).
  */
-export function verifier(piece, consigne, { pieces = [], meteo = null } = {}) {
+export function verifier(piece, consigne, { pieces = [], meteo = null, terrain = null } = {}) {
   const erreurs = [];
   const avertissements = [];
   let distance = 0;
@@ -158,6 +192,7 @@ export function verifier(piece, consigne, { pieces = [], meteo = null } = {}) {
   } else erreurs.push('Consigne inconnue.');
 
   if (!erreurs.length) erreurs.push(...erreursLiaison(piece, pieces, consigne));
+  if (!erreurs.length && terrain && terrain.actif && !estDrone(piece)) { const t = controleTerrain(piece, pieces, consigne, terrain); erreurs.push(...t.erreurs); avertissements.push(...t.avertissements); }
   if (!erreurs.length && estDrone(piece)) erreurs.push(...erreursEndurance(piece, pieces, consigne, duree, v));
   if (!erreurs.length && estDrone(piece) && !piece.immunise_brouillage) avertissements.push(...avertissementsBrouillage(piece, pieces, consigne));
   if (estPoste(piece) && consigne.type === 'aller' && consigne.points && consigne.points.length) {
@@ -177,7 +212,7 @@ export function verifier(piece, consigne, { pieces = [], meteo = null } = {}) {
  * Fait avancer une pièce de `dtMin` minutes de jeu selon sa consigne active.
  * Ne modifie rien : rend { position, consigne (mise à jour), termine, evenements }. `graine` rend déterministes les impacts de tir de zone.
  */
-export function avancer(piece, consigne, dtMin, pieces = [], graine = '') {
+export function avancer(piece, consigne, dtMin, pieces = [], graine = '', terrain = null) {
   const evenements = [];
   const v = vitesse(piece, consigne.allure);
   const pas = (v * dtMin) / 60;
@@ -186,11 +221,14 @@ export function avancer(piece, consigne, dtMin, pieces = [], graine = '') {
   if (consigne.type === 'aller') {
     let reste = pas;
     let etape = consigne.etape || 0;
+    const depart = pos;
     while (reste > 0 && etape < consigne.points.length) {
       const but = consigne.points[etape];
       const d = distanceKm(pos, but);
       if (reste >= d) { pos = [but[0], but[1]]; reste -= d; etape += 1; } else { pos = pointVers(pos, but, reste); reste = 0; }
     }
+    const arret = arretEau(piece, depart, pos, terrain);
+    if (arret) { evenements.push({ type: 'bloque', cause: 'eau', pieceId: piece.id, position: arret }); return { position: arret, consigne: { ...consigne, etape }, termine: true, evenements }; }
     const termine = etape >= consigne.points.length;
     if (termine) evenements.push({ type: 'arrivee', pieceId: piece.id, position: pos });
     return { position: pos, consigne: { ...consigne, etape }, termine, evenements };
@@ -232,11 +270,23 @@ export function avancer(piece, consigne, dtMin, pieces = [], graine = '') {
     return { position: pos, consigne, termine: true, evenements };
   }
   const avance = Math.min(pas, d - portee * MARGE_PORTEE);
-  return { position: pointVers(pos, position(cible), avance), consigne, termine: false, evenements };
+  const nouvelle = pointVers(pos, position(cible), avance);
+  const arret = arretEau(piece, pos, nouvelle, terrain);
+  if (arret) { evenements.push({ type: 'bloque', cause: 'eau', pieceId: piece.id, position: arret }); return { position: arret, consigne, termine: true, evenements }; }
+  return { position: nouvelle, consigne, termine: false, evenements };
+}
+
+/** Dernier point sec d'un déplacement qui entrerait dans l'eau (pièce sensible à l'eau, sous terrain actif) ; null si rien ne l'arrête. */
+function arretEau(piece, de, vers, terrain) {
+  if (!terrain || !terrain.actif || !eauInterdite(piece) || estDrone(piece)) return null;
+  const eau = premiereEau([de, vers], terrain);
+  if (!eau) return null;
+  const d = distanceKm(de, eau.point);
+  return d > 0.03 ? pointVers(de, vers, d - 0.025) : de;
 }
 
 /** Contacts : pour chaque pièce, les pièces adverses comprises dans son rayon de vision. */
-export function contacts(pieces) {
+export function contacts(pieces, terrain = null) {
   const trouves = [];
   for (const obs of pieces) {
     if (obs.detruit || (estDrone(obs) && obs.etat !== 'vol')) continue; // un drone au sol n'observe rien
@@ -245,15 +295,15 @@ export function contacts(pieces) {
     for (const cible of pieces) {
       if (cible.detruit || cible.camp === obs.camp) continue;
       const d = distanceKm(position(obs), position(cible));
-      if (d <= rayon) trouves.push({ observateurId: obs.id, cibleId: cible.id, distanceKm: d });
+      if (d <= rayon && voit(obs, cible, terrain)) trouves.push({ observateurId: obs.id, cibleId: cible.id, distanceKm: d });
     }
   }
   return trouves;
 }
 
 /** Ce que voit un camp : ses propres pièces, plus les pièces adverses dans la vision de l'une des siennes. */
-export function visiblesPour(camp, pieces) {
+export function visiblesPour(camp, pieces, terrain = null) {
   const visibles = new Set(pieces.filter((p) => p.camp === camp && !p.detruit).map((p) => p.id));
-  for (const c of contacts(pieces)) if (pieces.find((p) => p.id === c.observateurId).camp === camp) visibles.add(c.cibleId);
+  for (const c of contacts(pieces, terrain)) if (pieces.find((p) => p.id === c.observateurId).camp === camp) visibles.add(c.cibleId);
   return visibles;
 }

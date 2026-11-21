@@ -1,11 +1,12 @@
 import { distanceKm, formatKm, formatDuree } from './geo.js';
-import { ALLURES, avancer, contacts, estPoste, position, etatLiaison, exigePoste, phraseLiaison, verifier, visiblesPour, vitesse } from './moteur.js';
+import { ALLURES, avancer, contacts, estPoste, position, etatLiaison, exigePoste, phraseLiaison, trajetPrevu, verifier, visiblesPour, vitesse } from './moteur.js';
+import { terrain } from './terrain-carte.js';
 import { PARIS, date, heure } from './fuseaux.js';
 import { maintenant, surTick } from './temps.js';
 import { listerPieces, pieceChoisie, choisirPiece, positionner, appliquerVisibilite, detruire, restaurer, rafraichirPortees, modifier } from './pieces.js';
 import { estJoueur, role } from './role.js';
 import { empiler, envoyerOrdre } from './partie.js';
-import { aFeu, brouilleSur, doitRentrer, effets, enVol, enduranceRestante, estDrone, retourPossible } from './regles.js';
+import { aFeu, brouilleSur, doitRentrer, effets, enVol, enduranceRestante, estDrone, rayonVision, retourPossible } from './regles.js';
 import { conditions } from './meteo.js';
 
 export const SOURCE_CONSIGNES = 'consignes';
@@ -88,7 +89,9 @@ function nouvelleConsigne(piece) {
 async function bilan(piece, consigne, pieces) {
   let meteo = null;
   if (piece.meteo_max) { try { meteo = await conditions(piece.lng, piece.lat, maintenant()); } catch { meteo = null; } }
-  return verifier(piece, consigne, { pieces, meteo });
+  const trajet = trajetPrevu(piece, pieces, consigne);
+  if (trajet && !estDrone(piece)) { try { await terrain.assurerChemin(trajet); } catch { /* le terrain manquant est signalé par verifier */ } }
+  return verifier(piece, consigne, { pieces, meteo, terrain });
 }
 
 async function dessinerBilan() {
@@ -159,7 +162,7 @@ export async function traiterCommande(cmd) {
     return { ok: true, message: 'Consigne annulée.' };
   }
   const c = { id: newId(), statut: 'lance', ...cmd.corps.consigne };
-  if (c.type === 'engager' && !visiblesPour(cmd.side, pieces).has(c.cibleId)) return { ok: false, message: 'Cette cible n\'est pas détectée par votre camp.' };
+  if (c.type === 'engager' && !visiblesPour(cmd.side, pieces, terrain).has(c.cibleId)) return { ok: false, message: 'Cette cible n\'est pas détectée par votre camp.' };
   const r = await bilan(piece, c, pieces);
   if (!r.ok) return { ok: false, message: r.erreurs.join(' ') };
   ajouterConsignes([{ ref: piece.id, consigne: c.type === 'aller' ? { ...c, distanceKm: r.distanceKm } : c }]);
@@ -245,6 +248,7 @@ function evenement(t, e, pieces) {
   if (e.type === 'arrivee') noter(t, `${nom} est arrivé à destination.`, 'info', cotes(pieces, e.pieceId));
   else if (e.type === 'fin_observation') noter(t, `${nom} termine son observation.`, 'info', cotes(pieces, e.pieceId));
   else if (e.type === 'cible_perdue') noter(t, `${nom} : cible introuvable ou déjà détruite, engagement annulé.`, 'alerte', cotes(pieces, e.pieceId));
+  else if (e.type === 'bloque') noter(t, `${nom} s'arrête : l'eau lui barre la route.`, 'alerte', cotes(pieces, e.pieceId));
   else if (e.type === 'sans_equipe') noter(t, `${nom} : plus d'équipe de pilotes où se poser.`, 'alerte', cotes(pieces, e.pieceId));
   else if (e.type === 'atterri') {
     const p = pieces.find((q) => q.id === e.pieceId);
@@ -302,10 +306,19 @@ function suivreBrouillage(t) {
   }
 }
 
+/** Charge le terrain autour des pièces qui observent (leur vision, 1,2 km au moins) : ce que le moteur lit ne doit jamais attendre le réseau. */
+function preparerTerrain(pieces) {
+  if (!terrain.actif) return;
+  const points = pieces.filter((p) => !p.detruit).map((p) => [p.lng, p.lat]);
+  const rayon = Math.max(1.2, ...pieces.map((p) => rayonVision(p.vision) + 0.2));
+  terrain.assurerPoints(points, rayon).catch(() => {});
+}
+
 function pas(t, dtMs) {
   if (estJoueur()) return; // la simulation tourne chez l'arbitre ; un joueur reçoit son état
   const dtMin = dtMs / 60000;
   const pieces = listerPieces();
+  preparerTerrain(pieces);
   suivreEquipes(pieces);
   let change = false;
   for (const piece of pieces) {
@@ -321,7 +334,7 @@ function pas(t, dtMs) {
       noter(t, `${piece.nom} : début « ${libelle(c, pieces)} ».`, 'info', [piece.camp]);
       if (estDrone(piece) && !enVol(piece)) { modifier(piece.id, { etat: 'vol' }); pc = { ...piece, etat: 'vol' }; noter(t, `${piece.nom} décolle.`, 'info', [piece.camp]); }
     }
-    const r = avancer(pc, c, dtMin, pieces, String(Math.floor(t / 1000)));
+    const r = avancer(pc, c, dtMin, pieces, String(Math.floor(t / 1000)), terrain);
     if (exigePoste(piece) && r.position && c.type !== 'rentrer') { // l'équipe a pu bouger : jamais plus loin que la portée du drone
       const l = etatLiaison({ ...piece, lng: r.position[0], lat: r.position[1] }, pieces);
       if (!l.ok && l.raison === 'hors_portee') {
@@ -361,7 +374,7 @@ function suivreLiaisons(t) {
 
 function suivreContacts(t) {
   const pieces = listerPieces();
-  const maintenantVus = new Set(contacts(pieces).map((c) => `${c.observateurId}>${c.cibleId}`));
+  const maintenantVus = new Set(contacts(pieces, terrain).map((c) => `${c.observateurId}>${c.cibleId}`));
   for (const cle of maintenantVus) if (!state.contactsVus.has(cle)) {
     const [o, c] = cle.split('>');
     const d = distanceKm([pieces.find((p) => p.id === o).lng, pieces.find((p) => p.id === o).lat], [pieces.find((p) => p.id === c).lng, pieces.find((p) => p.id === c).lat]);
@@ -372,7 +385,7 @@ function suivreContacts(t) {
 
 function majVisibilite() {
   if (state.pointDeVue === 'arbitre') { appliquerVisibilite(null); return; }
-  appliquerVisibilite(visiblesPour(state.pointDeVue, listerPieces()));
+  appliquerVisibilite(visiblesPour(state.pointDeVue, listerPieces(), terrain));
 }
 
 // ---------- couches de la carte ----------
@@ -506,6 +519,7 @@ export function monter(map) {
   state.journal = estJoueur() ? [] : lire(STORAGE_JOURNAL, []);
   map.on('click', (e) => { if (state.pointage) pointer(e.lngLat); });
   document.addEventListener('wg:piece', () => dessinerConsignes());
+  document.addEventListener('wg:terrain', () => { if (estJoueur()) return; suivreContacts(maintenant()); majVisibilite(); dessinerBilan(); });
   document.addEventListener('wg:pieces', () => {
     const ids = new Set(listerPieces().map((p) => p.id));
     state.ordres = Object.fromEntries(Object.entries(state.ordres).filter(([id]) => ids.has(id)));

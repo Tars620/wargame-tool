@@ -117,6 +117,15 @@ Valeurs documentées par l'utilisateur ; les valeurs **estimées** sont signalé
 - **À venir (phases suivantes)** : rôles arbitre / rouge / bleu avec vues filtrées côté serveur ; terrain (forêt, eau, routes) pour la visibilité et les déplacements ; itinéraire routier de l'artillerie.
 - **Filet de sécurité** : si la carte n'a pas pu démarrer (fichiers de versions mélangées pendant une mise à jour), la page se recharge seule, jusqu'à trois fois, puis affiche la cause au lieu de rester vide.
 
+## Terrain (forêt, eau, routes)
+Le moteur lit le terrain dans les mêmes tuiles vectorielles que la carte (zoom 14, via `static/mvt.js` et `static/terrain.js`) et le rasterise en cellules d'environ 6 m.
+- **Plaine** : visibilité totale. **Forêt** : cache toute pièce qui s'y trouve (un drone ne voit pas un fantassin sous les arbres, ni un fantassin voisin) et, au sol, la forêt entre deux pièces coupe la ligne de vue. À moins de 50 m on se voit toujours.
+- **Eau** : arrête les véhicules et l'artillerie, sauf sur une route (pont). Une consigne qui la traverse est refusée avec la distance, et un déplacement en cours s'arrête au bord, avec une ligne au journal. Les fantassins, brouilleurs et équipes de pilotes passent.
+- **Route** : l'artillerie ne va que sur route. Sa destination doit être sur une route reconnue ; le trajet reste tracé en ligne droite entre les points, avec un avertissement si plus de 10 % est hors route. Les routes carrossables seules comptent (ni chemins piétons, ni rail).
+- **Tuile pas encore arrivée** : jamais devinée. Elle est traitée comme cachée pour la visibilité (aucune fuite entre camps) et la vérification d'une consigne le signale. Une tuile en échec devient de la plaine et est comptée.
+- **Zone hors ligne** (zoom maximum inférieur à 14) : le terrain est indisponible et tout est de la plaine, comme avant. Le panneau « Terrain » (arbitre) le dit, permet de couper les règles et de **voir ce que lit le moteur** (forêt verte, eau bleue, route orange).
+- Limites : le terrain n'est pas encore un routage (phase suivante : l'artillerie suivra les routes toute seule) ; les bâtiments ne bloquent rien ; le réglage « Appliquer le terrain » est local à chaque navigateur (l'arbitre fait foi).
+
 ## Parties en ligne et rôles (arbitre, bleu, rouge)
 
 - **Créer** : panneau de gauche « Partie en ligne », bouton « Créer une partie en ligne ». Trois liens sont fournis : un par camp, et un lien arbitre (rouvre la partie si l'onglet est fermé : ne pas le donner aux joueurs). Les liens utilisent l'adresse réseau de cet ordinateur. Sans partie, la carte fonctionne seule, comme avant.
