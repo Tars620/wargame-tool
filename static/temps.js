@@ -180,7 +180,11 @@ function commandes() {
     entree("Régler la date et l'heure…", () => basculerReglage(true), null)
   );
   menu.replaceChildren(...items);
-  boite.replaceChildren(principal, menu);
+  // L'opération démarre ici : tant que l'horloge est en pause, rien n'avance (consignes, drones, tirs).
+  const lancer = bouton("Lancer l'opération", () => (state.enMarche ? arreter() : demarrer()));
+  lancer.id = 'h-lancer';
+  lancer.className = 'lancer';
+  boite.replaceChildren(lancer, principal, menu);
   ouvrirMenu = menuDeroulant(boite, principal, menu, majCommandes);
 }
 
@@ -190,6 +194,12 @@ function majCommandes() {
   const texte = state.enMarche ? 'Pause' : 'Reprendre';
   if (b.textContent !== texte) b.textContent = texte;
   for (const v of document.querySelectorAll('#menu-temps [data-vitesse]')) v.setAttribute('aria-checked', String(Number(v.dataset.vitesse) === state.vitesse));
+  const lancer = $('h-lancer');
+  if (lancer) {
+    const t = state.enMarche ? "Opération en cours · Pause" : "Lancer l'opération";
+    if (lancer.textContent !== t) lancer.textContent = t;
+    lancer.dataset.etat = state.enMarche ? 'marche' : 'pause';
+  }
   const principal = $('h-temps');
   if (principal) principal.dataset.etat = state.enMarche ? 'marche' : 'pause';
 }

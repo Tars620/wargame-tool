@@ -123,6 +123,7 @@ function panneau() {
     return h('li', {}, pastille, texte);
   };
   boite.replaceChildren(
+    ...[
     h('label', { class: 'opt' }, case_, h('span', {}, 'Zones tenues, gagnées et perdues')),
     reglage.actif
       ? h(
@@ -146,6 +147,7 @@ function panneau() {
           )
         )
       : null
+    ].filter(Boolean) // replaceChildren écrirait « null » pour un élément absent
   );
 }
 

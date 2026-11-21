@@ -75,6 +75,9 @@ button:hover { border-color: var(--accent); }
 .pion.en-vol::after { content: ''; position: absolute; left: 50%; top: 50%; width: 18px; height: 7px; transform: translate(-50%, -50%); background: radial-gradient(ellipse at center, rgba(0,0,0,.6), transparent 70%); border-radius: 50% !important; }
 .pion.en-vol.choisi { outline: 0; } .pion.en-vol.choisi .symbole { outline: 2px solid var(--accent); outline-offset: 3px; }
 .symbole .halo, .symbole .tag { display: none; position: absolute; pointer-events: none; }
+/* Drone posé : même anneau, fin et immobile ; en vol il s'anime et le drone monte. */
+.pion[data-drone] .halo { display: block; left: 50%; top: 50%; width: 38px; height: 38px; margin: -19px 0 0 -19px; border: 1px dashed var(--c); border-radius: 50% !important; opacity: .55; }
+.pion[data-drone]:not(.en-vol) .symbole { filter: drop-shadow(0 0 5px var(--c)); }
 .pion.en-vol .halo { display: block; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border: 1.5px solid var(--c); border-radius: 50% !important; opacity: .85; }
 .pion.en-vol[data-drone=isr] .halo { border-style: dashed; animation: balayage 6s linear infinite; }
 .pion.en-vol[data-drone=owa] .halo { border-width: 2px; box-shadow: 0 0 10px var(--c), inset 0 0 8px var(--c); animation: pouls 1.4s ease-in-out infinite; }
@@ -129,6 +132,8 @@ details[open] > summary::before { transform: rotate(45deg); margin-bottom: 4px; 
 .temps-cmd > button:hover, .seg > button:hover, .temps-cmd > button[aria-expanded=true], .seg > button[aria-expanded=true] { background: var(--panneau-2); }
 .temps-cmd > button::after, .seg > button::after { content: ''; display: inline-block; margin: 0 0 2px 8px; border: 4px solid transparent; border-top-color: var(--texte-2); border-bottom-width: 0; }
 .temps-cmd > button[data-etat=pause] { color: var(--accent); }
+.temps-cmd > button.lancer::after { display: none; } .temps-cmd > button.lancer { box-shadow: inset 0 -2px 0 var(--accent); color: var(--accent); }
+.temps-cmd > button.lancer[data-etat=marche] { box-shadow: none; color: var(--texte-2); }
 .menu-temps { position: absolute; top: 100%; right: 0; z-index: 14; min-width: 230px; display: flex; flex-direction: column; padding: 4px 0; background: var(--panneau); border: 1px solid var(--trait-fort); border-top: 0; }
 .menu-temps[hidden] { display: none; }
 .menu-temps button { display: block; width: 100%; height: 30px; padding: 0 14px; border: 0; background: transparent; text-align: left; font-size: var(--t-base); white-space: pre; }

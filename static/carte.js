@@ -340,7 +340,8 @@ function boundsFor(zone) {
   ];
 }
 
-async function render() {
+/** Reconstruit le style. `complet` : tout recharger (changement de thème ou de relief 3D : la mise à jour par différences laissait des couches dans l'ancien thème). */
+async function render({ complet = false } = {}) {
   if (state.fond === 'nasa' && !state.nasaDate) {
     $('err').textContent = 'Recherche de la dernière image NASA…';
     state.nasaDate = await latestNasaDate();
@@ -352,7 +353,7 @@ async function render() {
     state.map = createMap();
     return;
   }
-  state.map.setStyle(style, { diff: true });
+  state.map.setStyle(style, { diff: !complet });
   state.map.setMaxZoom(zoomMax(state.zone));
   state.map.setMaxBounds(boundsFor(state.zone) || null);
 }
@@ -392,7 +393,7 @@ function fillTheme() {
       state.theme = cle;
       ecrireTexte(THEME_KEY, cle);
       fillTheme();
-      render().then(majThemeDessin);
+      render({ complet: true }).then(majThemeDessin);
     });
     menu.append(b);
   }
@@ -679,7 +680,7 @@ async function start() {
   $('relief3d').addEventListener('change', (e) => {
     state.relief3d = e.target.checked;
     majRelief();
-    render().then(setPitch);
+    render({ complet: true }).then(setPitch);
   });
   majRelief();
   await render();
