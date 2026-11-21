@@ -44,6 +44,29 @@ const vecteur = (flavor) => nomsFrancais(layers('protomaps', flavor, { lang: 'fr
 
 const isOverlay = (layer) => ['boundaries', 'places'].includes(layer['source-layer']) || layer.id.includes('label');
 
+// Frontières lisibles sur tout fond : couleur et épaisseur imposées (celles du thème étaient presque invisibles).
+const COULEUR_FRONTIERE = { plan: '#a3a6b0', satellite: '#ffffff' };
+function frontieres(couches, couleur) {
+  return couches.map((l) => {
+    if (l['source-layer'] !== 'boundaries' || l.type !== 'line') return l;
+    const pays = l.id === 'boundaries_country';
+    const largeur = pays ? ['interpolate', ['linear'], ['zoom'], 1, 0.9, 5, 1.5, 9, 2.2] : ['interpolate', ['linear'], ['zoom'], 3, 0.5, 9, 1.2];
+    return { ...l, paint: { ...l.paint, 'line-color': couleur, 'line-width': largeur, 'line-opacity': pays ? 0.95 : 0.55 } };
+  });
+}
+
+// Noms blancs cerclés de noir : lisibles sur une photo.
+function textesLisibles(couches) {
+  return couches.map((l) => (l.type === 'symbol'
+    ? { ...l, paint: { ...l.paint, 'text-color': '#ffffff', 'text-halo-color': '#000000', 'text-halo-width': 1.6 } } : l));
+}
+
+// Le plan avec (ou sans) ses frontières et ses noms : la case s'applique à tous les fonds.
+function plan(labels) {
+  const couches = frontieres(vecteur(flavorNoir()), COULEUR_FRONTIERE.plan);
+  return labels ? couches : couches.filter((l) => !isOverlay(l));
+}
+
 function hillshade() {
   return { id: 'hillshade', type: 'hillshade', source: 'dem', paint: {
     'hillshade-exaggeration': 0.5, 'hillshade-shadow-color': '#000000',
@@ -51,15 +74,15 @@ function hillshade() {
 }
 
 function layersFor(fond, labels) {
-  if (fond === 'plan') return vecteur(flavorNoir());
+  if (fond === 'plan') return plan(labels);
   if (fond === 'relief') {
-    const vec = vecteur(flavorNoir());
+    const vec = plan(labels);
     const at = Math.max(vec.findIndex((l) => l.id === 'water'), 0);
     return [...vec.slice(0, at), hillshade(), ...vec.slice(at)];
   }
   const imagery = { id: 'imagerie', type: 'raster', source: 'imagerie' };
   const dark = { id: 'fond', type: 'background', paint: { 'background-color': '#0a0a0c' } };
-  const overlay = labels ? vecteur(namedFlavor('black')).filter(isOverlay) : [];
+  const overlay = labels ? textesLisibles(frontieres(vecteur(namedFlavor('black')).filter(isOverlay), COULEUR_FRONTIERE.satellite)) : [];
   return [dark, imagery, ...overlay];
 }
 
